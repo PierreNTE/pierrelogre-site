@@ -144,6 +144,8 @@ const SFX = {
   flutter(){ for(let i=0;i<6;i++) noise(.05,.25,1800,i*.05,2); },
   slurp(){ tone(200,90,.4,'sawtooth',.08); noise(.4,.2,600,.1); },
   pop(){ tone(500,1200,.08,'sine',.18); },
+  ding(){ tone(880,880,.12,'sine',.09); tone(1320,1320,.2,'sine',.07,.08); },
+  tada(){ [523,659,784].forEach((f,i)=>tone(f,f,.16,'triangle',.11,i*.09)); tone(1047,1047,.55,'triangle',.11,.27); tone(1319,1319,.55,'sine',.05,.27); noise(.6,.06,4000,.27,.5); },
   question(){ tone(420,620,.12,'sine',.12); tone(620,560,.1,'sine',.08,.12); },
   slip(){ noise(.35,.4,280,0,2); tone(500,120,.5,'sawtooth',.06,.05); noise(.2,.3,600,.3,3); },
   acorn(){ [784,988,1175,1568].forEach((f,i)=>tone(f,f,.16,'triangle',.13,i*.07)); },

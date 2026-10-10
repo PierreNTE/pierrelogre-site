@@ -269,4 +269,36 @@ Object.assign(T.en.ach, {
   bavard: ["Chatterbox", "200 yaps."], touriste: ["Tourist", "5 train rides."],
 });
 
+/* ---------- 5.7 : première visite guidée, commandes tactiles ---------- */
+Object.assign(T.fr, {
+  tDrop: "Poser",
+  tuto: {
+    skip: "Passer", more: "La suite est ici !", n: (i, tot) => `Bêtise ${i}/${tot}`,
+    steps: {
+      yap: ["Fais peur au jardinier", "Suis la flèche, approche-toi et glapis : <kbd>Espace</kbd>", "Suis la flèche, approche-toi et touche <b>Glapir</b>"],
+      knock: ["Il a remis son chapeau…", "Glapis encore près de lui : <kbd>Espace</kbd>", "Glapis encore près de lui : <b>Glapir</b>"],
+      grab: ["Vole son chapeau !", "Vite, avant lui : <kbd>E</kbd> pour attraper", "Vite, avant lui : touche <b>Attraper</b>"],
+      again: ["Reprends le chapeau", "<kbd>E</kbd> pour attraper", "Touche <b>Attraper</b>"],
+      fountain: ["Jette-le dans la fontaine", "Cours (<kbd>Maj</kbd>) et lâche-le dans l'eau : <kbd>E</kbd>", "Joystick à fond pour courir, puis <b>Poser</b> dans l'eau"],
+      done: ["Bien joué, petit renard !", "Le jardinier va devoir aller à la pêche. Ta liste de bêtises est dans le carnet."],
+    },
+  },
+  dest: { fontaine: "Fontaine", cafe: "Café", terrier: "Terrier", jardinier: "Jardinier", chapeau: "Chapeau" },
+});
+Object.assign(T.en, {
+  tDrop: "Drop",
+  tuto: {
+    skip: "Skip", more: "More mischief here!", n: (i, tot) => `Mischief ${i}/${tot}`,
+    steps: {
+      yap: ["Startle the gardener", "Follow the arrow, get close and yap: <kbd>Space</kbd>", "Follow the arrow, get close and tap <b>Yap</b>"],
+      knock: ["He put his hat back on…", "Yap at him again: <kbd>Space</kbd>", "Yap at him again: <b>Yap</b>"],
+      grab: ["Steal his hat!", "Quick, before he does: <kbd>E</kbd> to grab", "Quick, before he does: tap <b>Grab</b>"],
+      again: ["Grab the hat again", "<kbd>E</kbd> to grab", "Tap <b>Grab</b>"],
+      fountain: ["Drop it in the fountain", "Run (<kbd>Shift</kbd>) and drop it in the water: <kbd>E</kbd>", "Push the stick all the way to run, then <b>Drop</b> it in the water"],
+      done: ["Nice one, little fox!", "The gardener will have to go fishing. Your mischief list is in the notebook."],
+    },
+  },
+  dest: { fontaine: "Fountain", cafe: "Coffee", terrier: "Den", jardinier: "Gardener", chapeau: "Hat" },
+});
+
 export { T };

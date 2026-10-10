@@ -47,6 +47,9 @@ function updateFox(dt){
   fox.vel.x+=(ix*speed-fox.vel.x)*Math.min(1,dt*12); fox.vel.z+=(iz*speed-fox.vel.z)*Math.min(1,dt*12);
   const bx=fox.pos.x, bz=fox.pos.z;
   fox.pos.addScaledVector(fox.vel,dt); resolve(fox.pos,fox.r);
+  // Contre un obstacle, il glisse le long : on ne garde que la vitesse réellement parcourue (la part qui longe le mur),
+  // au lieu de courir sur place contre le mur (animation, bruit de pas et caméra suivent la vraie vitesse)
+  if(dt>0){ const ex=(fox.pos.x-bx)/dt, ez=(fox.pos.z-bz)/dt; if(ex*ex+ez*ez<fox.vel.x*fox.vel.x+fox.vel.z*fox.vel.z-1e-4){ fox.vel.x=ex; fox.vel.z=ez; } }
   const v=Math.hypot(fox.vel.x,fox.vel.z);
   if(m>.1){ fox.yaw=lerpAngle(fox.yaw,Math.atan2(ix,iz),Math.min(1,dt*14)); fox.idle=0; } else fox.idle+=dt;
   // pousser les objets

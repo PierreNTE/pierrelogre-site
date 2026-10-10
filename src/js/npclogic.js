@@ -160,7 +160,7 @@ export function updateNPC(n, dt) {
       const rim = rimPoint(n);
       if (steer(n, rim, 3.1, dt) < .35) { setState(n, 'fish'); n.fishItem = it; }
     } else {
-      const d = steer(n, it.held ? fox.pos : it.pos, it.held ? 3.9 : 3.3, dt);
+      const d = steer(n, it.held ? fox.pos : it.pos, (it.held ? 3.9 : 3.3) * (n.easeK || 1), dt);   // easeK : plus lent pendant la visite guidée
       if (it.held && d < 1.0) {
         fox.held = null; it.held = false; grabByNPC(n, it); SFX.drop(); say(n, t().caught, '', 1.4); run.caught++;
         fox.vel.addScaledVector(foxForward(), -7); fox.stunT = .8; SFX.stun(); say(fox, '💫', 'stun', .9, 1.7, 'stun');

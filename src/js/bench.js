@@ -7,6 +7,7 @@
 import { RG, REGIONS, teleport, unlockRegion } from './regions.js';
 import { renderer } from './engine.js';
 import { Q } from './quality.js';
+import { PACE, refreshHz } from './pacer.js';
 import { DAY, S, t } from './state.js';
 
 const fr = () => S.lang === 'fr';
@@ -62,7 +63,7 @@ const mk = n => { const e = performance.getEntriesByName(n)[0]; return e ? (e.st
 function showResults(rows, secs) {
   const ff = performance.getEntriesByName('fox:first-frame')[0];
   const head = [`pierrelogre.com · ${fr() ? 'test de performance' : 'performance test'} · ${new Date().toISOString().slice(0, 16).replace('T', ' ')}`,
-    `${navigator.userAgent}`, `${fr() ? 'Écran' : 'Screen'} ${innerWidth}×${innerHeight} ×${devicePixelRatio} · GPU ${gpuName()}`,
+    `${navigator.userAgent}`, `${fr() ? 'Écran' : 'Screen'} ${innerWidth}×${innerHeight} ×${devicePixelRatio} · ≈ ${refreshHz() || '?'} Hz${PACE.cap ? (fr() ? ' (en jeu : plafonné à 60 i/s ; pas pendant ce test)' : ' (in play: capped to 60 fps; not during this test)') : ''} · GPU ${gpuName()}`,
     `${fr() ? 'Première image' : 'First frame'} : ${ff ? (ff.startTime / 1000).toFixed(1) + ' s' : '?'} (${fr() ? 'script' : 'script'} ${mk('fox:built')} · ${fr() ? 'fusion' : 'bake'} ${mk('fox:baked')}) · ${fr() ? 'durée du test' : 'test length'} ${secs.toFixed(0)} s`];
   const body = rows.map(r => `${r.label.slice(0, 24).padEnd(24)} ${r.fps.toFixed(0).padStart(3)} ${fr() ? 'i/s' : 'fps'}  p95 ${r.p95.toFixed(0).padStart(3)} ms  ${String(r.calls).padStart(3)} ${fr() ? 'appels' : 'calls'}  ${(r.tris / 1000).toFixed(0).padStart(4)} k tri  Q${r.tier} ×${r.pr.toFixed(2)}`);
   const worst = rows.reduce((a, r) => r.fps < a.fps ? r : a, rows[0]);

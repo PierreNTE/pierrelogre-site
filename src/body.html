@@ -1,4 +1,3 @@
-<div id="loader" role="status"><div><span class="run" aria-hidden="true">🦊</span><p data-t="loading"></p><button id="loaderSkip" hidden data-t="skip"></button></div></div>
 <canvas id="game" tabindex="0" aria-label="Monde du jeu : un renard dans un village et un bureau"></canvas>
 <div id="vignette" aria-hidden="true"></div>
 <div id="bubbles"></div>
@@ -26,9 +25,12 @@
 
 <div id="help"></div>
 <div id="toasts" aria-live="polite"></div>
+<div id="tuto" hidden role="status" aria-live="polite"><small></small><b></b><span></span><button id="tutoSkip" type="button"></button></div>
+<div id="tutoChev" hidden aria-hidden="true"><i>▼</i></div>
 
 <div id="touch">
-  <div id="stick"><div id="knob"></div></div>
+  <div id="stickZone" aria-hidden="true"></div>
+  <div id="stick" aria-hidden="true"><div id="knob"></div></div>
   <div id="tbtns">
     <button id="tSneak" class="small" aria-pressed="false" data-t="tSneak"></button>
     <button id="tZoom" class="small" data-t="tZoom"></button>
@@ -41,15 +43,16 @@
   <div class="card">
     <button class="chip langs" id="langBtn2" aria-label="Language">EN</button>
     <h2 class="title" id="introH1"></h2>
-    <p data-t="introP"></p>
+    <p id="introP" data-t="introP"></p>
     <div class="keys" id="introKeys"></div>
     <div class="card-actions">
-      <button class="big" id="startBtn" data-t="start"></button>
-      <button class="alt-btn" id="dailyBtn" data-t="daily"></button>
+      <button class="big" id="startBtn" data-t="start" aria-busy="true"></button>
+      <button class="alt-btn" id="dailyBtn" data-t="daily" aria-busy="true"></button>
       <button class="alt" id="newBtn" hidden data-t="newGame"></button>
     </div>
-    <p class="daily-note"><span data-t="dailyNote"></span> <span id="dailyBest"></span></p>
+    <p class="daily-note"><span id="dailyNoteTxt" data-t="dailyNote"></span> <span id="dailyBest"></span></p>
     <button class="alt who-link" id="introWho" data-t="introWho"></button>
+    <button class="alt who-link" id="loaderSkip" hidden data-t="skip"></button>
   </div>
 </div>
 

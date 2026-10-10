@@ -15,13 +15,15 @@ import { HERDS, updateFauna } from './fauna.js';
 import { grade, updateDaytime } from './daytime.js';
 import { benchFrame, initBench } from './bench.js';
 import { updateStory } from './story.js';
+import { TUTO, beginTuto, renderTuto, skipTuto, tutoDest, tutoEligible, updateTuto } from './tutorial.js';
+import { PACE, pace } from './pacer.js';
 import { HOOKS } from './hooks.js';
-import { CAM_OFF, RM, SUN_OFF, TX, U, WALK, bake, blobTex, blockedAt, cam, cullBaked, hemi, outlineLOD, camera, canvas, flat2, renderer, resolve, scene, setBuild, setZoom, sun, updateBlobs, world } from './engine.js';
+import { CAM_OFF, RM, SUN_OFF, TX, U, WALK, bake, blobTex, blockedAt, cam, cullBaked, hemi, isTouch, outlineLOD, camera, canvas, flat2, renderer, resolve, scene, setBuild, setZoom, sun, updateBlobs, world } from './engine.js';
 import { fox, prints } from './fox.js';
 import { updateFox, updateProps } from './foxupdate.js';
 import { PMAX, _o, emit, leafCols, leafMesh, leaves, pMesh, parts } from './fx.js';
 import { $, applyLang, autoHint, bubbles, completeGoal, fmt, hintEl, onFinish, onLang, posOf, renderGoals, say, showEndCard, showFact, toScreen, toast, toggleLang, toggleNotebook, updateDestArrow } from './hud.js';
-import './input.js';
+import { stick } from './input.js';
 import { baguette, carrots, eggs, interacts, items, mug, plug, props } from './items.js';
 import { drawBirds, gardener, npcs, sales } from './npc.js';
 import { NAV, animateNPC, buildNav, canSee, findPath, los, updateNPC } from './npclogic.js';
@@ -56,7 +58,10 @@ function respawnLeaf(l, i) {
   leafMesh.setColorAt(i, snow ? SNOW : _lc.set(pick(leafCols))); return true;
 }
 
-function frame() {
+const tGrab = $('#tGrab'); let grabUi = null;
+function frame(ts) {
+  // Écran à 120 Hz ou plus : 60 images par seconde régulières (pacer.js) ; le test de performance mesure sans plafond
+  if (!pace(ts, S.bench)) { requestAnimationFrame(frame); return; }
   const dt = Math.min(clock.getDelta(), .05);
   const now = performance.now() / 1000;
   U.uTime.value = now;
@@ -127,7 +132,7 @@ function frame() {
   leafMesh.instanceMatrix.needsUpdate = true; if (leafCol) leafMesh.instanceColor.needsUpdate = true;
   for (const p of prints) { if (p.t > 0) { p.t -= dt; p.m.material.opacity = Math.min(.55, p.t * .3); if (p.t <= 0) p.m.visible = false; } }
   // Destination de l'objet porté : anneau au sol + flèche au bord de l'écran
-  const dest = !S.paused ? destinationFor(fox.held) : null;
+  const dest = !S.paused ? (destinationFor(fox.held) || tutoDest()) : null;
   ring.visible = !!dest;
   if (dest) { const pulse = 1 + Math.sin(now * 5) * .06; ring.position.set(dest.pos.x, .06, dest.pos.z); ring.scale.setScalar(dest.r * pulse); ring.material.opacity = .45 + Math.sin(now * 5) * .15; if (Math.random() < dt * 6) emit(new THREE.Vector3(dest.pos.x + rnd(-1, 1) * dest.r, .3, dest.pos.z + rnd(-1, 1) * dest.r), '#ffd08a', { n: 1, spd: .2, up: 1.4, life: 1, grav: -.3, size: .6 }); }
   // Caméra (en portrait, on regarde un peu plus au sud pour dégager le bas de l'écran)
@@ -163,7 +168,7 @@ function frame() {
   updateBlobs(); drawBirds(); cullBaked();
   renderer.render(scene, camera);
   sampleQuality(); benchFrame();
-  if (!window.__foxReady) { window.__foxReady = true; performance.mark('fox:first-frame'); const l = $('#loader'); if (l) l.hidden = true; }
+  if (!window.__foxReady) { window.__foxReady = true; performance.mark('fox:first-frame'); }
   // Bulles, indice « E », flèche, chrono
   for (let i = bubbles.length - 1; i >= 0; i--) {
     const b = bubbles[i]; b.t -= dt;
@@ -173,7 +178,9 @@ function frame() {
   }
   const nt = !S.paused && !S.mg && !fox.held ? nearestTarget() : null;
   if (nt) { const p = nt.kind === 'printer' ? new THREE.Vector3(PRINTER.x, 1.9, PRINTER.z) : nt.pos.clone().setY(Math.max(nt.pos.y, 0) + .9); const [x, y] = toScreen(p); hintEl.style.left = x + 'px'; hintEl.style.top = y + 'px'; hintEl.hidden = false; } else hintEl.hidden = true;
-  updateDestArrow(dest);
+  // Bouton Attraper (tactile) : il s'allume quand quelque chose est à portée, devient « Poser » quand le renard porte un objet
+  if (isTouch) { const st = fox.held ? 'hold' : nt ? 'ready' : ''; if (st !== grabUi) { grabUi = st; tGrab.classList.toggle('ready', st === 'ready'); tGrab.classList.toggle('holding', st === 'hold'); tGrab.textContent = st === 'hold' ? t().tDrop : t().tGrab; } }
+  updateDestArrow(dest); updateTuto(dt, now);
   if (S.started && (!run.tEnd || run.mode === 'libre')) { const ct = fmt(run.elapsed); if (ct !== lastClock) { lastClock = ct; $('#clock').textContent = ct; } }   // texte réécrit seulement s'il change
   requestAnimationFrame(frame);
 }
@@ -194,6 +201,7 @@ function restoreWorld() {
 
 /* ---------- Démarrage ---------- */
 function start(mode, resume) {
+  if (S.started) return;
   if (mode === 'defi') {
     const s = peekRun('defi');
     if (s) { loadRun(s); restoreWorld(); } else freshRun('defi', dailyGoals(), todayKey());
@@ -207,9 +215,12 @@ function start(mode, resume) {
     if (run.foxPos) { const [x, z] = run.foxPos; const R = regionAt({ x, z }); if (R.always) openHidden(R.id); else ensureBuilt(R); /* reprise dans le terrier : la salle s'ouvre */ S.moodSnap = true; fox.pos.set(x, 0, z); resolve(fox.pos, fox.r); cam.target.copy(fox.pos); camera.position.copy(fox.pos).add(CAM_OFF); }
     markDay();
   }
+  const tuto = tutoEligible();   // avant checkAch : un nouveau visiteur, pas un habitué
   $('#intro').hidden = true; S.started = true; S.paused = false; audio(); canvas.focus();
   renderGoals(); saveRun(); checkAch();
-  if (!run.done.terrier && run.mode === 'libre' && !run.villageDone) setTimeout(() => toast(t().rumor), 2500);
+  // Première visite : trois bêtises guidées (tutorial.js) ; la rumeur du terrier viendra après
+  if (tuto) beginTuto();
+  else if (!run.done.terrier && run.mode === 'libre' && !run.villageDone) setTimeout(() => toast(t().rumor), 2500);
 }
 function renderIntro() {
   const s = peekRun('libre');
@@ -219,7 +230,7 @@ function renderIntro() {
   const best = saved.daily[todayKey()];
   $('#dailyBest').textContent = best != null ? t().dailyBest(fmt(best)) : '';
 }
-onLang(() => { renderIntro(); renderQual(); });
+onLang(() => { renderIntro(); renderQual(); renderTuto(); grabUi = null; });
 $('#startBtn').addEventListener('click', () => start('libre', !!peekRun('libre')));
 $('#newBtn').addEventListener('click', () => { clearRun('libre'); start('libre', false); });
 $('#dailyBtn').addEventListener('click', () => start('defi'));
@@ -296,8 +307,15 @@ window.__fox = { scene, camera, THREE, pseudoOk,
   renderer, findPath, NAV, los, cam, setZoom, fox, items, npcs, props, acorns, completeGoal, yap, grabOrDrop, dropHeld,
   run, saved, S, Q, startPrint, openBurrow, start, canSee, gardener, sales,
   REGIONS, RG, unlockRegion, fauna: HERDS, DAY, WALK, blockedAt, endMinigameNow, balloonDebug, GOALS, interacts, travelTo, teleport, ensureBuilt, startMinigame, MG, checkAch, grant, ACHIEVEMENTS, openJournal, closeJournal,
-  dev: { KIT, setBuild },   // galerie d'objets des contrôles visuels
+  dev: { KIT, setBuild, resolve, pace, PACE, TUTO, skipTuto, stick, nearestTarget },   // galerie d'objets, collisions, cadence, visite guidée (tests)
   screenOf: obj => toScreen(posOf(obj).clone().setY((posOf(obj).y || 0) + 2.6)), get paused() { return S.paused; },
 };
 endBoot();   // le village est construit : le jeu reprend le hasard ordinaire
+// Le jeu est prêt : la carte d'accueil s'affichait déjà (boot.js) ; le bouton Jouer cesse de tourner,
+// et un clic fait pendant le chargement lance la partie tout de suite
+window.__foxBoot = true;
+document.documentElement.classList.remove('booting');
+document.querySelectorAll('#intro [aria-busy]').forEach(b => b.removeAttribute('aria-busy'));
+$('#loaderSkip').hidden = true;
+if (window.__foxPending && !S.started && !OG) { const m = window.__foxPending; window.__foxPending = null; try { start(m, m === 'libre' && !!peekRun('libre')); } catch (e) { console.error(e); } }
 frame();

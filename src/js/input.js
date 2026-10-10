@@ -29,19 +29,33 @@ addEventListener('keydown',e=>{
 addEventListener('keyup',e=>{ keys[e.code]=false; });
 canvas.addEventListener('wheel',e=>{ if(S.paused) return; e.preventDefault(); setZoom(cam.zoomT*Math.exp(e.deltaY*.0012)); },{passive:false});
 addEventListener('blur',()=>{ for(const k in keys) keys[k]=false; });
+/* Joystick flottant : toute la moitié basse gauche de l'écran répond. Si le pouce se pose dans le cercle, il le prend
+   où il est ; sinon le cercle vient se placer sous le pouce. Petite zone morte au centre, course près du bord. */
 const stick={x:0,y:0,id:null};
+const DEAD=.12;
 {
-  const base=$('#stick'), knob=$('#knob');
-  const move=e=>{ const r=base.getBoundingClientRect(); let dx=e.clientX-(r.left+r.width/2), dy=e.clientY-(r.top+r.height/2); const m=Math.hypot(dx,dy), max=r.width/2-14;
-    if(m>max){ dx*=max/m; dy*=max/m; } knob.style.transform=`translate(${dx}px,${dy}px)`; stick.x=dx/max; stick.y=dy/max; };
-  base.addEventListener('pointerdown',e=>{ stick.id=e.pointerId; base.setPointerCapture(e.pointerId); move(e); });
-  base.addEventListener('pointermove',e=>{ if(e.pointerId===stick.id) move(e); });
-  const end=e=>{ if(e.pointerId!==stick.id) return; stick.id=null; stick.x=stick.y=0; knob.style.transform=''; };
-  base.addEventListener('pointerup',end); base.addEventListener('pointercancel',end);
-  $('#tYap').addEventListener('pointerdown',e=>{ e.preventDefault(); if(!S.paused) yap(); });
-  $('#tGrab').addEventListener('pointerdown',e=>{ e.preventDefault(); if(!S.paused) grabOrDrop(); });
-  $('#tZoom').addEventListener('pointerdown',e=>{ e.preventDefault(); setZoom(cam.zoomT>1.3?1:1.9); });
-  $('#tSneak').addEventListener('pointerdown',e=>{ e.preventDefault(); S.sneakToggle=!S.sneakToggle; $('#tSneak').setAttribute('aria-pressed',String(S.sneakToggle)); });
+  const zone=$('#stickZone'), base=$('#stick'), knob=$('#knob');
+  let cx=0, cy=0, max=51;
+  const move=e=>{ let dx=e.clientX-cx, dy=e.clientY-cy; const m=Math.hypot(dx,dy);
+    if(m>max){ dx*=max/m; dy*=max/m; } knob.style.transform=`translate(${dx}px,${dy}px)`;
+    const raw=Math.min(1,m/max), k=raw<DEAD?0:(raw-DEAD)/(1-DEAD);
+    stick.x=m>0?dx/Math.min(m,max)*k:0; stick.y=m>0?dy/Math.min(m,max)*k:0; };
+  zone.addEventListener('pointerdown',e=>{
+    if(stick.id!=null||S.paused) return; e.preventDefault();
+    base.style.transform=''; const r=base.getBoundingClientRect(), R=r.width/2, rx=r.left+R, ry=r.top+R; max=R-14;
+    if(Math.hypot(e.clientX-rx,e.clientY-ry)<R*1.1){ cx=rx; cy=ry; }
+    else { cx=Math.max(R+6,Math.min(innerWidth-R-6,e.clientX)); cy=Math.max(R+6,Math.min(innerHeight-R-6,e.clientY)); base.style.transform=`translate(${cx-rx}px,${cy-ry}px)`; }
+    stick.id=e.pointerId; try{ zone.setPointerCapture(e.pointerId); }catch(err){ /* pointeur déjà relâché */ }
+    base.classList.add('on'); fox.idle=0; move(e); });
+  zone.addEventListener('pointermove',e=>{ if(e.pointerId===stick.id) move(e); });
+  const end=e=>{ if(e.pointerId!==stick.id) return; stick.id=null; stick.x=stick.y=0; knob.style.transform=''; base.style.transform=''; base.classList.remove('on'); };
+  zone.addEventListener('pointerup',end); zone.addEventListener('pointercancel',end); zone.addEventListener('lostpointercapture',end);
+  // Boutons : réaction immédiate au toucher (pointerdown), enfoncement visible
+  const press=(id,fn)=>{ const b=$(id); b.addEventListener('pointerdown',e=>{ e.preventDefault(); b.classList.add('down'); fn(); });
+    for(const ev of ['pointerup','pointercancel','pointerleave']) b.addEventListener(ev,()=>b.classList.remove('down')); };
+  press('#tYap',()=>{ if(!S.paused) yap(); });
+  press('#tGrab',()=>{ if(!S.paused) grabOrDrop(); });
+  press('#tZoom',()=>setZoom(cam.zoomT>1.3?1:1.9));
+  press('#tSneak',()=>{ S.sneakToggle=!S.sneakToggle; $('#tSneak').setAttribute('aria-pressed',String(S.sneakToggle)); });
 }
-
 export { keys, stick };

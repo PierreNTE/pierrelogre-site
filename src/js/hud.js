@@ -79,6 +79,7 @@ export function completeGoal(id) {
   const li = goalsEl.querySelector(`[data-id="${id}"]`);
   if (li) { li.classList.remove('done'); void li.offsetWidth; requestAnimationFrame(() => li.classList.add('done')); }
   SFX.scribble(); fox.wagT = 1.8;
+  if (isTouch) try { navigator.vibrate?.(18); } catch (e) { /* vibreur facultatif (Android) */ }
   toast(`${goalOf(id).secret ? t().doneSecret : t().done} <b>${t().goals[id] || id}</b>`);
   saveRun();
   for (const h of progressHooks) h(id);
@@ -108,7 +109,7 @@ const tmpV = new THREE.Vector3();
 export function toScreen(v) { tmpV.copy(v).project(camera); return [(tmpV.x * .5 + .5) * innerWidth, (-tmpV.y * .5 + .5) * innerHeight, tmpV.z < 1]; }
 
 /* ---------- Flèche vers la destination (objet porté) ---------- */
-const arrow = $('#destArrow');
+const arrow = $('#destArrow'); let arrowLabel = null, arrowHalf = 20;
 export function updateDestArrow(dest) {
   if (!dest) { arrow.hidden = true; return; }
   tmpV.copy(dest.pos).setY(1).project(camera);
@@ -116,10 +117,13 @@ export function updateDestArrow(dest) {
   const inside = !behind && Math.abs(x) < .92 && Math.abs(y) < .88;
   if (inside) { arrow.hidden = true; return; }
   const k = Math.max(Math.abs(x) / .9, Math.abs(y) / .82), ex = x / k, ey = y / k;
-  const px = (ex * .5 + .5) * innerWidth, py = (-ey * .5 + .5) * innerHeight;
-  arrow.hidden = false; arrow.style.left = px + 'px'; arrow.style.top = py + 'px';
+  arrow.hidden = false;
+  const label = t().dest[dest.key] || '';
+  if (label !== arrowLabel) { arrowLabel = label; arrow.querySelector('span').textContent = label; arrowHalf = Math.max(20, arrow.offsetWidth / 2 + 4); }
+  // l'étiquette reste entière au bord de l'écran
+  const px = Math.max(arrowHalf, Math.min(innerWidth - arrowHalf, (ex * .5 + .5) * innerWidth)), py = (-ey * .5 + .5) * innerHeight;
+  arrow.style.left = px + 'px'; arrow.style.top = py + 'px';
   arrow.querySelector('i').style.transform = `rotate(${Math.atan2(-ey, ex)}rad)`;
-  arrow.querySelector('span').textContent = t().dest[dest.key];
 }
 
 /* ---------- Fin de partie ---------- */
@@ -137,9 +141,9 @@ export function showEndCard({ secs, unlocked, newBest }) {
   if (!RM) confetti();
 }
 $('#endLi').addEventListener('click', () => track('Clic LinkedIn', { depuis: 'fin' }));
-function confetti() {
+export function confetti(n = 80) {
   const cols = ['#e8742a', '#f6d36b', '#7ea35c', '#8fc9df', '#f2b8c6'];
-  for (let i = 0; i < 80; i++) { const c = document.createElement('div'); c.className = 'confetti'; c.style.left = Math.random() * 100 + 'vw'; c.style.background = cols[i % cols.length];
+  for (let i = 0; i < n; i++) { const c = document.createElement('div'); c.className = 'confetti'; c.style.left = Math.random() * 100 + 'vw'; c.style.background = cols[i % cols.length];
     c.style.animationDuration = (2 + Math.random() * 2) + 's'; c.style.animationDelay = Math.random() * .6 + 's'; document.body.append(c); setTimeout(() => c.remove(), 5000); }
 }
 
@@ -159,7 +163,9 @@ $('#factClose').addEventListener('click', closeFact);
 $('#factLi').addEventListener('click', () => track('Clic LinkedIn', { depuis: 'gland' }));
 
 /* ---------- Carnet replié / déplié ---------- */
-export function toggleNotebook() { const nb = $('#notebook'); nb.classList.toggle('collapsed'); const c = nb.classList.contains('collapsed'); $('#nbToggle').textContent = c ? t().unfold : t().fold; $('#nbToggle').setAttribute('aria-expanded', String(!c)); }
+export function toggleNotebook() { setNotebook($('#notebook').classList.contains('collapsed')); }
+/** Carnet déplié (true) ou replié (false). */
+export function setNotebook(open) { const nb = $('#notebook'); nb.classList.toggle('collapsed', !open); $('#nbToggle').textContent = open ? t().fold : t().unfold; $('#nbToggle').setAttribute('aria-expanded', String(open)); }
 $('#nbToggle').addEventListener('click', toggleNotebook);
 
 /* ---------- Menu mobile ---------- */

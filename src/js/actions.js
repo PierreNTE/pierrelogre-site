@@ -5,7 +5,7 @@ import * as THREE from 'three';
 import { SFX } from './audio.js';
 import { HOOKS } from './hooks.js';
 import { CONFIG, track } from './config.js';
-import { blockedAt, canvas, flat2 } from './engine.js';
+import { blockedAt, canvas, flat2, isTouch } from './engine.js';
 import { fox } from './fox.js';
 import { dirt, emit, splash } from './fx.js';
 import { $, addProgress, applyLang, completeGoal, say } from './hud.js';
@@ -34,16 +34,23 @@ export function yap() {
     n.jump = .5; SFX.shout();
     if (n === gardener) {
       say(n, t().gScared, '', 1.8); completeGoal('jardinier');
-      if (hat.worn) { hat.worn = false; hat.noticed = true; hat.vel = new THREE.Vector3(rnd(-1.5, 1.5), 5, rnd(-1.5, 1.5)); setTimeout(() => alertNPC(gardener, pick(lines(gardener).hat), { calm: true }), 700); }
+      if (hat.worn) {
+        hat.worn = false; hat.noticed = true; hat.vel = new THREE.Vector3(rnd(-1.5, 1.5), 5, rnd(-1.5, 1.5));
+        // un temps de réaction (plus long pendant la première visite guidée) avant d'aller chercher son chapeau
+        const grace = HOOKS.hatGrace ? HOOKS.hatGrace() : .7; n.cool = Math.max(n.cool, grace);
+        setTimeout(() => alertNPC(gardener, pick(lines(gardener).hat), { calm: true }), grace * 1000);
+      }
     } else if (!n.seated && n.state === 'idle') say(n, pick(t().scared), '', 1.4);
   }
   if (inBox(fox.pos, MEETING)) { meet1.jump = meet2.jump = .5; say(meet1, t().L.meet.hit[0], '', 2.2); setTimeout(() => say(meet2, t().L.meet.hit[1], '', 2), 500); completeGoal('reunion'); }
   for (const b of birds) if (b.state === 'peck' && flat2(b.g.position, fox.pos) < 7) scare(b);
 }
 
+/** Portée pour attraper : un peu plus large au doigt (on vise moins précisément qu'au clavier). */
+const REACH = isTouch ? 2.3 : 1.9, MOUTH = isTouch ? .55 : .7;
 export function nearestTarget() {
-  let best = null, bd = 1.9;
-  const mouth = fox.pos.clone().addScaledVector(foxForward(), .7);
+  let best = null, bd = REACH;
+  const mouth = fox.pos.clone().addScaledVector(foxForward(), MOUTH);
   for (const it of items) { if (it.gone || it.held || it.vel || it.inWater || (it.kind === 'chapeau' && it.worn)) continue; const d = flat2(it.pos, mouth); if (d < bd) { bd = d; best = it; } }
   for (const ia of interacts) { if (ia.when && !ia.when()) continue; const d = flat2(ia.pos, fox.pos); if (d < ia.r && d < bd + .3) { bd = d; best = ia; } }
   return best;

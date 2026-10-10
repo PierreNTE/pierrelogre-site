@@ -17,7 +17,13 @@ const result = await esbuild.build({
   target: ['es2020'], legalComments: 'none', metafile: true, logLevel: 'warning',
 });
 const gameJs = result.outputFiles[0].text;
-const bootJs = (await esbuild.transform(read(SRC('boot.js')), { minify: true, target: 'es2015' })).code;
+// Textes anglais de la carte d'accueil, glissés dans boot.js : la carte s'affiche d'emblée dans la bonne langue
+const E = T.en, escB = s => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+const INTRO_EN = { introH1: E.introH1, introP: escB(E.introP), introKeys: E.keys.map(([k, v]) => `<kbd>${escB(k)}</kbd><span>${escB(v)}</span>`).join(''),
+  startBtn: escB(E.start), dailyBtn: escB(E.daily), newBtn: escB(E.newGame), dailyNoteTxt: escB(E.dailyNote), introWho: escB(E.introWho), loaderSkip: escB(E.skip), langBtn2: 'FR' };
+const bootSrc = read(SRC('boot.js')).replace('/*INTRO_EN*/null', () => JSON.stringify(INTRO_EN));
+if (bootSrc === read(SRC('boot.js'))) throw new Error('boot.js : emplacement INTRO_EN introuvable');
+const bootJs = (await esbuild.transform(bootSrc, { minify: true, target: 'es2015' })).code;
 const css = read(SRC('style.css'));
 
 /* ---------- 2. Contenu statique (FR) : lisible sans JS, par Google et en mode sans jeu ---------- */
