@@ -304,7 +304,8 @@ if (OG) {
   sales.pos.set(-7.4, 0, 3.6); sales.yaw = .9;
   camera.fov = 34; camera.updateProjectionMatrix(); camera.position.set(-2.5, 13.5, 15.5); camera.lookAt(-4.5, 0, 2.2);
 }
-window.__fox = { scene, camera, THREE, pseudoOk,
+window.__fox = { scene, camera, THREE: { Vector3: THREE.Vector3 }, pseudoOk,   // seulement Vector3 : exposer tout THREE empêcherait d'alléger Three.js au build (−38 Ko compressés)
+ 
   renderer, findPath, NAV, los, cam, setZoom, fox, items, npcs, props, acorns, completeGoal, yap, grabOrDrop, dropHeld,
   run, saved, S, Q, startPrint, openBurrow, start, canSee, gardener, sales,
   REGIONS, RG, unlockRegion, fauna: HERDS, DAY, WALK, blockedAt, endMinigameNow, balloonDebug, GOALS, interacts, travelTo, teleport, ensureBuilt, startMinigame, MG, checkAch, grant, ACHIEVEMENTS, openJournal, closeJournal,

@@ -79,7 +79,7 @@ function toolkit(R) {
   // Sols superposés (taches, sols, disques) : hauteurs rangées à la fin de la construction (voir rankFlats)
   const flatRank = (m, y, cls) => { if (y >= 0 && y < .045) (R.flats ||= []).push({ m, y, cls, i: (R.flats || []).length }); };
   const W = {
-    R, box, cyl, sph, cone, flat, mk, M, TM, TX, textTex, solidBox, solidCircle, addBox, tree, rnd, pick, THREE,
+    R, box, cyl, sph, cone, flat, mk, M, TM, TX, textTex, solidBox, solidCircle, addBox, tree, rnd, pick,
     /** Sol coloré (rectangle net : chemin, terrain, quai…). Aucune végétation n'y pousse. */
     ground(w, d, c, x, z, y = .025, rot = 0) { const mat = typeof c === 'string' ? M(c) : c; const m = flat(w, d, mat, x, z, y + (layer++ % 48) * .0006, rot); m.castShadow = false; flatRank(m, y, 2); R.noVeg.push({ x, z, w, d, rot }); return m; },
     /** Sol organique : rectangle aux coins arrondis et aux bords irréguliers (mousse, sable, neige…). */
