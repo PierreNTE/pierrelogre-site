@@ -147,7 +147,7 @@ async def test_stealth_and_drop(browser):
     await pg.screenshot(path=f'{OUT}/stealth.png')
     # Sauvegarde : 2 bêtises puis rechargement
     await js(pg, "F.dropHeld(); go(22.5,5,0); await wait(300); F.yap(); await wait(300); go(7.6,8.2,-Math.PI/2); await wait(300); F.grabOrDrop(); await wait(600);")
-    await pg.reload(); await ready(pg)
+    await pg.reload(timeout=120000); await ready(pg)
     r5 = await js(pg, "return {btn:document.querySelector('#startBtn').textContent, newVisible:!document.querySelector('#newBtn').hidden};")
     ok5 = re.search(r'\((\d+)/\d+\)', r5['btn'])
     check('reprise de partie proposée après rechargement', ok5 and int(ok5.group(1)) >= 2 and r5['newVisible'], r5['btn'])
@@ -257,7 +257,7 @@ async def test_world(browser):
     await pg.screenshot(path=f'{OUT}/journal.png')
     # Une bêtise de région + sauvegarde v2 (régions ouvertes, position) après rechargement
     dbg = await js(pg, "F.completeGoal('ola'); F.teleport(-290,10,0); await wait(1500); return {paused:F.paused, x:f.pos.x};")
-    await pg.reload(); await ready(pg)
+    await pg.reload(timeout=120000); await ready(pg)
     r = await js(pg, "document.querySelector('#startBtn').click(); await wait(2500); return {unlocked:F.run.unlocked.length, ola:!!F.run.done.ola, region:F.S.region, x:Math.round(f.pos.x)};")
     check('sauvegarde v2 : régions, bêtises et position restaurées', r['unlocked'] >= 10 and r['ola'] and r['region'] == 'paris', json.dumps(r) + ' ' + json.dumps(dbg))
     # Fil rouge : un souvenir ramassé au complexe sportif (il rejoindra l'étagère du terrier)
@@ -408,7 +408,9 @@ async def main():
         for t in (test_playthrough, test_stealth_and_drop, test_daily, test_mobile_and_perf, test_world, test_first_minute, test_touch_feel):
             if only and t.__name__ not in only: continue
             try: await t(b)
-            except Exception as e: check(t.__name__, False, 'exception : ' + str(e)[:200])
+            except Exception as e:
+                check(t.__name__, False, 'exception : ' + str(e)[:200])
+                for c in list(b.contexts): await c.close()   # une page restée ouverte (3D en rendu logiciel) ralentirait les tests suivants
         await b.close()
         if not only or 'test_fallbacks' in only:
             try: await test_fallbacks(launch)
