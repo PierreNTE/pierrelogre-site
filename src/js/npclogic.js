@@ -1,6 +1,6 @@
 /* =====================================================================
    Logique des PNJ : navigation A*, perception (vue, ouïe), machine à états
-   États : idle · alert · chase · bring · tired · investigate · return · search · fish · slip
+   États : idle · alert · chase · bring · tired · investigate · return · search · fish · slip · shoo
    ===================================================================== */
 import * as THREE from 'three';
 import { alertNPC, foxForward, tire } from './actions.js';
@@ -137,6 +137,8 @@ export function setState(n, s) { n.state = s; n.stateT = 0; if (s === 'chase') n
 /* ---------- Machine à états ---------- */
 export function updateNPC(n, dt) {
   n.t += dt; n.stateT += dt; n.moving = false; n.chatCd -= dt; n.cool -= dt; n.glanceCd -= dt;
+  // Interdit (surpris, ou en train de secouer le poing) : il reste planté là un instant
+  if (n.freezeT > 0) { n.freezeT -= dt; if (!n.seated) n.act = null; updateCone(n); animateNPC(n, dt); return; }
   const L = lines(n);
   if (n.seated) {
     n.act = Math.sin(n.t * .7 + n.pos.x) > .6 ? 'talk' : null;
@@ -196,6 +198,19 @@ export function updateNPC(n, dt) {
     n.act = 'slip';
     if (n.stateT > 2.6) { setState(n, 'return'); n.cool = 1.5; }
   }
+  else if (n.state === 'shoo') {
+    // Il chasse le renard en agitant les bras : un geste pour l'éloigner (sans l'attraper), ou il abandonne, essoufflé
+    n.act = 'chase';
+    if (lostItem(n)) setState(n, 'chase');
+    else {
+      const d = steer(n, fox.pos, 3.5, dt);
+      if (d < 1.25) {
+        const dx = fox.pos.x - n.pos.x, dz = fox.pos.z - n.pos.z, l = Math.hypot(dx, dz) || 1;
+        fox.vel.x += dx / l * 8; fox.vel.z += dz / l * 8; fox.hopT = .3; SFX.shout();
+        say(n, pick(t().shooHit), '', 1.6); n.cool = 3; setState(n, 'return');
+      } else if (n.stateT > 3.2) { tire(n, pick(t().shooTired)); n.cool = 3; }
+    }
+  }
   else if (n.state === 'tired') { n.act = 'tired'; if (n.stateT > 2.4) { setState(n, 'return'); n.cool = 2; } }
   else if (n.state === 'investigate') { n.act = null; if (steer(n, n.inv, 3, dt) < .3) { n.act = 'check'; n.invWait -= dt; if (n.invWait <= 0) setState(n, 'return'); } }
   else if (n.state === 'return') {
@@ -235,6 +250,9 @@ function updateCone(n) {
 const _hp = new THREE.Vector3(), _lp = new THREE.Vector3(), _fw = new THREE.Vector3();
 export function animateNPC(n, dt) {
   if (n.jump > 0) n.jump -= dt;
+  if (n.flailT > 0) n.flailT -= dt; if (n.shakeT > 0) n.shakeT -= dt;
+  // gestes passagers par-dessus l'activité : bras en l'air (surpris), poing levé qui tremble (agacé)
+  const act = n.shakeT > 0 ? 'shake' : n.flailT > 0 && !n.seated ? 'startle' : n.act;
   const j = n.jump > 0 ? Math.sin((1 - n.jump / .5) * Math.PI) * .6 : 0;
   n.group.position.set(n.pos.x, j, n.pos.z); n.group.rotation.y = n.yaw;
   const w = n.walk, mv = n.moving, tt = n.t;
@@ -245,7 +263,9 @@ export function animateNPC(n, dt) {
   n.body.position.y += ((n.seated ? -.18 : (mv ? Math.abs(Math.sin(w)) * .07 : Math.sin(tt * 2) * .012)) - n.body.position.y) * kl;
   n.body.rotation.z = mv ? Math.sin(w) * .035 : 0;   // léger roulis en marchant
   let aL = mv ? -legA * .8 : 0, aR = mv ? legA * .8 : 0, zL = 0, zR = 0, lean = 0, hx = 0, hy = 0, bodyX = 0;
-  switch (n.act) {
+  switch (act) {
+    case 'startle': aL = aR = -2.5; zL = -.7; zR = .7; hx = -.25; lean = -.1; break;
+    case 'shake': aR = -2.9 + Math.sin(tt * 24) * .3; zR = .15; aL = -.6; zL = -.2; hx = -.08; lean = -.06; break;
     case 'chase': aL = -2.7 + Math.sin(tt * 16) * .35; aR = -2.7 - Math.sin(tt * 16) * .35; zL = -.25; zR = .25; lean = .12; break;
     case 'carry': aL = aR = -1.25; break;
     case 'phone': aL = -2.6; zL = -.5; hx = .05; break;

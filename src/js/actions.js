@@ -31,19 +31,44 @@ export function yap() {
     // Le commercial au téléphone près de la flaque : il sursaute… et glisse
     if (n === sales && flat2(n.pos, MUD) < MUD.r + .9) { slip(n); completeGoal('boue'); continue; }
     if (n.onYap) { n.onYap(n); continue; }
+    // Il rapportait quelque chose : de surprise, il lâche tout (et le renard a une seconde pour le chiper)
+    if (n.carry && n.state === 'bring') { dropCarried(n); continue; }
     n.jump = .5; SFX.shout();
-    if (n === gardener) {
-      say(n, t().gScared, '', 1.8); completeGoal('jardinier');
-      if (hat.worn) {
-        hat.worn = false; hat.noticed = true; hat.vel = new THREE.Vector3(rnd(-1.5, 1.5), 5, rnd(-1.5, 1.5));
-        // un temps de réaction (plus long pendant la première visite guidée) avant d'aller chercher son chapeau
-        const grace = HOOKS.hatGrace ? HOOKS.hatGrace() : .7; n.cool = Math.max(n.cool, grace);
-        setTimeout(() => alertNPC(gardener, pick(lines(gardener).hat), { calm: true }), grace * 1000);
-      }
-    } else if (!n.seated && n.state === 'idle') say(n, pick(t().scared), '', 1.4);
+    if (n === gardener && hat.worn) {
+      say(n, t().gScared, '', 1.8); completeGoal('jardinier'); n.flailT = .8;
+      hat.worn = false; hat.noticed = true; hat.vel = new THREE.Vector3(rnd(-1.5, 1.5), 5, rnd(-1.5, 1.5));
+      // un temps de réaction (plus long pendant la première visite guidée) avant d'aller chercher son chapeau
+      const grace = HOOKS.hatGrace ? HOOKS.hatGrace() : .7; n.cool = Math.max(n.cool, grace);
+      setTimeout(() => alertNPC(gardener, pick(lines(gardener).hat), { calm: true }), grace * 1000);
+      continue;
+    }
+    if (n === gardener) completeGoal('jardinier');
+    annoy(n);
   }
   if (inBox(fox.pos, MEETING)) { meet1.jump = meet2.jump = .5; say(meet1, t().L.meet.hit[0], '', 2.2); setTimeout(() => say(meet2, t().L.meet.hit[1], '', 2), 500); completeGoal('reunion'); }
   for (const b of birds) if (b.state === 'peck' && flat2(b.g.position, fox.pos) < 7) scare(b);
+}
+/**
+ * Un habitant tranquille qu'on glapit à répétition (moins de 12 s d'écart) : surpris, puis agacé (il secoue le poing),
+ * puis il chasse le renard (état « shoo » dans npclogic.js). Occupé à autre chose (poursuite, objet à rapporter…) :
+ * il sursaute seulement.
+ */
+function annoy(n) {
+  if (n.seated || (n.state !== 'idle' && n.state !== 'return')) return;
+  n.annoy = S.time - (n.annoyT ?? -99) < 12 ? (n.annoy || 0) + 1 : 1; n.annoyT = S.time;
+  const face = Math.atan2(fox.pos.x - n.pos.x, fox.pos.z - n.pos.z);
+  if (n.annoy === 1) { n.flailT = .7; say(n, n === gardener ? t().gScared : pick(t().scared), '', 1.4); }
+  else if (n.annoy === 2) { n.yaw = face; n.shakeT = 1.4; n.freezeT = 1.2; SFX.grumble(); say(n, pick(t().annoyed), '', 1.8); }
+  else { n.annoy = 0; n.yaw = face; setState(n, 'shoo'); say(n, pick(t().shoo), '', 1.6); }
+}
+/** L'habitant lâche l'objet qu'il rapportait ; il le sait, et reviendra le chercher après un instant de stupeur. */
+function dropCarried(n) {
+  const it = n.carry; n.carry = null; it.carrier = null;
+  const p = new THREE.Vector3(n.pos.x + Math.sin(n.yaw) * .8, 0, n.pos.z + Math.cos(n.yaw) * .8);
+  if (blockedAt(p.x, p.z, .22)) { const q = nearestFreePoint(p); if (q) p.copy(q); }
+  it.pos.copy(p); it.pos.y = it.kind === 'carotte' ? .08 : 0; it.mesh.rotation.set(0, rnd(0, 6), 0); it.noticed = true;
+  n.jump = .5; n.flailT = .9; n.freezeT = 1.3; n.cool = 1.3; setState(n, 'idle');
+  SFX.shout(); SFX.drop(); say(n, pick(t().dropIt), '', 1.6);
 }
 
 /** Portée pour attraper : un peu plus large au doigt (on vise moins précisément qu'au clavier). */

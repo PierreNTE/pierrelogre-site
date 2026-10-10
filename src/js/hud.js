@@ -55,13 +55,17 @@ function toggleHint(id) {
 goalsEl.addEventListener('click', e => { const li = e.target.closest('li'); if (li) toggleHint(li.dataset.id); });
 goalsEl.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { const li = e.target.closest('li'); if (li) { e.preventDefault(); toggleHint(li.dataset.id); } } });
 
-/** Indice automatique si le joueur n'avance plus depuis un moment. */
+let hintPick = null;
+/** nudge.js choisit la bêtise à suggérer (la plus proche dont on connaît l'endroit) et la montre d'une flèche. */
+export const setHintPicker = fn => { hintPick = fn; };
+/** Indice automatique si le joueur n'avance plus : un premier après CONFIG.hintAfter s, puis tous les CONFIG.hintAgain s. */
 export function autoHint() {
-  if ((run.tEnd && run.mode === 'defi') || run.elapsed - run.lastProgress < CONFIG.hintAfter) return;
-  run.lastProgress = run.elapsed;
+  const wait = S.hintN ? CONFIG.hintAgain : CONFIG.hintAfter;
+  if ((run.tEnd && run.mode === 'defi') || run.elapsed - run.lastProgress < wait) return;
+  run.lastProgress = run.elapsed; S.hintN = (S.hintN || 0) + 1;
   const todo = activeGoals(S.region || 'village').filter(g => !run.done[g.id] && !g.secret && t().hints[g.id]);
   if (!todo.length) return;
-  const g = todo[Math.random() * todo.length | 0];
+  const g = (hintPick && hintPick(todo)) || todo[Math.random() * todo.length | 0];
   toast(t().hintAuto(t().hints[g.id])); track('Indice', { goal: g.id, auto: true });
 }
 
@@ -75,12 +79,15 @@ export const onProgress = fn => progressHooks.push(fn);
 export function completeGoal(id) {
   if (run.done[id] || !goalOf(id)) return;
   if (run.mode === 'defi' && !run.goals.includes(id) && !goalOf(id).secret) return;
-  run.done[id] = true; run.lastProgress = run.elapsed; openHints.delete(id); renderGoals();
+  run.done[id] = true; run.lastProgress = run.elapsed; S.hintN = 0; openHints.delete(id); renderGoals();
+  // Bêtises enchaînées (moins de 12 s entre deux) : « Doublé ! », « Triplé !! »…
+  S.combo = run.elapsed - (S.lastGoalT ?? -99) < 12 ? (S.combo || 1) + 1 : 1; S.lastGoalT = run.elapsed;
   const li = goalsEl.querySelector(`[data-id="${id}"]`);
   if (li) { li.classList.remove('done'); void li.offsetWidth; requestAnimationFrame(() => li.classList.add('done')); }
   SFX.scribble(); fox.wagT = 1.8;
   if (isTouch) try { navigator.vibrate?.(18); } catch (e) { /* vibreur facultatif (Android) */ }
   toast(`${goalOf(id).secret ? t().doneSecret : t().done} <b>${t().goals[id] || id}</b>`);
+  if (S.combo >= 2) { const c = S.combo; setTimeout(() => { SFX.combo(); toast(`<b>${t().combo(c)}</b>`); }, 500); }
   saveRun();
   for (const h of progressHooks) h(id);
   const chapter = run.mode === 'defi' ? run.goals : MAIN_IDS;
@@ -89,7 +96,7 @@ export function completeGoal(id) {
 /** Avance une bêtise à plusieurs étapes (need) ; key identifie l'étape (pas de doublon). */
 export function addProgress(id, key) {
   const g = goalOf(id); if (!g || run.done[id]) return;
-  const p = prog(id); if (p.has(key)) return; p.add(key); run.lastProgress = run.elapsed;
+  const p = prog(id); if (p.has(key)) return; p.add(key); run.lastProgress = run.elapsed; S.hintN = 0;
   if (p.size >= (g.need || 1)) completeGoal(id); else { renderGoals(); saveRun(); toast(`${t().goals[id] || id} <b>${p.size}/${g.need}</b>`); }
 }
 

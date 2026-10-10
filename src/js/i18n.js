@@ -283,7 +283,14 @@ Object.assign(T.fr, {
       done: ["Bien joué, petit renard !", "Le jardinier va devoir aller à la pêche. Ta liste de bêtises est dans le carnet."],
     },
   },
-  dest: { fontaine: "Fontaine", cafe: "Café", terrier: "Terrier", jardinier: "Jardinier", chapeau: "Chapeau" },
+  dest: { fontaine: "Fontaine", cafe: "Café", terrier: "Terrier", jardinier: "Jardinier", chapeau: "Chapeau", indice: "Indice" },
+  // Réactions des habitants : surpris, puis agacés, puis ils chassent le renard (et abandonnent, essoufflés)
+  annoyed: ["Bon, ça suffit !", "Encore toi ?!", "Mais arrête ça !", "Tu vas voir, toi…"],
+  shoo: ["Ouste ! Ouste !", "Allez, du balai !", "File de là !"],
+  shooHit: ["Et ne reviens pas !", "Non mais !", "Voilà !"],
+  shooTired: ["Pfiou… il est trop rapide…", "J'ai plus l'âge pour ça…", "La prochaine fois…"],
+  dropIt: ["Aaah ! Ma… !", "Oh non, j'ai tout lâché !", "Hiii !"],
+  combo: n => n === 2 ? "Doublé ! 🦊" : n === 3 ? "Triplé !! 🦊" : `Enchaînement ×${n} !`,
 });
 Object.assign(T.en, {
   tDrop: "Drop",
@@ -298,7 +305,13 @@ Object.assign(T.en, {
       done: ["Nice one, little fox!", "The gardener will have to go fishing. Your mischief list is in the notebook."],
     },
   },
-  dest: { fontaine: "Fountain", cafe: "Coffee", terrier: "Den", jardinier: "Gardener", chapeau: "Hat" },
+  dest: { fontaine: "Fountain", cafe: "Coffee", terrier: "Den", jardinier: "Gardener", chapeau: "Hat", indice: "Hint" },
+  annoyed: ["Right, that's enough!", "You again?!", "Stop that!", "Just you wait…"],
+  shoo: ["Shoo! Shoo!", "Go on, scram!", "Get out of here!"],
+  shooHit: ["And stay out!", "Honestly!", "There!"],
+  shooTired: ["Phew… he's too fast…", "I'm too old for this…", "Next time…"],
+  dropIt: ["Aaah! My…!", "Oh no, I dropped it!", "Eek!"],
+  combo: n => n === 2 ? "Double! 🦊" : n === 3 ? "Triple!! 🦊" : `Chain ×${n}!`,
 });
 
 export { T };

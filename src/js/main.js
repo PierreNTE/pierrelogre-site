@@ -17,6 +17,7 @@ import { benchFrame, initBench } from './bench.js';
 import { updateStory } from './story.js';
 import { TUTO, beginTuto, renderTuto, skipTuto, tutoDest, tutoEligible, updateTuto } from './tutorial.js';
 import { PACE, pace } from './pacer.js';
+import { hintDest } from './nudge.js';
 import { HOOKS } from './hooks.js';
 import { CAM_OFF, RM, SUN_OFF, TX, U, WALK, bake, blobTex, blockedAt, cam, cullBaked, hemi, isTouch, outlineLOD, camera, canvas, flat2, renderer, resolve, scene, setBuild, setZoom, sun, updateBlobs, world } from './engine.js';
 import { fox, prints } from './fox.js';
@@ -132,7 +133,7 @@ function frame(ts) {
   leafMesh.instanceMatrix.needsUpdate = true; if (leafCol) leafMesh.instanceColor.needsUpdate = true;
   for (const p of prints) { if (p.t > 0) { p.t -= dt; p.m.material.opacity = Math.min(.55, p.t * .3); if (p.t <= 0) p.m.visible = false; } }
   // Destination de l'objet porté : anneau au sol + flèche au bord de l'écran
-  const dest = !S.paused ? (destinationFor(fox.held) || tutoDest()) : null;
+  const dest = !S.paused ? (destinationFor(fox.held) || tutoDest() || hintDest()) : null;
   ring.visible = !!dest;
   if (dest) { const pulse = 1 + Math.sin(now * 5) * .06; ring.position.set(dest.pos.x, .06, dest.pos.z); ring.scale.setScalar(dest.r * pulse); ring.material.opacity = .45 + Math.sin(now * 5) * .15; if (Math.random() < dt * 6) emit(new THREE.Vector3(dest.pos.x + rnd(-1, 1) * dest.r, .3, dest.pos.z + rnd(-1, 1) * dest.r), '#ffd08a', { n: 1, spd: .2, up: 1.4, life: 1, grav: -.3, size: .6 }); }
   // Caméra (en portrait, on regarde un peu plus au sud pour dégager le bas de l'écran)

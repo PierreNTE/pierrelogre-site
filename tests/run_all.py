@@ -16,6 +16,8 @@ Lance un serveur local qui reproduit la CSP stricte d'OVH (.htaccess), puis vér
  11. première minute : carte d'accueil avant le jeu (bonne langue, clic retenu), visite guidée en 3 bêtises, vue une fois
  12. sensations au doigt : joystick flottant (vrais touchers), zone morte, bouton Attraper/Poser, portée, glissade
      le long d'un mur, « Passer », plafond 60 i/s des écrans 120 Hz, téléphone à l'horizontale sans chevauchement
+ 13. réactions : habitant surpris → agacé → il chasse le renard (sans l'attraper) ; objet lâché de surprise ;
+     « Doublé ! » ; indice qui montre l'endroit
 Aucune erreur console n'est tolérée.
 """
 import asyncio, json, os, re, subprocess, sys, time, functools, http.server, threading
@@ -399,13 +401,41 @@ async def test_touch_feel(browser):
     check('aucune erreur console (téléphone à l’horizontale)', not errs, '; '.join(errs[:3]))
     await ctx.close()
 
+async def test_reactions(browser):
+    ctx, pg, errs = await page(browser, 900, 600, acorns_done=True); await ready(pg)
+    await js(pg, "F.start('libre', false); await wait(300); F.dev.skipTuto(); await wait(300);")
+    # Le boulanger glapi trois fois de suite : surpris, agacé (poing levé), puis il chasse le renard
+    r = await js(pg, """const b=npc('baker'); b.state='idle'; b.routeI=0; b.wait=30; b.cool=0; b.pos.set(-20.6,0,9.5); go(-20.6,12,Math.PI); await wait(300);
+        const caught=F.run.caught, st=[]; F.yap(); st.push({a:b.annoy, flail:b.flailT>0}); await wait(250);
+        F.yap(); st.push({a:b.annoy, shake:b.shakeT>0, freeze:b.freezeT>0}); for(let i=0;i<60&&b.freezeT>0;i++) await wait(50);
+        go(-20.6,12,Math.PI); F.yap(); st.push({state:b.state});
+        let pushed=false; const z0=f.pos.z; for(let i=0;i<200&&b.state==='shoo';i++){ await new Promise(r=>requestAnimationFrame(()=>r())); }
+        return {st, after:b.state, caught:F.run.caught-caught, dz:+(f.pos.z-z0).toFixed(2), bubbles:[...document.querySelectorAll('.bubble')].map(e=>e.textContent)};""")
+    ok = r['st'][0]['a'] == 1 and r['st'][0]['flail'] and r['st'][1]['a'] == 2 and r['st'][1]['shake'] and r['st'][2]['state'] == 'shoo' and r['after'] in ('return', 'tired') and r['caught'] == 0
+    check('habitant glapi trois fois : surpris, agacé (poing levé), puis il chasse le renard sans l’attraper', ok, json.dumps(r, ensure_ascii=False))
+    # Le jardinier rapporte une carotte : glapi, il la lâche de surprise, puis revient la chercher
+    r = await js(pg, """const g=npc('gardener'), c=F.items.find(i=>i.kind==='carotte'); c.planted=false; c.noticed=true; c.carrier=g; g.carry=c; g.state='bring'; g.stateT=0; g.pos.set(-22,0,-4); await wait(200);
+        go(-22,-1.5,Math.PI); await wait(200); F.yap(); const d={carry:!!g.carry, carrier:!!c.carrier, y:+c.pos.y.toFixed(2), freeze:g.freezeT>0, state:g.state};
+        for(let i=0;i<300&&!(g.carry===c);i++) await new Promise(r=>requestAnimationFrame(()=>r()));
+        return {d, back:g.carry===c, state:g.state};""")
+    check('il rapportait une carotte : glapi, il la lâche de surprise, puis revient la chercher', not r['d']['carry'] and not r['d']['carrier'] and r['d']['y'] < .2 and r['d']['freeze'] and r['back'], json.dumps(r))
+    # Deux bêtises en moins de 12 s : « Doublé ! »
+    r = await js(pg, "F.completeGoal('imprimante'); await wait(100); F.completeGoal('reunion'); await wait(1200); return [...document.querySelectorAll('.toast')].map(t=>t.textContent);")
+    check('deux bêtises enchaînées : « Doublé ! »', any(('Double' in x) or ('Doublé' in x) for x in r), ' | '.join(r))
+    # Indice automatique après 45 s sans progrès : il montre l'endroit (anneau + flèche « Indice »)
+    r = await js(pg, """F.S.hintN=0; go(-4,5.5,Math.PI); F.run.lastProgress=F.run.elapsed-50; for(let i=0;i<40&&!F.S.hintDest;i++) await wait(100);
+        const h=F.S.hintDest; await wait(300); return {id:h&&h.id, toast:[...document.querySelectorAll('.toast')].map(t=>t.textContent).join(' | '), arrow:document.querySelector('#destArrow').innerText};""")
+    check('indice automatique : il propose la bêtise la plus proche et montre l’endroit', bool(r['id']) and '💡' in r['toast'], json.dumps(r, ensure_ascii=False))
+    check('aucune erreur console (réactions)', not errs, '; '.join(errs[:3]))
+    await ctx.close()
+
 async def main():
     srv = serve()
     async with async_playwright() as p:
         launch = lambda args: p.chromium.launch(args=args)
         b = await launch(GL)
         only = [x for x in os.environ.get('TESTS', '').split(',') if x]
-        for t in (test_playthrough, test_stealth_and_drop, test_daily, test_mobile_and_perf, test_world, test_first_minute, test_touch_feel):
+        for t in (test_playthrough, test_stealth_and_drop, test_daily, test_mobile_and_perf, test_world, test_first_minute, test_touch_feel, test_reactions):
             if only and t.__name__ not in only: continue
             try: await t(b)
             except Exception as e:

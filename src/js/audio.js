@@ -130,14 +130,20 @@ function ambience(dt){
   }
 }
 const SFX = {
-  yap(){ const p=1+Math.random()*.15; tone(700*p,1500*p,.09,'sawtooth',.16); tone(1300*p,800*p,.12,'square',.07,.07); },
+  // trois glapissements : le classique, le double « kaï-kaï », le couinement qui monte
+  yap(){ const p=1+Math.random()*.15, r=Math.random();
+    if(r<.55){ tone(700*p,1500*p,.09,'sawtooth',.16); tone(1300*p,800*p,.12,'square',.07,.07); }
+    else if(r<.8){ tone(900*p,1450*p,.06,'sawtooth',.15); tone(950*p,1550*p,.07,'sawtooth',.14,.11); tone(1400*p,900*p,.06,'square',.05,.15); }
+    else { tone(600*p,1750*p,.16,'sawtooth',.13); tone(1700*p,1100*p,.1,'square',.06,.15); } },
   grab(){ tone(300,700,.08,'triangle',.25); }, drop(){ tone(500,200,.1,'triangle',.2); },
   pull(){ noise(.25,.35,500); tone(200,500,.15,'triangle',.2,.05); },
   splash(){ noise(.5,.4,1200); tone(900,200,.3,'sine',.12); },
   mud(){ noise(.18,.3,300,0,2); },
   scribble(){ noise(.35,.22,3000); },
   alarm(){ for(let i=0;i<3;i++){ tone(880,880,.12,'square',.07,i*.25); tone(660,660,.12,'square',.07,i*.25+.12);} },
-  shout(){ tone(400,250,.25,'sawtooth',.05); },
+  shout(){ const p=.8+Math.random()*.5; tone(400*p,250*p,.25,'sawtooth',.05); },
+  grumble(){ tone(190,150,.28,'sawtooth',.05); tone(170,130,.24,'sawtooth',.045,.2); },
+  combo(){ [784,988,1319].forEach((f,i)=>tone(f,f,.12,'triangle',.09,i*.07)); },
   crack(){ noise(.12,.5,2200,0,3); noise(.3,.3,700,.05); tone(300,90,.2,'triangle',.15); },
   scrape(){ noise(.22,.12,1500,0,4); },
   printer(){ for(let i=0;i<8;i++){ noise(.12,.18,2600,i*.16,6); tone(180,190,.1,'square',.03,i*.16); } },

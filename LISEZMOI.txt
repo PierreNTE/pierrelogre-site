@@ -12,6 +12,10 @@ Nouveautés (5.7 : la première minute et le téléphone)
   sous le pouce droit, « Attraper » qui s'allume quand un objet est à portée et devient « Poser »,
   portée un peu plus large au doigt. Partout : le renard glisse le long des murs au lieu de s'y coller.
 - Écrans à 120 Hz : 60 images par seconde régulières (moins de chauffe et de batterie).
+- Les habitants réagissent davantage : surpris, puis agacés (poing levé), puis ils chassent le renard
+  en agitant les bras ; celui qui rapporte un objet le lâche de surprise. Trois glapissements différents.
+- Rythme : « Doublé ! » quand deux bêtises s'enchaînent ; si l'on tourne en rond, un indice arrive plus tôt
+  (45 s) et, au village, une flèche montre où aller.
 
 Nouveautés (5.1 : direction artistique)
 ---------------------------------------

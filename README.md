@@ -56,6 +56,7 @@ src/
     input.js      clavier, tactile (joystick flottant : toute la moitié basse gauche répond, il vient sous le pouce)
     tutorial.js   première visite : trois bêtises guidées (jardinier → chapeau → fontaine), post-it, chevron, « Passer »
     pacer.js      écrans 120 Hz et plus : 60 images par seconde régulières (sauf pendant #bench)
+    nudge.js      indices qui montrent l'endroit (anneau + flèche « Indice ») quand on tourne en rond au village
     regions.js    système de régions : déclaration, construction à la demande, ouverture, voyages, zones, objets
     regions/      une région par fichier (village, foret, sport, moto, riviere, plage, gare, nantes, paris,
                   montagne, ile, terrier = la salle souterraine) + kit.js (décor partagé : maisons vendéennes, bâtiments, arbres, haies et talus
