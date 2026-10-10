@@ -3,7 +3,7 @@
    ===================================================================== */
 const T = {
 fr:{
-  loading:"Le renard se réveille…", skip:"Voir le profil sans jouer", nogame:"Version sans jeu : ton navigateur n'affiche pas la 3D. Voici directement le terrier.",
+  loading:"Le renard se réveille…", skip:"Le jeu tarde à se charger ? Voir le profil sans jouer", nogame:"Version sans jeu : ton navigateur n'affiche pas la 3D. Voici directement le terrier.",
   legal:"<b>Mentions légales.</b> Site personnel édité par Pierre Logre, contact via LinkedIn. Hébergeur : OVH SAS, 2 rue Kellermann, 59100 Roubaix, France. Aucun cookie ni traceur publicitaire : seuls ta langue, le son et tes succès sont gardés dans ton navigateur.",
   nbTitle:"Bêtises du jour", fold:"replier", unfold:"déplier", reset:"recommencer", resetSure:"sûr ? clique encore",
   secret:"??? (bêtise secrète)", sound:"🔊 Son", muted:"🔇 Muet", who:"Qui est le renard ?", whoShort:"Profil", liChip:"Pierre", tYap:"Glapir", tGrab:"Attraper", hintGrab:"✋",
@@ -55,7 +55,7 @@ fr:{
   loot0:"Le terrier est vide. Il manque une baguette…", loot1:"Butin du terrier : une baguette encore tiède.",
 },
 en:{
-  loading:"The fox is waking up…", skip:"See the profile without playing", nogame:"No-game version: your browser can't display 3D. Here's the den directly.",
+  loading:"The fox is waking up…", skip:"Game taking a while? See the profile without playing", nogame:"No-game version: your browser can't display 3D. Here's the den directly.",
   legal:"<b>Legal notice.</b> Personal website published by Pierre Logre, contact via LinkedIn. Host: OVH SAS, 2 rue Kellermann, 59100 Roubaix, France. No cookies or ad trackers: only your language, sound setting and achievements are kept in your browser.",
   nbTitle:"Today's mischief", fold:"fold", unfold:"unfold", reset:"restart", resetSure:"sure? click again",
   secret:"??? (secret mischief)", sound:"🔊 Sound", muted:"🔇 Muted", who:"Who's the fox?", whoShort:"About", liChip:"Pierre", tYap:"Yap", tGrab:"Grab", hintGrab:"✋",

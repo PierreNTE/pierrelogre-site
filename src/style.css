@@ -15,7 +15,7 @@
   --font-ui:"Baloo 2","Trebuchet MS",system-ui,sans-serif;
   color-scheme:light;
 }
-html,body{height:100%;margin:0;overflow:hidden;background:var(--sky);color:var(--ink);font-family:var(--font-ui);-webkit-tap-highlight-color:transparent;touch-action:none;user-select:none;-webkit-user-select:none}
+html,body{height:100%;margin:0;overflow:hidden;background:var(--sky);color:var(--ink);font-family:var(--font-ui);-webkit-tap-highlight-color:transparent;touch-action:none;user-select:none;-webkit-user-select:none;-webkit-touch-callout:none}
 #game{position:fixed;inset:0;width:100%;height:100%;display:block;outline:none}
 /* Vignettage très léger (CSS : aucun coût de rendu) : ramène le regard vers le renard */
 #vignette{position:fixed;inset:0;pointer-events:none;background:radial-gradient(ellipse 75% 70% at 50% 46%,rgba(0,0,0,0) 60%,rgba(58,42,26,.17) 100%)}
@@ -374,6 +374,6 @@ html.mg #game{cursor:crosshair;touch-action:none}
 .nb-more{display:inline-block;margin:0 0 6px;background:var(--fox);color:#fff;font:800 14px var(--font-ui);padding:3px 12px;border-radius:999px;animation:tagBob .7s ease-in-out infinite alternate}
 @keyframes nbIn{from{opacity:0;transform:translateY(-20px) rotate(-4deg)}}
 @keyframes tagBob{to{transform:translateY(-5px)}}
-@media (max-width:640px){#tuto{width:min(232px,calc(100vw - 150px));padding:9px 11px 9px}#tuto b{font-size:17px;padding-right:40px}#tuto span{font-size:16px}#tutoSkip{font-size:14px}}
+@media (max-width:640px){#tuto{width:min(226px,calc(100vw - 160px));padding:9px 11px 9px}#tuto b{font-size:17px;padding-right:40px}#tuto span{font-size:16px}#tutoSkip{font-size:14px}}
 @media (max-height:520px){#tuto{width:min(270px,calc(100vw - 190px));padding:7px 11px}#tuto b{font-size:17px}#tuto span{font-size:15.5px}}
 @media (prefers-reduced-motion:reduce){#tutoChev i,.nb-more{animation:none}}

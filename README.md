@@ -25,6 +25,8 @@ Contrôles visuels (outils de développement, sans effet en jeu) :
 - `window.__foxAudit = (id, group) => { … }` : appelée avec le groupe de décor de chaque lieu juste avant sa fusion ; sert au
   contrôle automatique de la géométrie (objets qui flottent, NaN, échelles nulles).
 - `window.__fox.dev.KIT` et `setBuild` : construire n'importe quel objet du kit dans un groupe à part (galerie d'objets).
+- `window.__fox.dev.resolve` (collision du jeu), `pace` / `PACE` (cadence d'affichage), `stick` (joystick), `nearestTarget`
+  (portée d'attraper), `TUTO` / `skipTuto` (visite guidée) : utilisés par les tests.
 - Le monde est construit avec un hasard rejouable (graine par lieu, `seeded` dans `state.js`) : deux chargements donnent
   le même décor, donc des captures comparables.
 
@@ -51,7 +53,9 @@ src/
     hud.js        carnet, indices, bulles, écran de fin, cartes des glands
     acorns.js     glands dorés              audio.js      sons et musique synthétisés
     fx.js         particules, feuilles      quality.js    qualité adaptative
-    input.js      clavier, tactile
+    input.js      clavier, tactile (joystick flottant : toute la moitié basse gauche répond, il vient sous le pouce)
+    tutorial.js   première visite : trois bêtises guidées (jardinier → chapeau → fontaine), post-it, chevron, « Passer »
+    pacer.js      écrans 120 Hz et plus : 60 images par seconde régulières (sauf pendant #bench)
     regions.js    système de régions : déclaration, construction à la demande, ouverture, voyages, zones, objets
     regions/      une région par fichier (village, foret, sport, moto, riviere, plage, gare, nantes, paris,
                   montagne, ile, terrier = la salle souterraine) + kit.js (décor partagé : maisons vendéennes, bâtiments, arbres, haies et talus
@@ -123,4 +127,4 @@ créer un projet gratuit sur supabase.com, exécuter `supabase/leaderboard.sql` 
 
 Renseigner `umami.src` et `umami.websiteId` dans `src/site.config.json`. Le build ajoute le script
 et autorise son domaine dans la CSP. Événements envoyés : Partie lancée, Partie terminée, Terrier ouvert,
-Clic LinkedIn, Clic GitHub, Indice, Gland.
+Clic LinkedIn, Clic GitHub, Indice, Gland, Tutoriel terminé (avec sa durée), Tutoriel passé (avec l'étape).

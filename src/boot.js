@@ -1,9 +1,10 @@
 (function(){
   var $=function(id){ return document.getElementById(id); };
-  function showProfile(){
+  // Version sans jeu (pas de 3D) ; slow : le jeu tarde à se charger (pas de note « ton navigateur n'affiche pas la 3D »)
+  function showProfile(slow){
     document.documentElement.classList.add('nogame');
     var b=$('burrow'); if(b) b.hidden=false;
-    var n=$('nogameNote'); if(n) n.hidden=false;
+    var n=$('nogameNote'); if(n) n.hidden=slow===true;
   }
   window.__showProfile=showProfile;
   var gl=null; try{ var c=document.createElement('canvas'); gl=c.getContext('webgl2')||c.getContext('webgl'); }catch(e){}
@@ -29,5 +30,5 @@
   if($('bClose')) $('bClose').addEventListener('click',close);
   if($('outBtn')) $('outBtn').addEventListener('click',close);
   setTimeout(function(){ if(!window.__foxReady){ var s=$('loaderSkip'); if(s) s.hidden=false; } },8000);
-  $('loaderSkip').addEventListener('click',showProfile);
+  $('loaderSkip').addEventListener('click',function(){ showProfile(true); });
 })();

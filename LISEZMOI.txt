@@ -1,6 +1,18 @@
 pierrelogre.com · le renard fait des bêtises (version 5 : le monde s'agrandit)
 ============================================================================
 
+Nouveautés (5.7 : la première minute et le téléphone)
+------------------------------------------------------
+- La carte d'accueil s'affiche tout de suite, dans la langue du visiteur, pendant que le jeu se charge
+  derrière ; un clic sur « Jouer » pendant le chargement lance la partie dès qu'elle est prête.
+- Première visite : trois bêtises guidées en douceur (faire sursauter le jardinier, voler son chapeau,
+  le jeter dans la fontaine), un post-it à la place du carnet, une flèche et un chevron vers la cible,
+  une petite fête à la fin. « Passer » à tout moment ; vue une fois, elle ne revient plus.
+- Au téléphone : joystick flottant (le pouce peut se poser n'importe où en bas à gauche), boutons en arc
+  sous le pouce droit, « Attraper » qui s'allume quand un objet est à portée et devient « Poser »,
+  portée un peu plus large au doigt. Partout : le renard glisse le long des murs au lieu de s'y coller.
+- Écrans à 120 Hz : 60 images par seconde régulières (moins de chauffe et de batterie).
+
 Nouveautés (5.1 : direction artistique)
 ---------------------------------------
 - Monde beaucoup plus vivant : herbes et fleurs qui ondulent et se couchent au passage du renard,
@@ -27,6 +39,11 @@ Mise en ligne (manuelle, par FileZilla)
 1. Télécharge une sauvegarde de l'ancien contenu de www/, puis VIDE complètement www/.
 2. Dépose tout le contenu du dossier www/ de ce zip, y compris les fichiers cachés
    .htaccess et .well-known/ (FileZilla : Serveur > Forcer l'affichage des fichiers cachés).
+   HTTPS : le .htaccess envoie tout le monde vers https://pierrelogre.com et active HSTS. Il faut donc que
+   le certificat SSL de l'hébergement soit actif. Le certificat Let's Encrypt gratuit inclus avec
+   l'hébergement OVH suffit (espace client OVH, rubrique de l'hébergement, « Certificat SSL ») :
+   les certificats payants ne sont pas utiles, pas plus que l'option « Visibilité Pro » (gestion payante
+   de présence en ligne) : le site n'en dépend pas.
 3. Ouvre https://pierrelogre.com en navigation privée, puis https://pierrelogre.com/nimporte-quoi
    (la page 404 du renard doit s'afficher).
 4. Retire pierrelogre.com du projet Vercel « pierre-logre » (Settings > Domains) si ce n'est pas fait.
