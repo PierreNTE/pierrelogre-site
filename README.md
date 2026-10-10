@@ -25,6 +25,7 @@ Contrôles visuels (outils de développement, sans effet en jeu) :
 - `window.__foxAudit = (id, group) => { … }` : appelée avec le groupe de décor de chaque lieu juste avant sa fusion ; sert au
   contrôle automatique de la géométrie (objets qui flottent, NaN, échelles nulles).
 - `window.__fox.dev.KIT` et `setBuild` : construire n'importe quel objet du kit dans un groupe à part (galerie d'objets).
+- `window.__fox.THREE` ne contient que `Vector3` : exposer tout l'espace de noms empêcherait esbuild d'alléger Three.js.
 - `window.__fox.dev.resolve` (collision du jeu), `pace` / `PACE` (cadence d'affichage), `stick` (joystick), `nearestTarget`
   (portée d'attraper), `TUTO` / `skipTuto` (visite guidée) : utilisés par les tests.
 - Le monde est construit avec un hasard rejouable (graine par lieu, `seeded` dans `state.js`) : deux chargements donnent
