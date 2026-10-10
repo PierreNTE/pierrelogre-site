@@ -1,0 +1,8 @@
+{
+  "site": "https://pierrelogre.com/",
+  "linkedin": "https://www.linkedin.com/in/pierre-logre/",
+  "github": "https://github.com/PierreNTE",
+  "ogImage": "og-image.jpg",
+  "umami": { "src": "", "websiteId": "" },
+  "leaderboard": { "supabaseUrl": "", "anonKey": "" }
+}

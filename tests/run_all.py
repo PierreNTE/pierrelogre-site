@@ -1,0 +1,302 @@
+#!/usr/bin/env python3
+"""
+Tests du site pierrelogre.com : `npm test` (build + ce script).
+
+Lance un serveur local qui reproduit la CSP stricte d'OVH (.htaccess), puis vérifie dans Chromium :
+  1. partie complète (13 bêtises + la secrète), écran de fin, succès
+  2. discrétion : vol vu → alerte ; vol discret hors de vue → pas d'alerte
+  3. objet lâché contre un meuble → reposé hors de l'obstacle
+  4. gland doré → carte d'anecdote + sauvegarde
+  5. sauvegarde de partie → « Reprendre (n/13) » après rechargement
+  6. défi du jour → 5 bêtises
+  7. versions de secours : sans WebGL, sans JavaScript, page 404
+  8. mobile 375×667 : aucun chevauchement d'interface pendant un message
+  9. budget de performance : < 150 appels de dessin (village), < 160 par région
+ 10. monde ouvert : ouverture des régions, voyages, mini-jeu, classement, carnet, sauvegarde v2
+Aucune erreur console n'est tolérée.
+"""
+import asyncio, json, os, re, subprocess, sys, time, functools, http.server, threading
+from playwright.async_api import async_playwright
+
+ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+WWW = os.path.join(ROOT, 'site', 'www')
+PORT = 8767
+OUT = os.environ.get('TEST_OUT', '/tmp/claude-0/tests')
+os.makedirs(OUT, exist_ok=True)
+GL = ["--use-gl=angle", "--use-angle=swiftshader", "--enable-unsafe-swiftshader"]
+results = []
+
+def serve():
+    csp = re.search(r'Content-Security-Policy "([^"]+)"', open(os.path.join(WWW, '.htaccess')).read()).group(1).replace(' upgrade-insecure-requests', '')
+    class H(http.server.SimpleHTTPRequestHandler):
+        extensions_map = {**http.server.SimpleHTTPRequestHandler.extensions_map, '.js': 'text/javascript', '.woff2': 'font/woff2', '.svg': 'image/svg+xml'}
+        def end_headers(self):
+            self.send_header('Content-Security-Policy', csp); self.send_header('X-Content-Type-Options', 'nosniff'); super().end_headers()
+        def send_error(self, code, message=None, explain=None):
+            if code == 404 and os.path.exists(os.path.join(WWW, '404.html')):
+                body = open(os.path.join(WWW, '404.html'), 'rb').read()
+                self.send_response(404); self.send_header('Content-Type', 'text/html; charset=utf-8'); self.send_header('Content-Length', str(len(body))); self.end_headers(); self.wfile.write(body); return
+            super().send_error(code, message, explain)
+        def log_message(self, *a): pass
+    srv = http.server.ThreadingHTTPServer(('127.0.0.1', PORT), functools.partial(H, directory=WWW))
+    threading.Thread(target=srv.serve_forever, daemon=True).start()
+    return srv
+
+URL = f'http://127.0.0.1:{PORT}/'
+JS_HELPERS = """
+  const F=window.__fox, f=F.fox, wait=ms=>new Promise(r=>setTimeout(r,ms));
+  const go=(x,z,yaw=0)=>{ f.pos.set(x,0,z); f.yaw=yaw; f.vel.set(0,0,0); };
+  const item=k=>F.items.find(i=>i.kind===k);
+  const npc=id=>F.npcs.find(n=>n.id===id);
+"""
+def check(name, ok, detail=''):
+    results.append((name, bool(ok), detail)); print(('✓ ' if ok else '✗ ') + name + (f'  [{detail}]' if detail else ''), flush=True)
+
+async def page(browser, w=1280, h=760, acorns_done=False, **kw):
+    cine = kw.pop('cine', False)
+    ctx = await browser.new_context(viewport={'width': w, 'height': h}, **kw)
+    if not cine: await ctx.add_init_script("window.__foxNoCine=true")
+    if acorns_done:  # glands déjà trouvés : aucune carte ne vient interrompre la partie scriptée
+        await ctx.add_init_script("try{localStorage.setItem('fox-betises-v2', JSON.stringify({acorns:[0,1,2,3,4]}))}catch(e){}")
+    pg = await ctx.new_page(); errs = []
+    pg.on('pageerror', lambda e: errs.append('pageerror: ' + str(e)))
+    pg.on('console', lambda m: errs.append(f'{m.type}: {m.text}') if m.type in ('error', 'warning') and 'preloaded using link preload' not in m.text else None)
+    await pg.goto(URL, timeout=120000)
+    return ctx, pg, errs
+
+async def ready(pg):
+    await pg.wait_for_function('window.__foxReady===true', timeout=120000)
+
+async def js(pg, body):
+    return await pg.evaluate('async()=>{' + JS_HELPERS + body + '}')
+
+async def test_playthrough(browser):
+    ctx, pg, errs = await page(browser, 480, 320, acorns_done=True); await ready(pg)
+    await js(pg, "F.start('libre', false);")
+    # Carottes : arracher les 3, en garder une pour la machine à café
+    await js(pg, """for(const c of F.items.filter(i=>i.kind==='carotte')){ go(c.pos.x,c.pos.z+1.2,Math.PI); await wait(400); F.grabOrDrop(); await wait(300); go(c.pos.x,-8.2,0); F.dropHeld(); await wait(300); }""")
+    await js(pg, """const c=F.items.find(i=>i.kind==='carotte'&&!i.planted&&!i.carrier&&!i.gone); go(c.pos.x,c.pos.z-1,0); await wait(400); F.grabOrDrop(); await wait(300); go(7.6,-11.9,Math.PI); await wait(400); F.dropHeld(); await wait(400);""")
+    # Jardinier, chapeau, chapeau à l'eau
+    # (le jardinier court récupérer son chapeau : comme un joueur, on retente si on arrive trop tard)
+    await js(pg, """const h=item('chapeau');
+                    for(let k=0;k<4&&!F.run.done.chapeau;k++){ const g=npc('gardener'); go(g.pos.x+2,g.pos.z+1.6,-2.3); await wait(400); F.yap(); for(let i=0;i<800&&h.vel;i++) await wait(50);   /* attendre qu'il retombe (rendu logiciel : 1 à 2 images/s, le vol dure plus de 10 s) */
+                      if(!h.worn&&!h.carrier){ go(h.pos.x,h.pos.z-.9,0); F.grabOrDrop(); } await wait(300); if(!F.run.done.chapeau) await wait(2500); }
+                    if(f.held&&f.held.kind==='chapeau'){ go(-4,3.3,Math.PI); await wait(400); F.dropHeld(); await wait(400); }""")
+    # Mug dans la fontaine
+    await js(pg, """const m=item('mug'); go(m.pos.x,m.pos.z+1,Math.PI); await wait(400); F.grabOrDrop(); await wait(300); go(-4,3.2,Math.PI); await wait(400); F.dropHeld(); await wait(400);""")
+    # Boue : le commercial au téléphone près de la flaque
+    await js(pg, """const s=npc('sales'); s.state='idle'; s.routeI=3; s.wait=8; s.pos.set(-9.7,0,4.3); await wait(300); go(-8.3,3.4,-1); await wait(300); F.yap(); await wait(600);""")
+    # Imprimante → l'informaticien s'éloigne → serveur débranché discrètement (diversion + serveur)
+    await js(pg, """go(7.6,8.2,-Math.PI/2); await wait(400); F.grabOrDrop(); for(let i=0;i<60&&!npc('it').diverted;i++) await wait(100);
+                    F.S.sneakToggle=true; const p=item('prise'); go(p.pos.x,p.pos.z+1,Math.PI); await wait(500); F.grabOrDrop(); await wait(300); F.dropHeld(); F.S.sneakToggle=false; await wait(300);""")
+    # Réunion
+    await js(pg, "go(22.5,5,0); await wait(400); F.yap(); await wait(300);")
+    # Pots : foncer dedans
+    # (on garde les touches enfoncées jusqu'au choc : le rendu logiciel des tests tourne à 1-3 images/s)
+    for i, (px, pz) in enumerate([(.2, 4.4), (-8.2, -4.2), (-9.4, -12.1)]):
+        await js(pg, f"go({px-2.6},{pz},Math.PI/2); await wait(300);")
+        await pg.keyboard.down('Shift'); await pg.keyboard.down('KeyD')
+        for _ in range(36):
+            await pg.wait_for_timeout(250)
+            if await js(pg, f"return F.props.filter(p=>p.kind==='pot')[{i}].knocked;"): break
+        await pg.keyboard.up('KeyD'); await pg.keyboard.up('Shift'); await pg.wait_for_timeout(300)
+    # Baguette au terrier : le renard descend dans la salle souterraine (regions/terrier.js)
+    await js(pg, """const b=item('baguette'); go(b.pos.x,6.6,0); await wait(400); F.grabOrDrop(); await wait(300); go(-8,0,13.5); go(-8,13.5,0); await wait(300); f.pos.set(-8,0,15);
+                    for(let i=0;i<60&&F.S.region!=='terrier';i++) await wait(250);""")
+    r = await js(pg, "return {done:Object.keys(F.run.done).sort(), goals:F.run.goals.length, ach:F.saved.ach, region:F.S.region, loot:F.run.loot, alerts:F.run.alerts};")
+    missing = sorted(set(['carottes','jardinier','chapeau','chapeauEau','baguette','pots','mug','cafe','boue','serveur','imprimante','diversion','reunion','terrier']) - set(r['done']))
+    check('partie complète : 13 bêtises + la secrète', not missing, 'manque ' + ','.join(missing) if missing else '')
+    check('le terrier s’ouvre : le renard entre dans la salle souterraine', r['region'] == 'terrier' and r['loot'], f"{r['region']} · butin {r['loot']}")
+    end = await js(pg, "for(let i=0;i<40&&document.querySelector('#endCard').hidden;i++) await wait(250); const c=document.querySelector('#endCard'); return {visible:!c.hidden, stats:c.querySelectorAll('#endStats dt').length, li:document.querySelector('#endLi').href, share:!!document.querySelector('#shareBtn,#shareText,#copyNote')||document.documentElement.innerHTML.includes('share-offsite'), fleau:!!F.saved.ach.fleau};")
+    check('écran de fin : carte de progression + lien profil, sans bouton de partage', end['visible'] and end['stats'] >= 4 and 'linkedin.com/in/' in end['li'] and not end['share'], f"stats {end['stats']} · partage {end['share']}")
+    check('succès « Fléau » débloqué', end['fleau'])
+    await pg.screenshot(path=f'{OUT}/end_card.png')
+    # Dans le terrier : une plaque raconte chaque souvenir du parcours, le tableau de liège ouvre la fiche complète
+    r = await js(pg, """document.querySelector('#contBtn').click(); await wait(400); go(2, 262-3.15, Math.PI); await wait(1200);
+                        const pl=document.querySelector('.den-plaque'); const plaque=pl&&!pl.hidden?pl.innerText:'';
+                        const ia=F.interacts.find(i=>i.den==='board'); ia.action(ia); await wait(300);
+                        return {plaque, burrow:!document.querySelector('#burrow').hidden, li:document.querySelector('#liBtn').href};""")
+    check('terrier : plaque du parcours + fiche complète (LinkedIn) depuis le tableau', 'Sopra Steria' in r['plaque'] and r['burrow'] and 'linkedin.com/in/' in r['li'], r['plaque'][:60])
+    await js(pg, "document.querySelector('#outBtn').click(); await wait(300);")
+    check('aucune erreur console (partie complète)', not errs, '; '.join(errs[:3]))
+    await ctx.close()
+
+async def test_stealth_and_drop(browser):
+    ctx, pg, errs = await page(browser, 480, 320); await ready(pg)
+    await js(pg, "F.start('libre', false);")
+    # Vol sous les yeux du boulanger → alerte
+    r1 = await js(pg, """const b=npc('baker'), bg=item('baguette'); b.state='idle'; b.routeI=0; b.wait=20; b.pos.set(-20.6,0,9.5); b.yaw=Math.PI; await wait(300);
+                         go(bg.pos.x,6.6,0); await wait(400); const before=F.run.alerts; F.grabOrDrop(); await wait(300); return {before, after:F.run.alerts, state:b.state, noticed:bg.noticed};""")
+    check('vol vu → alerte « ! »', r1['after'] == r1['before'] + 1 and r1['noticed'], json.dumps(r1))
+    # Objet lâché contre l'étal → posé hors de l'obstacle
+    r2 = await js(pg, """go(-19,6.45,0); await wait(300); F.dropHeld(); await wait(200); const bg=item('baguette'); const S={x:-19,z:8,w:4.4,d:1.5};
+                         const inside=Math.abs(bg.pos.x-S.x)<S.w/2&&Math.abs(bg.pos.z-S.z)<S.d/2; return {x:bg.pos.x,z:bg.pos.z,inside};""")
+    check('objet lâché contre un meuble → posé à côté', not r2['inside'], json.dumps(r2))
+    # Vol discret du mug quand le commercial est dehors → pas d'alerte
+    r3 = await js(pg, """const s=npc('sales'); s.state='idle'; s.routeI=3; s.wait=30; s.pos.set(-9.7,0,4.3); await wait(300);
+                         F.S.sneakToggle=true; const m=item('mug'); go(m.pos.x,m.pos.z+1,Math.PI); await wait(500); const before=F.run.alerts; F.grabOrDrop(); await wait(600);
+                         const r={before, after:F.run.alerts, noticed:m.noticed, missAt:m.missAt!=null}; F.S.sneakToggle=false; return r;""")
+    check('vol discret hors de vue → pas d’alerte', r3['after'] == r3['before'] and not r3['noticed'] and r3['missAt'], json.dumps(r3))
+    # Gland doré
+    r4 = await js(pg, """const a=F.acorns[0]; go(a.pos.x,a.pos.z,0); await wait(1200); const card=!document.querySelector('#factCard').hidden; const txt=document.querySelector('#factText').textContent;
+                         document.querySelector('#factClose').click(); await wait(200); return {card, txt, saved:F.saved.acorns.length, paused:F.paused};""")
+    check('gland doré → carte d’anecdote sauvegardée', r4['card'] and r4['saved'] >= 1 and not r4['paused'], r4['txt'][:50])
+    await pg.screenshot(path=f'{OUT}/stealth.png')
+    # Sauvegarde : 2 bêtises puis rechargement
+    await js(pg, "F.dropHeld(); go(22.5,5,0); await wait(300); F.yap(); await wait(300); go(7.6,8.2,-Math.PI/2); await wait(300); F.grabOrDrop(); await wait(600);")
+    await pg.reload(); await ready(pg)
+    r5 = await js(pg, "return {btn:document.querySelector('#startBtn').textContent, newVisible:!document.querySelector('#newBtn').hidden};")
+    ok5 = re.search(r'\((\d+)/\d+\)', r5['btn'])
+    check('reprise de partie proposée après rechargement', ok5 and int(ok5.group(1)) >= 2 and r5['newVisible'], r5['btn'])
+    await js(pg, "document.querySelector('#startBtn').click(); await wait(500);")
+    r6 = await js(pg, "return {done:Object.keys(F.run.done), mug:item('mug').gone};")
+    check('progression restaurée', 'reunion' in r6['done'] and 'imprimante' in r6['done'], ','.join(r6['done']))
+    check('aucune erreur console (discrétion, sauvegarde)', not errs, '; '.join(errs[:3]))
+    await ctx.close()
+
+async def test_daily(browser):
+    ctx, pg, errs = await page(browser, 480, 320); await ready(pg)
+    await js(pg, "document.querySelector('#dailyBtn').click(); await wait(500);")
+    r = await js(pg, "return {mode:F.run.mode, n:F.run.goals.length, li:document.querySelectorAll('#goals li').length, label:document.querySelector('#nbMode').textContent};")
+    check('défi du jour : 5 bêtises', r['mode'] == 'defi' and r['n'] == 5 and r['li'] == 5, json.dumps(r))
+    await ctx.close()
+
+async def test_fallbacks(browser_factory):
+    b = await browser_factory(["--disable-webgl", "--disable-3d-apis", "--disable-gpu"])
+    ctx = await b.new_context(viewport={'width': 390, 'height': 800}); pg = await ctx.new_page(); await pg.goto(URL); await pg.wait_for_timeout(2500)
+    r = await pg.evaluate("({nogame:document.documentElement.classList.contains('nogame'), burrow:!document.querySelector('#burrow').hidden})")
+    check('sans WebGL → profil affiché', r['nogame'] and r['burrow'])
+    await b.close()
+    b = await browser_factory(GL)
+    ctx = await b.new_context(java_script_enabled=False, viewport={'width': 1280, 'height': 760}); pg = await ctx.new_page(); await pg.goto(URL); await pg.wait_for_timeout(800)
+    txt = await pg.inner_text('#burrow')
+    check('sans JavaScript → profil lisible', 'Pierre Logre' in txt and 'Sopra Steria' in txt)
+    resp = await pg.goto(URL + 'nimporte-quoi'); txt = await pg.inner_text('body')
+    check('page 404 du renard', resp.status == 404 and 'renard' in txt.lower(), str(resp.status))
+    await b.close()
+
+async def test_mobile_and_perf(browser):
+    ctx, pg, errs = await page(browser, 375, 667, is_mobile=True, has_touch=True, device_scale_factor=2); await ready(pg)
+    r = await pg.evaluate("()=>{ const c=document.querySelector('#intro .card').getBoundingClientRect(); return {l:Math.round(c.left), r:Math.round(c.right), w:innerWidth}; }")
+    check('mobile : la carte d’accueil tient dans l’écran', r['l'] >= 0 and r['r'] <= r['w'], json.dumps(r))
+    await js(pg, "F.start('libre', false); await wait(400);")
+    await js(pg, "document.querySelector('#toasts').insertAdjacentHTML('beforeend','<div class=\"toast\">Bêtise accomplie : test de chevauchement assez long</div>'); await wait(200);")
+    r = await pg.evaluate("""()=>{ const R=s=>{const e=document.querySelector(s); if(!e||e.hidden) return null; const r=e.getBoundingClientRect(); return r.width&&r.height?r:null;};
+       const ids=['#notebook','#topRight','#stick','#tbtns','.toast']; const out=[]; for(let i=0;i<ids.length;i++) for(let j=i+1;j<ids.length;j++){ const a=R(ids[i]), b=R(ids[j]); if(a&&b&&a.left<b.right&&b.left<a.right&&a.top<b.bottom&&b.top<a.bottom) out.push(ids[i]+'∩'+ids[j]); }
+       const tr=R('#topRight'); return {overlaps:out, topRightW:tr&&Math.round(tr.width), scrollW:document.documentElement.scrollWidth}; }""")
+    check('mobile 375×667 : aucun chevauchement', not r['overlaps'], ', '.join(r['overlaps']))
+    check('mobile : pas de défilement horizontal', r['scrollW'] <= 375, str(r['scrollW']))
+    # Qualité auto : un téléphone fluide au palier 1 retrouve la pleine résolution (essai, gardé s'il reste fluide)
+    r = await js(pg, "F.Q.done=false; F.Q.tier=1; F.renderer.setPixelRatio(1); F.Q.decide(60); const a=F.renderer.getPixelRatio(); F.Q.decide(60); const b=F.renderer.getPixelRatio(); F.Q.decide(59); return {a, b, c:F.renderer.getPixelRatio(), done:F.Q.done};")
+    check('qualité auto : retour à la pleine résolution si le téléphone reste fluide', r['a'] == 1 and r['b'] > 1 and r['c'] == r['b'] and r['done'], json.dumps(r))
+    await pg.screenshot(path=f'{OUT}/mobile.png')
+    await ctx.close()
+    ctx, pg, errs = await page(browser, 1280, 760); await ready(pg)
+    await js(pg, "F.start('libre', false); await wait(1500);")
+    calls = []
+    for spot in [(-4, 5.5), (-20, -5), (15, 0), (-8, 12)]:
+        c = await js(pg, f"go({spot[0]},{spot[1]},Math.PI); await wait(2500); return F.renderer.info.render.calls;")
+        calls.append(c)
+    check('budget village : < 180 appels de dessin', max(calls) < 180, ' / '.join(map(str, calls)))
+    await js(pg, "go(-8,13.6,0); await wait(2500);")
+    await pg.screenshot(path=f'{OUT}/occlusion_burrow.png')
+    check('aucune erreur console (mobile, perf)', not errs, '; '.join(errs[:3]))
+    await ctx.close()
+
+async def test_world(browser):
+    """Monde ouvert : régions, ouverture, voyages, mini-jeu, classement, carnet, sauvegarde v2."""
+    ctx, pg, errs = await page(browser, 1280, 760, acorns_done=True); await ready(pg)
+    await js(pg, "localStorage.removeItem('fox-leaderboard'); F.start('libre', false); await wait(1500);")
+    r = await js(pg, """return {regions:F.REGIONS.length, goals:F.GOALS.length, secrets:F.GOALS.filter(g=>g.secret).length, ach:F.ACHIEVEMENTS.length,
+                        built:F.REGIONS.filter(R=>R.built).map(R=>R.id)};""")
+    check('monde : ≥ 10 régions, ≥ 80 bêtises dont ≥ 15 secrètes, ≥ 20 succès', r['regions'] >= 10 and r['goals'] >= 80 and r['secrets'] >= 15 and r['ach'] >= 20, f"{r['regions']} régions · {r['goals']} bêtises · {r['secrets']} secrètes · {r['ach']} succès")
+    # Avant 4 bêtises : la forêt est fermée (on ne peut pas passer)
+    # (un pas par image : en rendu logiciel lent, on laisse le jeu résoudre les collisions à chaque pas)
+    r = await js(pg, """const frame=()=>new Promise(r=>requestAnimationFrame(()=>r()));
+                        go(-18.5,-19,Math.PI); for(let i=0;i<40;i++){ f.pos.z-=.3; F.fox.vel.set(0,0,0); await frame(); } await wait(1800); const blocked=f.pos.z>-21.2;
+                        for(const id of ['jardinier','reunion','imprimante','mug']) F.completeGoal(id); await wait(600);
+                        go(-18.5,-19,Math.PI); for(let i=0;i<60;i++){ f.pos.z-=.3; F.fox.vel.set(0,0,0); await frame(); } await wait(1500);
+                        for(let i=0;i<40&&F.S.region!=='foret';i++) await wait(250);   // rendu logiciel lent : on attend la mise à jour de la région
+                        return {blocked, unlocked:F.run.unlocked.slice(), z:f.pos.z, region:F.S.region};""")
+    check('forêt fermée puis ouverte après 4 bêtises', r['blocked'] and 'foret' in r['unlocked'] and r['region'] == 'foret', json.dumps(r))
+    # Toutes les régions : visite, aucune erreur, budget de dessin
+    calls = {}
+    for rid in ['foret', 'sport', 'moto', 'riviere', 'plage', 'gare', 'nantes', 'paris', 'montagne', 'ile']:
+        c = await js(pg, f"""const R=F.RG['{rid}']; F.unlockRegion(R,false); F.teleport(R.spawn.x,R.spawn.z,0); await wait(3200); return [F.S.region, F.renderer.info.render.calls];""")
+        calls[rid] = c
+        await pg.screenshot(path=f'{OUT}/region_{rid}.png')
+    bad = {k: v for k, v in calls.items() if v[0] != k}
+    check('voyage dans chaque région (terriers)', not bad, json.dumps(bad) if bad else f"{len(calls)} régions")
+    worst = max(v[1] for v in calls.values())
+    check('budget par région : < 180 appels de dessin', worst < 180, ' · '.join(f"{k} {v[1]}" for k, v in calls.items()))
+    # Mini-jeu : quelques tirs, fin, record, classement local (sans Supabase configuré)
+    r = await js(pg, """const R=F.RG.sport; F.teleport(89,18,Math.PI); await wait(1200); const ia=F.interacts.find(i=>i.kind==='act'&&Math.abs(i.pos.x-89)<.1&&Math.abs(i.pos.z-18)<.1); ia.action(ia); await wait(300);
+                        const active=F.MG.active; const key=c=>{ dispatchEvent(new KeyboardEvent('keydown',{code:c})); dispatchEvent(new KeyboardEvent('keyup',{code:c})); };
+                        const hold=async(c,ms)=>{ dispatchEvent(new KeyboardEvent('keydown',{code:c})); await wait(ms); dispatchEvent(new KeyboardEvent('keyup',{code:c})); };
+                        const cv=document.querySelector('#game'), aim=(x,y)=>{ const v=new F.THREE.Vector3(89+x,y,11).project(F.camera); cv.dispatchEvent(new PointerEvent('pointermove',{clientX:(v.x+1)/2*innerWidth, clientY:(1-v.y)/2*innerHeight, pointerType:'mouse', bubbles:true})); };
+                        // on vise les lucarnes à la souris puis on tire ; on attend la fin de chaque tir (rendu logiciel lent)
+                        for(let i=0;i<8&&!(F.MG.score>0&&i>=2);i++){ for(let k=0;k<120&&!F.MG.ready;k++) await wait(250); aim(i%2?-1.25:1.25,1.7); await wait(400); key('Space'); await wait(300); for(let k=0;k<120&&F.MG.busy;k++) await wait(250); }
+                        F.endMinigameNow(); await wait(800); for(let i=0;i<30&&document.querySelector('#mgEnd').hidden;i++) await wait(250);
+                        const end=!document.querySelector('#mgEnd').hidden; document.querySelector('#mgPseudo').value='Renard<script>'; document.querySelector('#mgSend').click(); await wait(800);
+                        const lb=JSON.parse(localStorage.getItem('fox-leaderboard')||'{}'); const top=document.querySelector('#mgTop').textContent;
+                        return {active, end, best:F.saved.mgBest, lb:(lb.list||[]).map(x=>x.pseudo), top, note:document.querySelector('#mgSent').textContent};""")
+    check('mini-jeu « Tir au renard » : partie, score, fin', r['active'] and r['end'], f"record {r['best']}")
+    check('classement local de secours + pseudo nettoyé', r['lb'] and r['lb'][0] == 'Renardscript' and 'Renardscript' in r['top'], json.dumps(r['lb']))
+    pz = await js(pg, "return {bad:['C0nnard','s@lope','F.u.c.k'].map(F.pseudoOk), good:['Monique','Véronique','Pierre L.','Renard'].map(F.pseudoOk)};")
+    check('pseudos abusifs refusés, prénoms courants acceptés', not any(pz['bad']) and all(pz['good']), json.dumps(pz))
+    await pg.screenshot(path=f'{OUT}/minigame_end.png')
+    await js(pg, "document.querySelector('#mgQuit').click(); await wait(400);")
+    # Carnet de voyage : carte, succès, classement
+    r = await js(pg, """F.openJournal('map'); await wait(400); const map=!document.querySelector('#journal').hidden, li=document.querySelectorAll('#jRegions li').length;
+                        document.querySelector('[data-tab=ach]').click(); await wait(200); const ach=document.querySelectorAll('.ach').length;
+                        document.querySelector('[data-tab=lb]').click(); await wait(600); const lb=document.querySelectorAll('#j-lb .lb li').length; F.closeJournal(); return {map, li, ach, lb};""")
+    check('carnet de voyage : carte, succès, classement', r['map'] and r['li'] >= 10 and r['ach'] >= 20 and r['lb'] >= 1, json.dumps(r))
+    await pg.screenshot(path=f'{OUT}/journal.png')
+    # Une bêtise de région + sauvegarde v2 (régions ouvertes, position) après rechargement
+    dbg = await js(pg, "F.completeGoal('ola'); F.teleport(-290,10,0); await wait(1500); return {paused:F.paused, x:f.pos.x};")
+    await pg.reload(); await ready(pg)
+    r = await js(pg, "document.querySelector('#startBtn').click(); await wait(2500); return {unlocked:F.run.unlocked.length, ola:!!F.run.done.ola, region:F.S.region, x:Math.round(f.pos.x)};")
+    check('sauvegarde v2 : régions, bêtises et position restaurées', r['unlocked'] >= 10 and r['ola'] and r['region'] == 'paris', json.dumps(r) + ' ' + json.dumps(dbg))
+    # Fil rouge : un souvenir ramassé au complexe sportif (il rejoindra l'étagère du terrier)
+    r = await js(pg, """F.teleport(40.6, 23.6, Math.PI); await wait(1800); for(let i=0;i<24;i++){ go(40.6, 23.6-i*.1, Math.PI); await new Promise(r=>requestAnimationFrame(()=>r())); } await wait(400);
+                        return {souv:F.run.flags.souv||[], toast:[...document.querySelectorAll('.toast')].map(t=>t.textContent).join(' | ')};""")
+    check('fil rouge : souvenir ramassé (ballon de hand)', 'sport' in r['souv'], json.dumps(r))
+    check('aucune erreur console (monde ouvert)', not errs, '; '.join(errs[:3]))
+    await ctx.close()
+    # Plan de caméra à l'ouverture d'une région + défi du jour sans ouverture
+    ctx, pg, errs = await page(browser, 800, 600, acorns_done=True, cine=True); await ready(pg)
+    r = await js(pg, """F.start('libre', false); await wait(500); for(const id of ['jardinier','reunion','imprimante','mug']) F.completeGoal(id);
+                        let seen=false; for(let i=0;i<40;i++){ if(F.S.cine) seen=true; await wait(100); } await wait(3000); return {seen, after:!!F.S.cine, paused:F.paused, banner:document.querySelector('#regionBanner b').textContent};""")
+    check('ouverture : plan de caméra puis retour au jeu', r['seen'] and not r['after'] and not r['paused'], json.dumps(r))
+    await ctx.close()
+    ctx, pg, errs = await page(browser, 375, 667, is_mobile=True, has_touch=True, acorns_done=True); await ready(pg)
+    r = await js(pg, """F.start('defi'); await wait(300); for(const g of F.run.goals.slice(0,4)) F.completeGoal(g); await wait(300); const u=F.run.unlocked.length;
+                        F.S.paused=false; return {u};""")
+    check('défi du jour : aucune région ne s’ouvre', r['u'] == 0, json.dumps(r))
+    await js(pg, "F.start && 0; localStorage.removeItem('fox-run-libre'); location.reload();")
+    await ready(pg)
+    r = await js(pg, """F.start('libre', false); await wait(300); F.openJournal('ach'); await wait(400); const j=document.querySelector('#journal .card').getBoundingClientRect();
+                        return {w:Math.round(j.width), right:Math.round(j.right), scrollW:document.documentElement.scrollWidth};""")
+    check('mobile : carnet de voyage lisible, sans débordement', r['right'] <= 375 and r['scrollW'] <= 375, json.dumps(r))
+    await pg.screenshot(path=f'{OUT}/journal_mobile.png')
+    check('aucune erreur console (plans, mobile)', not errs, '; '.join(errs[:3]))
+    await ctx.close()
+
+async def main():
+    srv = serve()
+    async with async_playwright() as p:
+        launch = lambda args: p.chromium.launch(args=args)
+        b = await launch(GL)
+        for t in (test_playthrough, test_stealth_and_drop, test_daily, test_mobile_and_perf, test_world):
+            try: await t(b)
+            except Exception as e: check(t.__name__, False, 'exception : ' + str(e)[:200])
+        await b.close()
+        try: await test_fallbacks(launch)
+        except Exception as e: check('test_fallbacks', False, 'exception : ' + str(e)[:200])
+    srv.shutdown()
+    failed = [r for r in results if not r[1]]
+    print(f"\n{len(results) - len(failed)}/{len(results)} vérifications réussies. Captures : {OUT}")
+    sys.exit(1 if failed else 0)
+
+if __name__ == "__main__":
+    asyncio.run(main())

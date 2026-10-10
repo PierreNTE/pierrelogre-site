@@ -1,0 +1,78 @@
+pierrelogre.com · le renard fait des bêtises (version 5 : le monde s'agrandit)
+============================================================================
+
+Nouveautés (5.1 : direction artistique)
+---------------------------------------
+- Monde beaucoup plus vivant : herbes et fleurs qui ondulent et se couchent au passage du renard,
+  forêt dense avec sous-bois, ombres de nuages, papillons, lapins, hérisson, fumée des cheminées,
+  montgolfière (rare), lumière et ambiance propres à chaque zone.
+- Les zones encore fermées « dorment » (couleurs éteintes) ; à l'ouverture, une vague de couleur
+  les réveille. Des fleurs poussent là où le renard fait ses bêtises : le monde grandit avec lui.
+- Menu : qualité graphique Auto / Haute / Basse.
+
+Nouveautés (5.0)
+----------------
+- Le village n'est plus que le début : 10 nouvelles zones s'ouvrent au fil des bêtises
+  (forêt, complexe sportif avec un vrai match de handball, motocross, rivière, plage de Vendée,
+  gare et train, Nantes et son éléphant, Paris et la tour Eiffel, montagne et datacenter souverain,
+  île secrète). 104 bêtises dont 18 secrètes, 11 cartes postales, 22 succès.
+- Carnet de voyage (touche M ou bouton « Carte ») : carte du monde, succès, classement,
+  voyage rapide « par les terriers » vers les zones déjà visitées.
+- Mini-jeu « Tir au renard » (complexe sportif) : tirs au but, combo, lucarnes, cibles bonus,
+  record, classement. Jouable à la souris, au clavier et au doigt.
+- La partie se sauvegarde (zones ouvertes, position, objets) ; les anciennes sauvegardes sont reprises.
+
+Mise en ligne (manuelle, par FileZilla)
+---------------------------------------
+1. Télécharge une sauvegarde de l'ancien contenu de www/, puis VIDE complètement www/.
+2. Dépose tout le contenu du dossier www/ de ce zip, y compris les fichiers cachés
+   .htaccess et .well-known/ (FileZilla : Serveur > Forcer l'affichage des fichiers cachés).
+3. Ouvre https://pierrelogre.com en navigation privée, puis https://pierrelogre.com/nimporte-quoi
+   (la page 404 du renard doit s'afficher).
+4. Retire pierrelogre.com du projet Vercel « pierre-logre » (Settings > Domains) si ce n'est pas fait.
+
+Classement partagé (facultatif, gratuit)
+----------------------------------------
+Sans rien faire, le classement du mini-jeu fonctionne déjà, mais chaque visiteur ne voit que ses
+propres scores. Pour un classement commun à tous :
+1. Crée un compte sur https://supabase.com puis un projet (région Europe, offre gratuite).
+2. Dans le projet : SQL Editor > New query, colle le contenu de supabase/leaderboard.sql
+   (dossier source), puis Run. La table « scores » est créée avec ses règles de sécurité :
+   lecture et ajout seulement, pseudo et score vérifiés, anti-spam.
+3. Project Settings > API : copie l'URL du projet et la clé publique « anon » (ou « publishable »).
+   NE COPIE JAMAIS la clé « service_role » / « secret ».
+4. Dans src/site.config.json : renseigne "leaderboard": { "supabaseUrl": "...", "anonKey": "..." }
+   puis reconstruis (npm run build) ou pousse sur GitHub si le déploiement automatique est actif.
+   Le build autorise ce domaine dans la CSP, et seulement lui.
+
+Mise en ligne automatique (facultative, recommandée)
+----------------------------------------------------
+Le dossier source (foxsite-source.zip) contient un workflow GitHub Actions :
+à chaque modification poussée sur GitHub, il construit le site, lance les tests,
+puis l'envoie sur OVH en FTPS. Pour l'activer :
+1. Crée un dépôt privé sur GitHub et pousse-y le contenu de foxsite-source.zip.
+2. Dans le dépôt : Settings > Secrets and variables > Actions, crée :
+     OVH_FTP_HOST      ftp.cluster121.hosting.ovh.net
+     OVH_FTP_USER      ton identifiant FTP (espace client OVH > Hébergement > FTP-SSH)
+     OVH_FTP_PASSWORD  ton mot de passe FTP
+   Ces identifiants ne doivent jamais apparaître ailleurs (ni dans le code, ni dans un message).
+3. Onglet Actions > « Déploiement pierrelogre.com » > Run workflow.
+
+Ajouter un monde plus tard
+--------------------------
+Chaque zone est un fichier dans src/js/regions/. Le README (dossier source) explique comment
+en ajouter une (par exemple un monde spatial) : décor, personnages, bêtises, secrets, ambiance.
+
+Sécurité du compte et du domaine (à faire une fois)
+---------------------------------------------------
+- Active la double authentification sur ton compte OVH (et sur Supabase si tu l'utilises).
+- Mot de passe FTP long et unique ; supprime les accès FTP inutiles.
+- Active DNSSEC sur le domaine.
+- Garde le SPF OVH existant (v=spf1 include:mx.ovh.com -all) et ajoute :
+    TXT  _dmarc.pierrelogre.com  "v=DMARC1; p=quarantine"
+- Ajoute un enregistrement CAA : pierrelogre.com CAA 0 issue "letsencrypt.org"
+
+Aperçu LinkedIn
+---------------
+Après la mise en ligne, colle l'URL dans https://www.linkedin.com/post-inspector/
+pour que LinkedIn rafraîchisse l'aperçu.
