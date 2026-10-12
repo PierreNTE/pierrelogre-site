@@ -24,7 +24,7 @@ import asyncio, json, os, re, subprocess, sys, time, functools, http.server, thr
 from playwright.async_api import async_playwright
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-WWW = os.path.join(ROOT, 'site', 'www')
+WWW = os.environ.get('WWW') or os.path.join(ROOT, 'site', 'www')   # WWW=… : tester un dossier livré (zip décompressé)
 PORT = 8767
 OUT = os.environ.get('TEST_OUT', '/tmp/claude-0/tests')
 os.makedirs(OUT, exist_ok=True)
