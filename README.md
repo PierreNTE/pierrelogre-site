@@ -38,6 +38,8 @@ src/
   body.html, style.css, boot.js   page, styles, détection WebGL (version sans jeu)
   site.config.json                liens LinkedIn/GitHub, image d'aperçu, Umami (facultatif)
   htaccess.conf                   devient site/www/.htaccess (HTTPS, CSP stricte, en-têtes, cache)
+                                  (JS et CSS gardés 7 jours : le build ajoute ?v=empreinte à leur adresse,
+                                  une mise à jour est donc vue tout de suite par les visiteurs déjà venus)
   assets/                         og-image.jpg (FR), og-image-en.jpg (EN)
   js/
     main.js       boucle, démarrage (libre / défi du jour / reprise), fin de partie

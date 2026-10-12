@@ -32,6 +32,8 @@ button:focus-visible,a:focus-visible{outline:3px solid var(--fox);outline-offset
 #intro [aria-busy="true"].queued{opacity:.85}
 @keyframes spin{to{transform:rotate(360deg)}}
 .booting #notebook,.booting #topRight,.booting #touch,.booting #help{visibility:hidden}
+/* Tant que la carte d'accueil est là, l'interface de jeu attend derrière (elle n'apparaît plus floutée sous la carte) */
+html:has(#intro:not([hidden])) :is(#notebook,#topRight,#touch,#help){visibility:hidden}
 .nogame #bClose,.nogame #outBtn,.nogame #loot,.nogame #game,.nogame #notebook,.nogame #topRight,.nogame #help,.nogame #touch,.nogame #intro{display:none!important}
 #nogameNote{font-family:var(--font-hand);font-size:17px;color:var(--tan);margin:0 0 6px}
 .legal{margin-top:34px;padding-top:14px;border-top:1px dashed rgba(240,199,158,.3);font-size:12.5px;line-height:1.5;color:#bfae97;max-width:70ch}
@@ -105,6 +107,7 @@ button:focus-visible,a:focus-visible{outline:3px solid var(--fox);outline-offset
 .overlay{position:fixed;inset:0;display:grid;place-items:safe center;overflow:auto;z-index:10;padding:16px;background:rgba(207,227,207,.5);backdrop-filter:blur(3px)}
 .card{position:relative;background:var(--paper);max-width:450px;width:100%;padding:26px 26px 22px;border-radius:6px;box-shadow:0 20px 50px rgba(40,50,30,.25);transform:rotate(-.8deg)}
 .p404{overflow:auto!important;height:auto}
+.p404 .card p.en{font-size:16px;color:var(--ink-soft);margin-top:-6px}
 a.big{display:inline-block;text-decoration:none}
 .card .title{font-family:var(--font-ui);font-weight:800;font-size:clamp(28px,6vw,38px);line-height:1.02;margin:0 0 10px;text-wrap:balance;letter-spacing:-.01em;padding-right:46px}
 .card .title em{font-style:normal;color:var(--fox)}
@@ -115,6 +118,7 @@ a.big{display:inline-block;text-decoration:none}
 .card-actions{display:flex;flex-wrap:wrap;gap:10px 14px;align-items:center}
 .big{border:0;background:var(--fox);color:#fff;font-weight:800;font-size:19px;padding:10px 22px;border-radius:999px;box-shadow:0 4px 0 var(--fox-deep)}
 .big:active{transform:translateY(2px);box-shadow:0 2px 0 var(--fox-deep)}
+.big:disabled{opacity:.45;cursor:default;transform:none;box-shadow:0 4px 0 var(--fox-deep)}
 .card .alt{border:0;background:none;color:var(--ink-soft);font-size:14px;text-decoration:underline;padding:0;text-align:left}
 .card .langs{position:absolute;top:14px;right:14px}
 
@@ -289,7 +293,7 @@ kbd.k{font:700 10px/1 var(--font-ui);background:#efe6cc;border-radius:4px;paddin
 .j-regions li span{color:var(--ink-soft)}
 .card .j-go{font-size:13px}
 .ach-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(190px,100%),1fr));gap:8px}
-.ach{display:grid;grid-template-columns:28px 1fr;column-gap:6px;background:#f3ecd9;border-radius:8px;padding:8px 10px;opacity:.6}
+.ach{display:grid;grid-template-columns:28px 1fr;column-gap:6px;align-content:start;background:#f3ecd9;border-radius:8px;padding:8px 10px;opacity:.6}
 .ach.on{opacity:1;background:#fbe6cf}
 .ach i{grid-row:span 2;font-style:normal;font-size:20px}
 .ach b{font-family:var(--font-ui);font-size:14px}
@@ -298,6 +302,7 @@ kbd.k{font:700 10px/1 var(--font-ui);background:#efe6cc;border-radius:4px;paddin
 .lb li{display:grid;grid-template-columns:28px 1fr auto;gap:8px;font-family:var(--font-hand);font-size:19px;padding:3px 8px;border-radius:6px}
 .lb li:nth-child(odd){background:#f3ecd9}
 .lb li.me{background:#fbe0c6}
+.lb li.empty{display:block}   /* « Aucun score pour l'instant » : sur toute la largeur (avant : un mot par ligne dans la colonne du rang) */
 .lb li b{font-family:var(--font-ui)}
 .lb li em{font-style:normal;font-weight:700;font-family:var(--font-ui);font-size:15px}
 .card p.lb-note{font-size:16px;color:var(--ink-soft);margin:0 0 6px}
@@ -311,7 +316,7 @@ kbd.k{font:700 10px/1 var(--font-ui);background:#efe6cc;border-radius:4px;paddin
 .mg-bar{display:inline-flex;gap:14px;align-items:center;background:rgba(251,246,230,.95);border-radius:999px;padding:6px 8px 6px 16px;box-shadow:0 6px 16px rgba(40,50,30,.18);font-family:var(--font-ui);font-size:16px;pointer-events:auto}
 .mg-bar b{font-size:20px}
 .mg-bar .combo{color:var(--fox);font-weight:800;font-size:20px}
-.mg-help{font-family:var(--font-hand);font-size:18px;margin:6px 0 0;text-shadow:0 1px 0 var(--paper)}
+.mg-help{display:table;max-width:calc(100vw - 32px);box-sizing:border-box;font-family:var(--font-hand);font-size:18px;line-height:1.2;margin:8px auto 0;padding:4px 14px;border-radius:12px;background:rgba(251,246,230,.88);box-shadow:0 4px 12px rgba(40,50,30,.12)}   /* lisible sur le décor */
 #mgFlash{font-family:var(--font-ui);font-weight:800;font-size:clamp(30px,7vw,54px);opacity:0;margin-top:18vh;text-shadow:0 3px 0 var(--paper)}
 #mgFlash.good{color:var(--fox)}
 #mgFlash.bad{color:#5d6b7a}
@@ -330,6 +335,8 @@ html.mg #game{cursor:crosshair;touch-action:none}
 @media (prefers-reduced-motion:reduce){#regionBanner.show,#mgFlash.show{animation-duration:.01s;opacity:1}}
 .mg-form input{user-select:text;-webkit-user-select:text}
 #journal,#mgEnd,#travel{grid-template-columns:minmax(0,1fr)}
+/* Carnet de voyage : calé en haut, il ne saute plus d'un onglet à l'autre (la carte est plus haute que le classement) */
+#journal{align-items:start;padding-top:max(16px,4vh)}
 #journal .card,#mgEnd .card{justify-self:center}
 .card.journal,.card.mg-end,.card.travel{box-sizing:border-box}
 .j-pane{min-width:0;overflow-wrap:anywhere}
@@ -377,3 +384,24 @@ html.mg #game{cursor:crosshair;touch-action:none}
 @media (max-width:640px){#tuto{width:min(226px,calc(100vw - 160px));padding:9px 11px 9px}#tuto b{font-size:17px;padding-right:40px}#tuto span{font-size:16px}#tutoSkip{font-size:14px}}
 @media (max-height:520px){#tuto{width:min(270px,calc(100vw - 190px));padding:7px 11px}#tuto b{font-size:17px}#tuto span{font-size:15.5px}}
 @media (prefers-reduced-motion:reduce){#tutoChev i,.nb-more{animation:none}}
+
+/* ---------- Téléphone à l'horizontale (peu de hauteur) : cartes plus larges et plus compactes ---------- */
+@media (max-height:520px){
+  /* carte d'accueil plus large et plus compacte : elle tient en entier dans un téléphone à l'horizontale (avant : le bas était coupé) */
+  #intro .card{max-width:640px;padding:16px 22px 14px}
+  #intro .card .title{font-size:28px;margin-bottom:6px}
+  #intro .card p{font-size:17px;line-height:1.25;margin-bottom:10px}
+  #intro .big{font-size:17px;padding:8px 18px}
+  #intro .daily-note{margin-top:6px!important}
+  #intro .card .who-link{margin-top:6px}
+  /* idem pour les autres cartes (fin de partie, gland, fin du mini-jeu…) : moins hautes, plus larges */
+  .overlay{padding:10px}
+  .card{padding:16px 20px 14px}
+  #endCard .card,#mgEnd .card{max-width:640px}
+  .card .title{font-size:26px;margin-bottom:6px}
+  .card p{font-size:16.5px;line-height:1.25;margin-bottom:8px}
+  .end-stats{margin-bottom:8px}.end-stats div{padding:5px 8px 4px}.end-stats dd{font-size:16px}
+  .end-ach{margin-bottom:8px}.end-more{margin-top:8px}
+  .acorn-icon{font-size:30px!important}
+  .big{font-size:17px;padding:8px 18px}
+}

@@ -1,6 +1,20 @@
 pierrelogre.com · le renard fait des bêtises (version 5 : le monde s'agrandit)
 ============================================================================
 
+Finitions avant mise en ligne (5.8)
+-----------------------------------
+- Mise à jour sans accroc : un visiteur déjà venu reçoit tout de suite la nouvelle version (adresses des
+  fichiers versionnées). Avant, il pouvait garder jusqu'à 7 jours l'ancien jeu en cache avec la nouvelle page.
+- Le son se coupe quand on quitte l'onglet (par exemple pour aller sur LinkedIn) et revient au retour.
+- Les messages (« Bêtise accomplie », succès) ne passent plus sur les boutons du haut ni sur le carnet
+  (écrans d'ordinateur de 1 280 à 1 700 px) ; barre et aide du mini-jeu lisibles, y compris au téléphone.
+- Carte d'accueil seule à l'écran (l'interface attend derrière) ; elle tient en entier sur un téléphone
+  à l'horizontale, comme les autres cartes. Panneaux du décor toujours dans la police du site.
+- Carnet de voyage stable d'un onglet à l'autre, noms lisibles sur la carte ; même total de bêtises
+  partout (x / 111). Fin du mini-jeu : « Aucun score » sur une ligne, bouton « Envoyer » grisé à 0 point.
+- Page 404 avec une ligne en anglais ; mentions légales : téléphone de l'hébergeur (obligatoire) et
+  liste exacte de ce qui est gardé dans le navigateur.
+
 Nouveautés (5.7 : la première minute et le téléphone)
 ------------------------------------------------------
 - La carte d'accueil s'affiche tout de suite, dans la langue du visiteur, pendant que le jeu se charge

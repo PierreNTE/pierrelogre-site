@@ -4,6 +4,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import * as esbuild from 'esbuild';
+import crypto from 'node:crypto';
 import { T } from './src/js/i18n.js';
 
 const ROOT = path.dirname(new URL(import.meta.url).pathname);
@@ -80,7 +81,12 @@ const cssMin = (await esbuild.transform(fontFace + '\n' + css, { loader: 'css', 
 fs.writeFileSync(path.join(OUT, 'assets/style.css'), cssMin);
 fs.writeFileSync(path.join(OUT, 'assets/boot.js'), bootJs);
 fs.writeFileSync(path.join(OUT, 'assets/game.js'), gameJs);
-fs.writeFileSync(path.join(OUT, 'assets/noscript.css'), '#burrow{display:block!important}#loader,#intro,#notebook,#topRight,#help,#touch,#game,#bClose,#outBtn,#loot,#endCard{display:none!important}\n');
+const noscriptCss = '#burrow{display:block!important}#intro,#notebook,#topRight,#help,#touch,#game,#bClose,#outBtn,#loot,#endCard{display:none!important}\n';
+fs.writeFileSync(path.join(OUT, 'assets/noscript.css'), noscriptCss);
+// Version dans l'adresse des fichiers (empreinte du contenu) : après une mise à jour, un visiteur déjà venu ne garde pas
+// l'ancien game.js en cache (7 jours, .htaccess) avec la nouvelle page : il recharge ce qui a changé, et seulement ça
+const v = s => '?v=' + crypto.createHash('sha256').update(s).digest('hex').slice(0, 10);
+const A = { css: 'assets/style.css' + v(cssMin), boot: 'assets/boot.js' + v(bootJs), game: 'assets/game.js' + v(gameJs), noscript: 'assets/noscript.css' + v(noscriptCss) };
 
 const SITE = CFG.site;
 const OGI = SITE + CFG.ogImage;
@@ -124,15 +130,16 @@ const head = `<!doctype html>
 <meta name="twitter:image" content="${OGI}">
 <link rel="icon" href="favicon.svg" type="image/svg+xml">
 <link rel="preload" href="assets/fonts/baloo-2-latin-800-normal.woff2" as="font" type="font/woff2" crossorigin>
-<link rel="modulepreload" href="assets/game.js">
-<link rel="stylesheet" href="assets/style.css">
-<noscript><link rel="stylesheet" href="assets/noscript.css"></noscript>
+<link rel="preload" href="assets/fonts/patrick-hand-latin-400-normal.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="modulepreload" href="${A.game}">
+<link rel="stylesheet" href="${A.css}">
+<noscript><link rel="stylesheet" href="${A.noscript}"></noscript>
 <script type="application/ld+json">${JSON.stringify(ld)}</script>
 ${umami}</head>
 <body>
 `;
 fs.writeFileSync(path.join(OUT, 'index.html'), head + body.trim()
-  + '\n<script src="assets/boot.js"></script>\n<script type="module" src="assets/game.js"></script>\n</body>\n</html>\n');
+  + `\n<script src="${A.boot}"></script>\n<script type="module" src="${A.game}"></script>\n</body>\n</html>\n`);
 
 /* ---------- 5. Fichiers annexes ---------- */
 const nm = p => path.join(ROOT, 'node_modules', p);
@@ -150,8 +157,8 @@ const exp = new Date(Date.now() + 365 * 864e5).toISOString().replace(/\.\d+Z$/, 
 fs.writeFileSync(path.join(OUT, '.well-known/security.txt'), `Contact: ${CFG.linkedin}\nExpires: ${exp}\nPreferred-Languages: fr, en\nCanonical: ${SITE}.well-known/security.txt\n`);
 fs.writeFileSync(path.join(OUT, '404.html'), `<!doctype html>
 <html lang="fr"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="robots" content="noindex">
-<title>Page introuvable · Pierre Logre</title><link rel="icon" href="/favicon.svg" type="image/svg+xml"><link rel="stylesheet" href="/assets/style.css"></head>
-<body class="p404"><div class="overlay"><div class="card"><h1 class="title">Le renard a <em>mangé</em> cette page.</h1><p>Elle n'existe pas, ou plus. Le reste du village est intact (pour l'instant).</p><div class="card-actions"><a class="big" href="/">Retour au village</a></div></div></div></body></html>
+<title>Page introuvable · Pierre Logre</title><link rel="icon" href="/favicon.svg" type="image/svg+xml"><link rel="stylesheet" href="/${A.css}"></head>
+<body class="p404"><div class="overlay"><div class="card"><h1 class="title">Le renard a <em>mangé</em> cette page.</h1><p>Elle n'existe pas, ou plus. Le reste du village est intact (pour l'instant).</p><p class="en" lang="en">The fox ate this page. The rest of the village is fine (for now).</p><div class="card-actions"><a class="big" href="/">Retour au village</a></div></div></div></body></html>
 `);
 let htaccess = read(SRC('htaccess.conf'));
 if (umami) {

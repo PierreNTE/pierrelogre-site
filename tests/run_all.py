@@ -301,7 +301,7 @@ async def test_first_minute(browser):
     pg.on('console', lambda m: errs.append(f'{m.type}: {m.text}') if m.type in ('error', 'warning') and 'preloaded using link preload' not in m.text else None)
     async def slow(route):
         await asyncio.sleep(3); await route.continue_()
-    await pg.route('**/assets/game.js', slow)
+    await pg.route('**/assets/game.js*', slow)   # l'adresse porte la version (?v=…)
     await pg.goto(URL, wait_until='commit', timeout=120000); await pg.wait_for_selector('#startBtn', state='attached'); await pg.wait_for_timeout(300)
     r = await pg.evaluate("""()=>({intro:!document.querySelector('#intro').hidden, busy:document.querySelector('#startBtn').getAttribute('aria-busy'), lang:document.documentElement.lang,
         h1:document.querySelector('#introH1').textContent, btn:document.querySelector('#startBtn').textContent, ready:!!window.__foxReady, hud:getComputedStyle(document.querySelector('#notebook')).visibility})""")

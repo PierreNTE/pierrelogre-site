@@ -40,7 +40,7 @@ let boxes = [];
 function drawMap() {
   const regs = REGIONS.filter(R => R.bounds && !R.hidden);
   const ext = regs.reduce((e, R) => ({ minX: Math.min(e.minX, R.bounds.minX), maxX: Math.max(e.maxX, R.bounds.maxX), minZ: Math.min(e.minZ, R.bounds.minZ), maxZ: Math.max(e.maxZ, R.bounds.maxZ) }), { minX: 1e9, maxX: -1e9, minZ: 1e9, maxZ: -1e9 });
-  const dpr = Math.min(2, devicePixelRatio || 1), W = mapC.clientWidth || 600, H = Math.round(W * .6);
+  const dpr = Math.min(2, devicePixelRatio || 1), W = mapC.clientWidth || 600, H = Math.round(Math.min(W * .6, Math.max(180, innerHeight * .5)));   // téléphone à l'horizontale : la carte ne prend pas tout l'écran
   mapC.width = W * dpr; mapC.height = H * dpr; mapC.style.height = H + 'px';
   const g = mapC.getContext('2d'); g.setTransform(dpr, 0, 0, dpr, 0, 0);
   const pad = 14, sx = (W - pad * 2) / (ext.maxX - ext.minX), sz = (H - pad * 2) / (ext.maxZ - ext.minZ), k = Math.min(sx, sz);
@@ -51,20 +51,22 @@ function drawMap() {
   g.setLineDash([5, 4]); g.lineWidth = 2; g.strokeStyle = '#a08a6a';
   const link = (a, b) => { if (!RG[a] || !RG[b]) return; const A = RG[a].spawn, B = RG[b].spawn; g.beginPath(); g.moveTo(X(A.x), Z(A.z)); g.lineTo(X(B.x), Z(B.z)); g.stroke(); };
   link('gare', 'nantes'); link('nantes', 'paris'); link('plage', 'ile'); g.setLineDash([]);
-  boxes = [];
+  boxes = []; const labels = [];
   for (const R of regs) {
     const b = R.bounds, open = isOpen(R.id), seen = run.discovered.includes(R.id);
     const x = X(b.minX), y = Z(b.minZ), w = (b.maxX - b.minX) * k, h = (b.maxZ - b.minZ) * k;
     g.fillStyle = !open ? '#d8d2c4' : (R.mapColor || '#a9cc86'); g.globalAlpha = seen || !open ? 1 : .7; g.beginPath(); g.roundRect(x, y, w, h, 6); g.fill(); g.globalAlpha = 1;
     g.strokeStyle = '#3a2f27'; g.lineWidth = R.id === S.region ? 3 : 1.2; g.stroke();
     const name = open ? (seen ? t().regions[R.id] : '?') : '🔒';
-    g.fillStyle = '#3a2f27'; g.textAlign = 'center'; g.textBaseline = 'middle';
-    g.font = `bold ${Math.max(10, Math.min(15, w / 6))}px "Patrick Hand",cursive`; g.fillText(name, x + w / 2, y + h / 2 - (open && seen ? 7 : 0));
-    if (open && seen) { const n = regionGoals(R.id).length; g.font = '11px "Patrick Hand",cursive'; g.fillText(`${regionDone(R.id)}/${n}${run.cards.includes(R.id) ? ' 💌' : ''}`, x + w / 2, y + h / 2 + 9); }
+    labels.push([`bold ${Math.max(10, Math.min(15, w / 6))}px "Patrick Hand",cursive`, name, x + w / 2, y + h / 2 - (open && seen ? 7 : 0)]);
+    if (open && seen) labels.push(['11px "Patrick Hand",cursive', `${regionDone(R.id)}/${regionGoals(R.id).length}${run.cards.includes(R.id) ? ' 💌' : ''}`, x + w / 2, y + h / 2 + 9]);
     boxes.push({ R, x, y, w, h });
   }
-  // Le renard
+  g.fillStyle = '#3a2f27'; g.textAlign = 'center'; g.textBaseline = 'middle';
+  // Le renard, puis les noms par-dessus (cernés de papier : lisibles même quand le renard est au milieu de sa zone)
   if (fox.pos.x >= ext.minX && fox.pos.x <= ext.maxX) { g.font = '16px sans-serif'; g.fillText('🦊', X(fox.pos.x), Z(fox.pos.z)); }
+  g.lineJoin = 'round'; g.strokeStyle = 'rgba(251,246,230,.85)'; g.lineWidth = 3;
+  for (const [font, txt, lx, ly] of labels) { g.font = font; g.strokeText(txt, lx, ly); g.fillText(txt, lx, ly); }
   // Liste lisible (et cliquable) des régions
   mapList.innerHTML = regs.map(R => {
     const open = isOpen(R.id), seen = run.discovered.includes(R.id);

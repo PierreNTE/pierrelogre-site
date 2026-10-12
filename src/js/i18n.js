@@ -4,7 +4,7 @@
 const T = {
 fr:{
   loading:"Le renard se réveille…", skip:"Le jeu tarde à se charger ? Voir le profil sans jouer", nogame:"Version sans jeu : ton navigateur n'affiche pas la 3D. Voici directement le terrier.",
-  legal:"<b>Mentions légales.</b> Site personnel édité par Pierre Logre, contact via LinkedIn. Hébergeur : OVH SAS, 2 rue Kellermann, 59100 Roubaix, France. Aucun cookie ni traceur publicitaire : seuls ta langue, le son et tes succès sont gardés dans ton navigateur.",
+  legal:"<b>Mentions légales.</b> Site personnel édité par Pierre Logre, contact via LinkedIn. Hébergeur : OVH SAS, 2 rue Kellermann, 59100 Roubaix, France, tél. 1007. Aucun cookie ni traceur publicitaire : seuls ta langue, le son, ta partie en cours et tes succès sont gardés dans ton navigateur.",
   nbTitle:"Bêtises du jour", fold:"replier", unfold:"déplier", reset:"recommencer", resetSure:"sûr ? clique encore",
   secret:"??? (bêtise secrète)", sound:"🔊 Son", muted:"🔇 Muet", who:"Qui est le renard ?", whoShort:"Profil", liChip:"Pierre", tYap:"Glapir", tGrab:"Attraper", hintGrab:"✋",
   help:'<kbd>ZQSD</kbd> bouger · <kbd>Maj</kbd> courir · <kbd>C</kbd> discret · <kbd>Espace</kbd> glapir · <kbd>E</kbd> attraper · <kbd>Molette</kbd> zoom', music:"♪ Musique", tZoom:"Zoom",
@@ -56,7 +56,7 @@ fr:{
 },
 en:{
   loading:"The fox is waking up…", skip:"Game taking a while? See the profile without playing", nogame:"No-game version: your browser can't display 3D. Here's the den directly.",
-  legal:"<b>Legal notice.</b> Personal website published by Pierre Logre, contact via LinkedIn. Host: OVH SAS, 2 rue Kellermann, 59100 Roubaix, France. No cookies or ad trackers: only your language, sound setting and achievements are kept in your browser.",
+  legal:"<b>Legal notice.</b> Personal website published by Pierre Logre, contact via LinkedIn. Host: OVH SAS, 2 rue Kellermann, 59100 Roubaix, France, phone +33 9 72 10 10 07. No cookies or ad trackers: only your language, sound setting, game progress and achievements are kept in your browser.",
   nbTitle:"Today's mischief", fold:"fold", unfold:"unfold", reset:"restart", resetSure:"sure? click again",
   secret:"??? (secret mischief)", sound:"🔊 Sound", muted:"🔇 Muted", who:"Who's the fox?", whoShort:"About", liChip:"Pierre", tYap:"Yap", tGrab:"Grab", hintGrab:"✋",
   help:'<kbd>WASD</kbd> move · <kbd>Shift</kbd> run · <kbd>C</kbd> sneak · <kbd>Space</kbd> yap · <kbd>E</kbd> grab · <kbd>Wheel</kbd> zoom', music:"♪ Music", tZoom:"Zoom",
@@ -246,7 +246,7 @@ Object.assign(T.en, {
   lbLocal: "This browser's leaderboard", lbEmpty: "No scores yet. Your turn!", lbBest: s => `Your best: ${s} points`,
   mgTitle: "Fox penalty shootout", mgPts: "points", mgExit: "Quit", mgHelp: "Aim with the mouse or your finger, shoot by clicking (or Space). Top corners: 150 points. Combo up to ×5.",
   mgLevel: n => `Lvl ${n}`, mgLevelUp: n => `The keeper wakes up: level <b>${n}</b>`, mgGoal: "GOAL!", mgCorner: "TOP CORNER!", mgBonus: "TARGET! +3 s", mgSaved: "Saved…", mgPost: "Post!",
-  mgStats: (g, s, b) => `${g} goal${g > 1 ? 's' : ''} from ${s} shot${s > 1 ? 's' : ''} · best: ${b}`,
+  mgStats: (g, s, b) => `${g} goal${g === 1 ? '' : 's'} from ${s} shot${s === 1 ? '' : 's'} · best: ${b}`,
   mgPseudo: "Your nickname for the leaderboard:", mgSend: "Send", mgAgain: "Play again", mgQuit: "Back to the court",
   mgPseudoShort: "At least 2 characters.", mgPseudoBad: "That nickname isn't allowed: please pick another one.", mgSentOnline: "Score sent to the shared leaderboard!", mgSentLocal: "Score saved in this browser.",
   trCancel: "Stay here", trTitle: "Where is the fox going?",
@@ -271,6 +271,7 @@ Object.assign(T.en.ach, {
 
 /* ---------- 5.7 : première visite guidée, commandes tactiles ---------- */
 Object.assign(T.fr, {
+  colon: " :",
   tDrop: "Poser",
   tuto: {
     skip: "Passer", more: "La suite est ici !", n: (i, tot) => `Bêtise ${i}/${tot}`,
@@ -293,6 +294,7 @@ Object.assign(T.fr, {
   combo: n => n === 2 ? "Doublé ! 🦊" : n === 3 ? "Triplé !! 🦊" : `Enchaînement ×${n} !`,
 });
 Object.assign(T.en, {
+  colon: ":",
   tDrop: "Drop",
   tuto: {
     skip: "Skip", more: "More mischief here!", n: (i, tot) => `Mischief ${i}/${tot}`,

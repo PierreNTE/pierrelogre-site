@@ -45,7 +45,7 @@ ACH_ALL.push(...ACHIEVEMENTS);
 export function grant(id) {
   if (saved.ach[id]) return false;
   saved.ach[id] = true; store.set(saved);
-  SFX.fanfare(); toast(`🏅 ${t().achLabel} : <b>${t().ach[id]?.[0] || id}</b>`); track('Succès', { id });
+  SFX.fanfare(); toast(`🏅 ${t().achLabel}${t().colon} <b>${t().ach[id]?.[0] || id}</b>`); track('Succès', { id });
   renderGoals(); return true;
 }
 /** Vérifie les succès de l'aventure (appelé après chaque progrès). */

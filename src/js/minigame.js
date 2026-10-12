@@ -41,9 +41,17 @@ export function startMinigame(c, end) {
   MG.active = true; S.mg = true; document.documentElement.classList.add('mg'); for (const k in keys) keys[k] = false;
   fox.pos.set(c.gx - .7, 0, c.gz + 7.2); fox.yaw = Math.PI * .92; fox.vel.set(0, 0, 0); fox.held = null;
   ret.visible = true; ball.visible = true; resetBall();
-  $('#mg').hidden = false; $('#mgEnd').hidden = true; hud();
+  $('#mg').hidden = false; $('#mgEnd').hidden = true; hud(); placeBar();
   track('Mini-jeu lancé');
 }
+/** Barre du mini-jeu : en haut au centre, ou juste sous les boutons du coin haut droit s'ils se croiseraient (téléphone, petit écran). */
+function placeBar() {
+  $('#topRight').classList.remove('open'); $('#menuBtn').setAttribute('aria-expanded', 'false');   // menu du téléphone refermé
+  const m = $('#mg'); m.style.top = '';
+  const tr = $('#topRight').getBoundingClientRect(), b = m.querySelector('.mg-bar').getBoundingClientRect();
+  if (tr.width && b.left < tr.right && b.right > tr.left && b.top < tr.bottom) m.style.top = Math.round(tr.bottom + 8) + 'px';
+}
+addEventListener('resize', () => { if (MG.active) placeBar(); });
 function resetBall() { ball.position.set(cfg.gx + .35, .2, cfg.gz + 6.4); st.shot = null; }
 function stop() { MG.active = false; S.mg = false; document.documentElement.classList.remove('mg'); ret.visible = bonus.visible = ball.visible = false; $('#mg').hidden = true; if (cfg?.keeper) { cfg.keeper.pos.x = cfg.gx; cfg.keeper.armL = cfg.keeper.armR = 0; } }
 export function quitMinigame() { if (!MG.active) return; stop(); $('#mgEnd').hidden = true; canvas.focus(); }

@@ -36,7 +36,8 @@ export function renderGoals() {
   const total = list.filter(g => !g.secret).length;
   const daily = run.mode === 'defi';
   if (daily) $('#nbScore').textContent = `${n} / ${total}`;
-  else { const all = GOALS.filter(g => !g.secret), d = GOALS.filter(g => run.done[g.id]).length; $('#nbScore').textContent = `${d} / ${all.length}`; $('#nbScore').title = t().totalTasks; }
+  // Toutes les bêtises du monde, secrètes comprises (même compte que le carnet de voyage ; avant : « 95 / 90 » possible)
+  else { const d = GOALS.filter(g => run.done[g.id]).length; $('#nbScore').textContent = `${d} / ${GOALS.length}`; $('#nbScore').title = t().totalTasks; }
   $('#nbMode').textContent = daily ? t().dailyLabel : `📍 ${t().regions?.[region] || ''} · ${n}/${total}`;
   $('#nbAcorns').textContent = `🌰 ${saved.acorns.length}/5`;
   $('#nbAcorns').title = t().acornCount;
@@ -101,7 +102,27 @@ export function addProgress(id, key) {
 }
 
 /* ---------- Toasts & bulles ---------- */
-export function toast(html) { const el = document.createElement('div'); el.className = 'toast'; el.innerHTML = html; $('#toasts').append(el); setTimeout(() => el.remove(), 3400); }
+export function toast(html) { const el = document.createElement('div'); el.className = 'toast'; el.innerHTML = html; placeToasts(); toastsEl.append(el); setTimeout(() => el.remove(), 3400); }
+const toastsEl = $('#toasts'), BOTTOM_TOASTS = matchMedia('(max-width:640px), (max-height:520px)');
+const shown = e => !!e && !e.hidden && getComputedStyle(e).display !== 'none';
+/**
+ * Au bureau, les messages s'affichent en haut, au centre de la place libre : à droite du carnet (ou du post-it
+ * de la visite guidée), et sous les boutons du coin haut droit (ou la barre du mini-jeu) s'ils se croiseraient.
+ * Sur un écran de 1280 à 1700 px de large, ils passaient sur le bouton LinkedIn. Au téléphone : en bas (style.css).
+ */
+function placeToasts() {
+  const s = toastsEl.style;
+  if (BOTTOM_TOASTS.matches) { s.top = s.left = s.width = ''; return; }
+  let L = 16;
+  for (const q of ['#notebook', '#tuto']) { const e = $(q); if (shown(e)) { const r = e.getBoundingClientRect(); if (r.width) L = Math.max(L, r.right + 12); } }
+  const R = innerWidth - 16, w = Math.max(200, Math.min(440, R - L)), cx = Math.max(L + w / 2, Math.min(R - w / 2, innerWidth / 2));
+  let top = 0;
+  for (const q of ['#topRight', '#mg .mg-bar', '#mg .mg-help']) {
+    const e = $(q); if (!shown(e) || (q !== '#topRight' && !shown($('#mg')))) continue;
+    const r = e.getBoundingClientRect(); if (r.width && r.left < cx + w / 2 && r.right > cx - w / 2) top = Math.max(top, r.bottom + 10);
+  }
+  s.left = cx + 'px'; s.width = w + 'px'; s.top = top ? top + 'px' : '';
+}
 
 const bubblesEl = $('#bubbles');
 export const bubbles = [];
@@ -205,4 +226,11 @@ export function applyLang(textures = true) {
 let langHook = () => {};
 export const onLang = fn => { langHook = fn; };
 export function toggleLang() { S.lang = S.lang === 'fr' ? 'en' : 'fr'; saved.lang = S.lang; store.set(saved); applyLang(); }
-document.fonts?.ready?.then(() => redraws.forEach(r => r()));
+/* Panneaux et étiquettes du décor (textures dessinées) : redessinés dès que les polices du site sont arrivées.
+   fonts.ready seul ne suffisait pas : au premier passage (rien en cache), une police que la page n'avait pas encore
+   demandée n'était pas attendue, et les panneaux restaient dans la police de secours (à empattements). */
+const redrawAll = () => redraws.forEach(r => r());
+if (document.fonts) {
+  document.fonts.ready.then(redrawAll);
+  Promise.all(['400 40px "Patrick Hand"', '700 40px "Baloo 2"', '500 40px "Baloo 2"'].map(f => document.fonts.load(f).catch(() => null))).then(redrawAll);
+}

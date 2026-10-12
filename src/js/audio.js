@@ -10,6 +10,8 @@ let actx=null;
 const gestured=()=>!navigator.userActivation||navigator.userActivation.hasBeenActive;
 function audio(){ if(!gestured()) return actx; if(!actx){ try{ actx=new (window.AudioContext||window.webkitAudioContext)(); }catch(e){} } if(actx&&actx.state==='suspended') actx.resume(); return actx; }
 for(const ev of ['pointerdown','keydown']) addEventListener(ev,()=>audio(),{once:true,capture:true});
+// Onglet caché (le visiteur est parti sur LinkedIn, par exemple) : musique et ambiances se taisent, et reprennent au retour
+document.addEventListener('visibilitychange',()=>{ if(!actx) return; const p=document.hidden?actx.suspend():gestured()?actx.resume():null; p?.catch?.(()=>{}); });
 let VOL=1;   // atténuation par la distance (voir SFX.at)
 function tone(f0,f1,dur,type='sine',vol=.2,delay=0){
   const a=actx; if(!a||S.muted||VOL<=0) return; vol*=VOL;
