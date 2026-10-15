@@ -23,9 +23,11 @@ export function openJournal(which = tab) {
 }
 export function closeJournal() { if (el.hidden) return; el.hidden = true; S.paused = wasPaused || !!S.cine || modalOpen(); canvas.focus(); }
 export const journalOpen = () => !el.hidden;
+/** Redessine le carnet s'il est ouvert (régions arrivées après le démarrage). */
+export const refreshJournal = () => { if (!el.hidden) render(); };
 
 function render() {
-  for (const b of el.querySelectorAll('[data-tab]')) { const on = b.dataset.tab === tab; b.classList.toggle('on', on); b.setAttribute('aria-selected', String(on)); }
+  for (const b of el.querySelectorAll('[data-tab]')) { const on = b.dataset.tab === tab; b.classList.toggle('on', on); b.setAttribute('aria-selected', String(on)); b.tabIndex = on ? 0 : -1; }
   for (const p of el.querySelectorAll('.j-pane')) p.hidden = p.id !== 'j-' + tab;
   const all = GOALS.length, d = GOALS.filter(g => run.done[g.id]).length;
   $('#jSum').textContent = t().journalSum(d, all, run.cards.length, REGIONS.filter(R => R.hasCard !== false).length, saved.acorns.length, fmt(run.elapsed));
@@ -97,6 +99,13 @@ async function renderLb() {
 }
 
 el.addEventListener('click', e => { const b = e.target.closest('[data-tab]'); if (b) { tab = b.dataset.tab; render(); } });
+// Onglets au clavier (comme partout ailleurs) : flèches gauche/droite, Début, Fin
+el.querySelector('[role=tablist]').addEventListener('keydown', e => {
+  const tabs = [...el.querySelectorAll('[data-tab]')], i = tabs.findIndex(b => b.dataset.tab === tab);
+  const j = { ArrowRight: i + 1, ArrowLeft: i - 1, Home: 0, End: tabs.length - 1 }[e.key];
+  if (j === undefined) return;
+  e.preventDefault(); e.stopPropagation(); const n = tabs[(j + tabs.length) % tabs.length]; tab = n.dataset.tab; render(); n.focus();
+});
 $('#jClose').addEventListener('click', closeJournal);
 addEventListener('resize', () => { if (!el.hidden && tab === 'map') drawMap(); });
 

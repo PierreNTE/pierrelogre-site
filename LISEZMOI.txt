@@ -1,6 +1,37 @@
 pierrelogre.com · le renard fait des bêtises (version 5 : le monde s'agrandit)
 ============================================================================
 
+Version 5.10 : mesure d'audience, téléphones, chargement, accessibilité
+-----------------------------------------------------------------------
+- Mesure d'audience sans cookie (Supabase, même projet que le classement) : visites, parties,
+  visite guidée finie, terrier trouvé, fiche ouverte, clics LinkedIn, temps de chargement et fluidité
+  par type d'appareil, provenance. Aucun cookie, aucune adresse IP, aucun identifiant gardé : pas de
+  bandeau de consentement à afficher. Respecte « Do Not Track ». Effacé au bout de 13 mois.
+  Lire les chiffres : supabase.com > projet > Table Editor > vues stats_jour, stats_entonnoir,
+  stats_appareils, stats_sources (voir plus bas).
+- Vrais téléphones : le test pierrelogre.com/#bench envoie maintenant ses mesures tout seul (plus
+  besoin de copier-coller). Fais-le sur 2 ou 3 téléphones d'amis : les résultats arrivent dans Supabase.
+- Premier chargement plus léger : les dix régions lointaines arrivent dans un second fichier, juste
+  après l'affichage du village. Au démarrage : 254 Ko compressés au lieu de 321 (−21 %). Le total
+  téléchargé ne change pas ; une partie neuve démarre sans attendre, « Reprendre » attend la fin.
+- Accessibilité : tout se fait au clavier (Tab parcourt le menu et les bêtises, Entrée ouvre un indice,
+  flèches dans les onglets du carnet, Échap ferme les fenêtres, le focus revient où il était) ; les
+  fenêtres sont annoncées correctement aux lecteurs d'écran ; contrastes des textes orange renforcés
+  (norme WCAG AA, vérifiée automatiquement à chaque test). N replie le carnet (Tab ne le fait plus).
+
+Lire la mesure d'audience (Supabase)
+------------------------------------
+supabase.com > projet « pierrelogre-classement » > Table Editor (colonne de gauche, rubrique Views) :
+- stats_jour : par jour, visites, parties, visite guidée finie, terrier trouvé, fiche ouverte,
+  clics LinkedIn, durée moyenne.
+- stats_entonnoir : sur 30 jours, combien de visites atteignent chaque étape, de la visite au clic LinkedIn.
+- stats_appareils : téléphone / tablette / ordinateur : temps de chargement, qualité graphique, fluidité.
+- stats_sources : d'où viennent les visites. Astuce : dans un post LinkedIn, mets le lien
+  https://pierrelogre.com/?utm_source=linkedin pour voir ces visites à part.
+- Mesures des téléphones (#bench) : SQL Editor >
+    select at, device, props from events where name = 'Bench' order by at desc;
+Rien n'est lisible avec la clé publique du site : seulement depuis ton compte Supabase.
+
 Version 5.9 : anglais par défaut, classement partagé, renard plus naturel
 -------------------------------------------------------------------------
 - Le site s'ouvre en anglais pour tout le monde (pierrelogre.com) ; la version française est à
@@ -104,7 +135,7 @@ puis l'envoie sur OVH en FTPS. Pour l'activer :
 
 Ajouter un monde plus tard
 --------------------------
-Chaque zone est un fichier dans src/js/regions/. Le README (dossier source) explique comment
+Chaque zone est un fichier dans src/js/regions/ (chargé après le démarrage : regions/lazy.js). Le README (dossier source) explique comment
 en ajouter une (par exemple un monde spatial) : décor, personnages, bêtises, secrets, ambiance.
 
 Sécurité du compte et du domaine (à faire une fois)

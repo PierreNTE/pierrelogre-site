@@ -131,7 +131,7 @@ Object.assign(T.fr, {
   search: { carotte: "Il manque une carotte…", baguette: "Elle était là, ma baguette…", mug: "Quelqu'un a vu mon mug ?", prise: "Pourquoi ça clignote en rouge ?", chapeau: "Mon chapeau ?" },
   shrug: "Bizarre…", suspicious: "Hmm ?",
   fishLine: "Il est trempé, mon chapeau…", slipLine: ["Mon costume !", "J'ai un client dans 5 minutes !"], callOut: "Je sors, j'ai un appel.",
-  resume: (n, tot) => `Reprendre (${n}/${tot})`, newGame: "Nouvelle partie", daily: "Défi du jour",
+  resume: (n, tot) => `Reprendre (${n}/${tot})`, resumeWait: "Reprendre", newGame: "Nouvelle partie", daily: "Défi du jour",
   dailyNote: "5 bêtises tirées au sort, les mêmes pour tout le monde aujourd'hui.", dailyBest: s => `Ton record du jour : ${s}`,
   dailyLabel: "Défi du jour",
   endTitle: "Bêtises terminées !", endDaily: "Défi du jour réussi !", endSub: "Le village se remet doucement de ton passage.",
@@ -170,7 +170,7 @@ Object.assign(T.en, {
   search: { carotte: "A carrot is missing…", baguette: "My baguette was right here…", mug: "Has anyone seen my mug?", prise: "Why is it blinking red?", chapeau: "My hat?" },
   shrug: "Weird…", suspicious: "Hmm?",
   fishLine: "My hat is soaked…", slipLine: ["My suit!", "I have a client in 5 minutes!"], callOut: "Stepping out, I have a call.",
-  resume: (n, tot) => `Resume (${n}/${tot})`, newGame: "New game", daily: "Daily challenge",
+  resume: (n, tot) => `Resume (${n}/${tot})`, resumeWait: "Resume", newGame: "New game", daily: "Daily challenge",
   dailyNote: "5 random mischiefs, the same for everyone today.", dailyBest: s => `Your best today: ${s}`,
   dailyLabel: "Daily challenge",
   endTitle: "All mischief done!", endDaily: "Daily challenge complete!", endSub: "The village is slowly recovering from your visit.",
@@ -272,7 +272,7 @@ Object.assign(T.en.ach, {
 /* ---------- 5.7 : première visite guidée, commandes tactiles ---------- */
 Object.assign(T.fr, {
   colon: " :",
-  aGame: "Monde du jeu : un renard dans un village vendéen et un bureau", aGoals: "Liste des bêtises", aClose: "Fermer",
+  aGame: "Monde du jeu : un renard dans un village vendéen et un bureau", aGoals: "Liste des bêtises", aClose: "Fermer", aDone: "faite",
   tDrop: "Poser",
   tuto: {
     skip: "Passer", more: "La suite est ici !", n: (i, tot) => `Bêtise ${i}/${tot}`,
@@ -296,7 +296,7 @@ Object.assign(T.fr, {
 });
 Object.assign(T.en, {
   colon: ":",
-  aGame: "Game world: a fox in a village in Vendée and an office", aGoals: "Mischief list", aClose: "Close",
+  aGame: "Game world: a fox in a village in Vendée and an office", aGoals: "Mischief list", aClose: "Close", aDone: "done",
   tDrop: "Drop",
   tuto: {
     skip: "Skip", more: "More mischief here!", n: (i, tot) => `Mischief ${i}/${tot}`,

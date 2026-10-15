@@ -62,7 +62,8 @@ src/
     nudge.js      indices qui montrent l'endroit (anneau + flèche « Indice ») quand on tourne en rond au village
     regions.js    système de régions : déclaration, construction à la demande, ouverture, voyages, zones, objets
     regions/      une région par fichier (village, foret, sport, moto, riviere, plage, gare, nantes, paris,
-                  montagne, ile, terrier = la salle souterraine) + kit.js (décor partagé : maisons vendéennes, bâtiments, arbres, haies et talus
+                  montagne, ile, terrier = la salle souterraine) ; index.js = chargées d'emblée (village, terrier),
+                  lazy.js = les autres, après la première image ; kit.js (décor partagé : maisons vendéennes, bâtiments, arbres, haies et talus
                   de bocage, chemins qui serpentent, mobilier urbain, objets de plage, sapins enneigés,
                   palmiers, château d'eau…)
     crowd.js      foules en instances (joueurs, supporters, touristes…) : ~10 appels de dessin par foule, rien hors champ
@@ -78,7 +79,9 @@ src/
     vegetation.js végétation par biome fusionnée par tuiles, ombres de contact, fleurs qui éclosent après chaque bêtise
     ambient.js    vie ambiante : papillons, vols d'oiseaux, fumées, pollens, lapins, hérisson, grenouille, montgolfière
     hover.js      micro-interactions à la souris (survol, clic sur les habitants)
+    dialogs.js    fenêtres accessibles : focus dedans, Tab en boucle, reste de la page inerte, retour du focus
 supabase/leaderboard.sql   table + règles de sécurité du classement
+supabase/stats.sql         mesure d'audience sans cookie (table events, vues stats_*, effacement à 13 mois)
 tests/            run_all.py (tests), og.py (image d'aperçu), csp_server.py (serveur local avec la CSP)
 .github/workflows/deploy.yml   build + tests + envoi FTPS sur OVH à chaque push sur main
 ```
@@ -104,7 +107,7 @@ Exemple : « Ajoute un monde spatial ».
                    W.pickups, W.pushable, W.postcard, W.gate, W.update… */ },
    });
    ```
-2. L'importer dans `src/js/regions/index.js`.
+2. L'importer dans `src/js/regions/lazy.js` (chargée après le démarrage) et ajouter son id à `ORDER` (`regions.js`).
 3. Pour y aller : un chemin depuis une région voisine (`walk` + `adj`), ou un transport
    (voir `trainMenu` dans `gare.js`, ou le bateau dans `plage.js`).
 
@@ -142,8 +145,39 @@ sur les scores du navigateur, et le carnet de voyage le signale.
 3. Appeler `completeGoal('mon-id')` au bon moment (souvent dans `actions.js`).
 4. Compléter la partie scriptée dans `tests/run_all.py`.
 
-## Mesure d'audience (facultative)
+## Mesure d'audience sans cookie (Supabase)
 
-Renseigner `umami.src` et `umami.websiteId` dans `src/site.config.json`. Le build ajoute le script
-et autorise son domaine dans la CSP. Événements envoyés : Partie lancée, Partie terminée, Terrier ouvert,
-Clic LinkedIn, Clic GitHub, Indice, Gland, Tutoriel terminé (avec sa durée), Tutoriel passé (avec l'étape).
+Même projet Supabase que le classement, règles dans `supabase/stats.sql`. Le collecteur est dans `boot.js`
+(`window.__foxStats`), le jeu y passe par `track()` (`config.js`).
+
+- Envoyé : le nom d'un événement (Visite, Jeu prêt, Partie lancée, Visite guidée finie, Terrier trouvé, Terrier
+  ouvert, Clic LinkedIn, Qualité, Bench, Départ…), la langue, la page, le type d'appareil (téléphone, tablette,
+  ordinateur), quelques chiffres (temps de chargement, qualité graphique, images par seconde, durée) et un numéro
+  de visite tiré au hasard à chaque chargement, gardé seulement en mémoire. Ni cookie, ni stockage, ni adresse IP :
+  impossible de reconnaître un visiteur d'une fois sur l'autre, d'où l'absence de bandeau de consentement.
+- Coupé hors de pierrelogre.com (tests, aperçu) et si le navigateur demande « Do Not Track » ou GPC.
+- La clé publique ne peut qu'ajouter des événements (ni lecture, ni modification). Anti-abus : 150 événements
+  par visite et par heure, 30 000 par jour. Effacement automatique au bout de 13 mois.
+- Lire les chiffres : Supabase > Table Editor (ou SQL Editor) > vues `stats_jour` (par jour), `stats_entonnoir`
+  (de la visite au clic LinkedIn, 30 jours), `stats_appareils` (chargement, qualité, fluidité par appareil),
+  `stats_sources` (d'où viennent les visites). Mesures détaillées des téléphones (#bench) :
+  `select at, device, props from events where name = 'Bench' order by at desc;`
+- Lien partagé sur LinkedIn : ajouter `?utm_source=linkedin` pour le voir dans `stats_sources`.
+- Umami (facultatif, en plus) : renseigner `umami.src` et `umami.websiteId` dans `src/site.config.json` ; le build
+  ajoute le script et autorise son domaine dans la CSP.
+
+## Premier chargement
+
+Le site en ligne charge d'abord `game.js` et ses morceaux partagés (moteur, Three.js, village, terrier). Les dix autres
+régions (`src/js/regions/lazy.js`) sont dans un fichier à part, `lazy-<empreinte>.js`, demandé juste après la
+première image : une partie neuve commence sans l'attendre ; « Reprendre » l'attend (bouton qui tourne). L'aperçu
+`dist/artifact.html` garde un seul fichier. Les noms des morceaux portent leur empreinte : pas de souci de cache.
+
+## Accessibilité
+
+- Audit axe-core (WCAG 2.1 AA) dans `npm test` : accueil, jeu, carnet de voyage, fiche, page 404.
+- Fenêtres (`dialogs.js`) : le focus entre dans la fenêtre, Tab y reste, le reste de la page est inerte pour le
+  lecteur d'écran ; à la fermeture, le focus revient au bouton qui l'a ouverte (au clavier) ou au jeu (à la souris).
+- Tout se fait au clavier : Tab parcourt le menu et les bêtises (de vrais boutons : Entrée ouvre l'indice),
+  onglets du carnet aux flèches, Échap ferme les fenêtres. N replie le carnet (Tab ne le fait plus).
+- Couleurs : `--fox-deep` pour le texte orange et les boutons à petit texte blanc, `--fox-text` pour les grands titres.

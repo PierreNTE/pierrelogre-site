@@ -16,6 +16,7 @@ export const saved = Object.assign({ ach: {}, best: null, lang: null, muted: fal
 export const S = {
   // anglais par défaut ; français sur /fr/ ; le choix du visiteur (bouton FR / EN) l'emporte (boot.js a déjà réglé <html lang>)
   lang: saved.lang === 'fr' || saved.lang === 'en' ? saved.lang : document.documentElement.lang === 'fr' ? 'fr' : 'en',
+  regionsLoaded: false,   // toutes les régions sont-elles arrivées ? (voir regions/lazy.js)
   paused: true, muted: !!saved.muted, coffeeShake: 0, printing: 0, sneakToggle: false, started: false, time: 0,
 };
 export const t = () => T[S.lang];

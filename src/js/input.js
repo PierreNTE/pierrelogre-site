@@ -22,10 +22,13 @@ addEventListener('keydown',e=>{
   if(e.code==='KeyM'&&!e.repeat&&S.started&&!S.paused&&!S.mg){ openJournal(); return; }
   if(e.ctrlKey||e.metaKey||e.altKey) return;
   if(S.paused) return;
+  // Un bouton atteint au clavier (Tab) garde Espace et Entrée pour lui ; un bouton juste cliqué à la souris, non (Espace = glapir)
+  const ctl=e.target instanceof Element&&e.target.matches('button,a[href],input,textarea,select')&&e.target.matches(':focus-visible');
+  if(ctl&&(e.code==='Space'||e.key==='Enter')) return;
   keys[e.code]=true; fox.idle=0;
   if(e.code==='Space'){ e.preventDefault(); if(!e.repeat) yap(); }
   if(e.code==='KeyE'&&!e.repeat) grabOrDrop();
-  if(e.code==='Tab'){ e.preventDefault(); toggleNotebook(); }
+  if(e.code==='KeyN'&&!e.repeat) toggleNotebook();   // Tab reste à la navigation au clavier (avant : Tab repliait le carnet)
   if(e.code==='Equal'||e.code==='NumpadAdd'||e.key==='+') setZoom(cam.zoomT/1.2);
   if(e.code==='Minus'||e.code==='NumpadSubtract'||e.key==='-') setZoom(cam.zoomT*1.2);
 });

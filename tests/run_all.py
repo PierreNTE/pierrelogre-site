@@ -21,6 +21,10 @@ Lance un serveur local qui reproduit la CSP stricte d'OVH (.htaccess), puis vér
  14. classement partagé : faux serveur Supabase (aucune écriture dans le vrai classement), requêtes conformes, repli local
  16. mesure d'audience sans cookie : événements anonymes, aucun stockage, coupée par GPC / DNT et hors de pierrelogre.com
  15. langues : anglais par défaut à « / », français à « /fr/ », choix retenu ; référencement (hreflang, Open Graph, schema.org, llms.txt)
+ 17. accessibilité : audit axe-core (WCAG 2.1 AA) de l'accueil, du jeu, du carnet de voyage, de la fiche et de la page 404 ;
+     tout au clavier : focus dans les fenêtres, Tab qui y reste, Échap, retour du focus, indices et onglets au clavier
+ 18. premier chargement allégé : régions lointaines dans un fichier à part (retenu exprès) ; jeu jouable sans lui, partie
+     reprise qui l'attend sans rien perdre
 Aucune erreur console n'est tolérée.
 """
 import asyncio, json, os, re, subprocess, sys, time, functools, http.server, threading
@@ -99,7 +103,9 @@ async def page(browser, w=1280, h=760, acorns_done=False, **kw):
     return ctx, pg, errs
 
 async def ready(pg):
-    await pg.wait_for_function('()=>window.__foxReady===true', timeout=120000)   # forme fonction : la CSP (sans unsafe-eval) refuse une chaîne
+    # Jeu prêt (première image) ET régions lointaines arrivées (fichier à part, chargé juste après) : la plupart des tests
+    # parcourent tout le monde. Le démarrage sans elles a son propre test (test_lazy_regions).
+    await pg.wait_for_function('()=>window.__foxReady===true && window.__foxWorld===true', timeout=120000)   # forme fonction : la CSP (sans unsafe-eval) refuse une chaîne
 
 async def js(pg, body):
     return await pg.evaluate('async()=>{' + JS_HELPERS + body + '}')
@@ -603,13 +609,127 @@ async def test_leaderboard_online(browser):
     check('aucune erreur console (classement en ligne)', not errs, '; '.join(errs[:3]))
     await ctx.close()
 
+async def test_lazy_regions(browser):
+    """Premier chargement plus léger : les dix régions lointaines arrivent dans un fichier à part (lazy-….js), après la
+    première image. Fichier retenu exprès : le jeu démarre et se joue au village sans lui ; une partie reprise l'attend,
+    sans rien perdre ; aucun succès « tout le monde » n'est donné trop tôt."""
+    gate = asyncio.Event(); asked = []
+    async def held(route):
+        asked.append(route.request.url); await gate.wait(); await route.continue_()
+    ctx = await browser.new_context(viewport={'width': 1280, 'height': 760}); await offline_lb(ctx)
+    await ctx.add_init_script("window.__foxNoCine=true; try{ if(!sessionStorage.getItem('seed')){ sessionStorage.setItem('seed','1'); localStorage.setItem('fox-betises-v2', JSON.stringify({tuto:1, acorns:[0,1,2,3,4]})); } }catch(e){}")
+    await ctx.route('**/assets/lazy-*.js', held)
+    pg = await ctx.new_page(); errs = []
+    pg.on('pageerror', lambda e: errs.append('pageerror: ' + str(e)))
+    pg.on('console', lambda m: errs.append(f'{m.type}: {m.text}') if m.type in ('error', 'warning') and 'preloaded using link preload' not in m.text else None)
+    await pg.goto(URL, timeout=120000); await pg.wait_for_function('()=>window.__foxReady===true', timeout=120000)
+    r = await js(pg, """F.start('libre', false); await wait(400); F.dev.skipTuto(); F.completeGoal('jardinier'); F.openJournal('map'); await wait(300); F.closeJournal(); await wait(200);
+        return {world: !!window.__foxWorld, regions: F.REGIONS.map(R=>R.id), started: F.S.started, done: !!F.run.done.jardinier, score: document.querySelector('#nbScore').textContent,
+                explorateur: !!F.saved.ach.explorateur, centPourCent: !!F.saved.ach.centPourCent, collectionneur: !!F.saved.ach.collectionneur};""")
+    check('régions lointaines retenues : le jeu démarre et se joue au village sans elles (fichier demandé après la 1re image)',
+          len(asked) == 1 and not r['world'] and sorted(r['regions']) == ['terrier', 'village'] and r['started'] and r['done']
+          and not (r['explorateur'] or r['centPourCent'] or r['collectionneur']), json.dumps({**r, 'asked': [a.rsplit('/', 1)[-1] for a in asked]}))
+    gate.set(); await pg.wait_for_function('()=>window.__foxWorld===true', timeout=120000)
+    r2 = await js(pg, """await wait(300); return {regions: F.REGIONS.map(R=>R.id), goals: F.GOALS.length, score: document.querySelector('#nbScore').textContent, sport: !!F.RG.sport,
+        explorateur: !!F.saved.ach.explorateur};""")
+    order = ['village', 'foret', 'sport', 'moto', 'riviere', 'plage', 'gare', 'nantes', 'paris', 'montagne', 'ile', 'terrier']
+    check('régions arrivées : rangées dans l’ordre de la carte, totaux du carnet mis à jour', r2['regions'] == order and r2['goals'] >= 80
+          and r2['score'] == f"1 / {r2['goals']}" and r['score'] == '1 / …' and r2['sport'] and not r2['explorateur'], json.dumps({'avant': r['score'], **r2}))
+    # Partie avancée (une bêtise de région, région ouverte, renard au complexe sportif), puis rechargement avec le fichier retenu
+    await js(pg, "F.unlockRegion(F.RG.sport, false); F.teleport(60, 10, 0); await wait(1500); F.run.foxPos=[60,10]; F.completeGoal('ballon'); await wait(200);")
+    gate.clear(); asked.clear()
+    await pg.reload(timeout=120000); await pg.wait_for_function('()=>window.__foxReady===true', timeout=120000)
+    b = await pg.evaluate("()=>({busy: document.querySelector('#startBtn').getAttribute('aria-busy'), txt: document.querySelector('#startBtn').textContent.trim()})")
+    await pg.click('#startBtn'); await pg.wait_for_timeout(800)
+    waiting = await pg.evaluate("()=>({started: window.__fox.S.started, intro: !document.querySelector('#intro').hidden})")
+    gate.set(); await pg.wait_for_function('()=>window.__fox.S.started===true', timeout=120000)
+    r3 = await js(pg, """await wait(500); const s=JSON.parse(localStorage.getItem('fox-run-libre')||'{}');
+        return {ballon: !!F.run.done.ballon, jardinier: !!F.run.done.jardinier, saved: !!(s.done&&s.done.ballon), x: +F.fox.pos.x.toFixed(1), z: +F.fox.pos.z.toFixed(1),
+                region: F.S.region, open: F.run.unlocked.includes('sport')};""")
+    check('partie reprise : « Reprendre » attend les régions (bouton qui tourne), puis repart au complexe sportif sans rien perdre',
+          b['busy'] == 'true' and b['txt'] in ('Resume', 'Reprendre') and not waiting['started'] and waiting['intro']
+          and r3['ballon'] and r3['jardinier'] and r3['saved'] and r3['open'] and 36 <= r3['x'] <= 95 and r3['region'] == 'sport', json.dumps({**b, **waiting, **r3}))
+    check('aucune erreur console (régions chargées après le démarrage)', not errs, '; '.join(errs[:3]))
+    await ctx.close()
+
+AXE_JS = os.path.join(ROOT, 'node_modules', 'axe-core', 'axe.min.js')
+AXE_RUN = """async(sel)=>{ const r = await axe.run(sel ? document.querySelector(sel) : document, { resultTypes: ['violations'],
+  runOnly: { type: 'tag', values: ['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'best-practice'] } });
+  return r.violations.map(v => v.id + ' (' + v.impact + ') ' + v.nodes.slice(0, 2).map(n => n.target.join(' ')).join(', ')); }"""
+async def test_accessibility(browser):
+    """Accessibilité : audit axe-core (WCAG 2.1 AA + bonnes pratiques) sur chaque écran, et parcours entièrement au clavier.
+    axe-core est injecté par le test (bypass_csp : c'est l'outil de test, pas le site, qui a besoin d'un script en ligne)."""
+    if not os.path.exists(AXE_JS):
+        check('accessibilité : axe-core installé (npm install)', False, AXE_JS); return
+    axe = open(AXE_JS).read()
+    ctx = await browser.new_context(viewport={'width': 1280, 'height': 760}, bypass_csp=True)
+    await offline_lb(ctx)
+    await ctx.add_init_script("window.__foxNoCine=true; try{localStorage.setItem('fox-betises-v2', JSON.stringify({tuto:1}))}catch(e){}")
+    pg = await ctx.new_page(); errs = []
+    pg.on('pageerror', lambda e: errs.append('pageerror: ' + str(e)))
+    pg.on('console', lambda m: errs.append(f'{m.type}: {m.text}') if m.type in ('error', 'warning') and 'preloaded using link preload' not in m.text else None)
+    found = {}
+    async def audit(name, sel=None):
+        if not await pg.evaluate("()=>!!window.axe"): await pg.add_script_tag(content=axe)
+        v = await pg.evaluate(AXE_RUN, sel)
+        if v: found[name] = v
+    act = "()=>{ const a=document.activeElement, d=a&&a.closest('[role=dialog]'); return a ? (a.id || a.tagName.toLowerCase()) + (d ? '@' + d.id : '') : null; }"
+    await pg.goto(URL, timeout=120000); await ready(pg)
+    await audit('accueil')
+    # Accueil au clavier : Tab jusqu'à « Qui est le renard ? », Entrée → fiche ; Tab y reste ; Échap → retour sur le bouton
+    for _ in range(12):
+        await pg.keyboard.press('Tab')
+        if await pg.evaluate(act) == 'introWho': break
+    await pg.keyboard.press('Enter'); await pg.wait_for_timeout(300)
+    inside = await pg.evaluate(act); seq = []
+    for _ in range(30): await pg.keyboard.press('Tab'); seq.append(await pg.evaluate(act))
+    behind = await pg.evaluate("()=>document.querySelector('#play').inert && document.querySelector('#topRight').inert")
+    await audit('fiche', '#burrow')
+    await pg.keyboard.press('Escape'); await pg.wait_for_timeout(300)
+    back = await pg.evaluate(act)
+    check('clavier : fiche ouverte au clavier → focus dedans, Tab y reste, le reste de la page inerte, Échap → retour au bouton',
+          inside.endswith('@burrow') and all(x.endswith('@burrow') for x in seq) and behind and back == 'introWho', f'{inside} · {set(seq)} · {back}')
+    # Partie au clavier : Tab parcourt les boutons (Tab ne replie plus le carnet), chaque bêtise est un bouton, Entrée ouvre l'indice
+    await pg.evaluate("()=>document.querySelector('#startBtn').focus()"); await pg.keyboard.press('Enter')
+    await pg.wait_for_function('()=>window.__fox.S.started===true', timeout=60000); await pg.wait_for_timeout(800)
+    seq = []
+    for _ in range(14): await pg.keyboard.press('Tab'); seq.append(await pg.evaluate(act))
+    r = await pg.evaluate("()=>({folded: document.querySelector('#notebook').classList.contains('collapsed'), btns: document.querySelectorAll('#goals > li > button').length, lis: document.querySelectorAll('#goals > li').length})")
+    await pg.evaluate("()=>document.querySelector('#goals li:not(.done) > button').focus()")
+    await pg.keyboard.press('Tab'); await pg.keyboard.press('Shift+Tab'); await pg.keyboard.press('Enter'); await pg.wait_for_timeout(200)
+    h = await pg.evaluate("()=>{ const b=document.activeElement; return {exp: b.getAttribute('aria-expanded'), hint: !!b.closest('li')?.querySelector('.hint-txt'), inList: !!b.closest('#goals')}; }")
+    check('clavier en jeu : Tab atteint le menu et les bêtises (boutons), Entrée ouvre l\'indice et garde le focus',
+          'whoBtn' in seq and 'mapBtn' in seq and not r['folded'] and r['btns'] == r['lis'] > 0 and h == {'exp': 'true', 'hint': True, 'inList': True}, json.dumps({**r, **h, 'seq': seq[:9]}))
+    await audit('jeu')
+    # Carnet de voyage par M : focus sur ✕, onglets aux flèches, Échap → retour au jeu
+    await pg.evaluate("()=>document.querySelector('#game').focus()"); await pg.keyboard.press('KeyM'); await pg.wait_for_timeout(400)
+    j1 = await pg.evaluate(act)
+    await pg.evaluate("()=>document.querySelector('[data-tab=map]').focus()"); await pg.keyboard.press('ArrowRight'); await pg.wait_for_timeout(300)
+    j2 = await pg.evaluate("()=>({focus: document.activeElement.dataset.tab, sel: document.querySelector('[role=tab][aria-selected=true]').dataset.tab, pane: [...document.querySelectorAll('.j-pane')].filter(p=>!p.hidden).map(p=>p.id).join()})")
+    await audit('carnet', '#journal')
+    await pg.keyboard.press('Escape'); await pg.wait_for_timeout(300)
+    j3 = await pg.evaluate(act)
+    check('clavier : carnet de voyage (M) → focus sur Fermer, flèches entre onglets, Échap → retour au jeu',
+          j1 == 'jClose@journal' and j2 == {'focus': 'ach', 'sel': 'ach', 'pane': 'j-ach'} and j3 == 'game', f'{j1} · {j2} · {j3}')
+    # Ouverte à la souris : retour au jeu (Espace fait toujours glapir, ne rouvre pas la fiche)
+    await pg.click('#whoBtn'); await pg.wait_for_timeout(300); await pg.click('#bClose'); await pg.wait_for_timeout(300)
+    m1 = await pg.evaluate(act); await pg.keyboard.press('Space'); await pg.wait_for_timeout(300)
+    m2 = await pg.evaluate("()=>document.querySelector('#burrow').hidden")
+    check('souris : fiche fermée → retour au jeu, Espace ne la rouvre pas', m1 == 'game' and m2, f'{m1} · fiche cachée {m2}')
+    pre = len(errs)
+    await pg.goto(URL + 'nimporte-quoi'); await audit('404')
+    extra = errs[pre:]   # la page 404 elle-même répond 404 (attendu, une seule ligne) ; rien d'autre n'est toléré
+    check('accessibilité : aucune erreur axe-core (WCAG 2.1 AA) sur accueil, fiche, jeu, carnet, 404', not found, json.dumps(found, ensure_ascii=False)[:400])
+    check('aucune erreur console (accessibilité)', not errs[:pre] and len(extra) <= 1 and all('status of 404' in e for e in extra), '; '.join(errs[:3]))
+    await ctx.close()
+
 async def main():
     srv = serve()
     async with async_playwright() as p:
         launch = lambda args: p.chromium.launch(args=args)
         b = await launch(GL)
         only = [x for x in os.environ.get('TESTS', '').split(',') if x]
-        for t in (test_playthrough, test_stealth_and_drop, test_daily, test_mobile_and_perf, test_world, test_first_minute, test_touch_feel, test_reactions, test_leaderboard_online, test_languages, test_stats):
+        for t in (test_playthrough, test_stealth_and_drop, test_daily, test_mobile_and_perf, test_world, test_first_minute, test_touch_feel, test_reactions, test_leaderboard_online, test_languages, test_stats, test_accessibility, test_lazy_regions):
             if only and t.__name__ not in only: continue
             try: await t(b)
             except Exception as e:

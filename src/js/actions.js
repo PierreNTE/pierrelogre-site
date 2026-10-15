@@ -212,7 +212,7 @@ export function checkBurrow() {
     completeGoal('terrier'); if (HOOKS.enterDen) HOOKS.enterDen(); else openBurrow();   // la salle souterraine (regions/terrier.js)
   } else if (d > 1.6) inBurrowZone = false;
 }
-export function openBurrow() { if (S.mg) return; track('Terrier ouvert'); S.paused = true; for (const k in keys) keys[k] = false; applyLang(false); $('#burrow').hidden = false; $('#burrow').scrollTop = 0; $('#outBtn').focus({ preventScroll: true }); }
+export function openBurrow() { if (S.mg) return; track('Terrier ouvert'); S.paused = true; for (const k in keys) keys[k] = false; applyLang(false); $('#burrow').hidden = false; $('#burrow').scrollTop = 0; $('#bClose').focus({ preventScroll: true }); }   // en haut de la fiche : le lecteur d'écran lit dans l'ordre
 export function closeBurrow() {
   $('#burrow').hidden = true; canvas.focus();
   if (!$('#intro').hidden || !$('#endCard').hidden) return;

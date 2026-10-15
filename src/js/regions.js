@@ -29,6 +29,9 @@ import { path as kitPath } from './regions/kit.js';
 
 export const REGIONS = [];
 export const RG = {};
+/** Ordre des régions sur la carte et dans les listes (les régions chargées après le démarrage s'y rangent). */
+export const ORDER = ['village', 'foret', 'sport', 'moto', 'riviere', 'plage', 'gare', 'nantes', 'paris', 'montagne', 'ile', 'terrier'];
+export const sortRegions = () => REGIONS.sort((a, b) => (ORDER.indexOf(a.id) + 1 || 99) - (ORDER.indexOf(b.id) + 1 || 99));
 
 /** Fusion profonde (un niveau) des textes d'une région dans T. */
 function mergeT(lang, obj) {

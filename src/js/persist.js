@@ -2,7 +2,7 @@
    Sauvegarde de la partie en cours (localStorage, sans cookie)
    Une sauvegarde par mode : partie libre, et défi du jour (valable le jour même).
    ===================================================================== */
-import { GOALS, MAIN_IDS, run, store } from './state.js';
+import { GOALS, MAIN_IDS, S, run, store } from './state.js';
 
 const KEY = { libre: 'fox-run-libre', defi: 'fox-run-defi' };
 export const todayKey = () => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; };
@@ -27,8 +27,9 @@ export function peekRun(mode) {
   if (mode === 'defi' && s.day !== todayKey()) return null;
   if (mode === 'libre' && !Array.isArray(s.goals)) return null;
   if (mode === 'defi' && s.goals.some(g => !MAIN_IDS.includes(g))) return null;
-  // Les bêtises inconnues (version plus récente ou retirée) sont ignorées
-  for (const k of Object.keys(s.done)) if (!GOALS.find(g => g.id === k)) delete s.done[k];
+  // Les bêtises inconnues (version plus récente ou retirée) sont ignorées… une fois toutes les régions arrivées
+  // (avant, une bêtise inconnue est peut-être celle d'une région pas encore chargée : on la garde)
+  if (S.regionsLoaded) for (const k of Object.keys(s.done)) if (!GOALS.find(g => g.id === k)) delete s.done[k];
   return s;
 }
 

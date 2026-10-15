@@ -45,6 +45,7 @@ async function measure(label) {
 
 export async function runBench(start) {
   if (B.running) return; B.running = true; S.bench = true;   // plus aucune sauvegarde à partir d'ici
+  for (let i = 0; i < 100 && !S.regionsLoaded; i++) await new Promise(r => setTimeout(r, 300));   // toutes les régions mesurées
   if (!S.started) start('libre', false);
   toggleHud(true);
   const rows = [], t0 = performance.now();
@@ -69,10 +70,10 @@ function showResults(rows, secs) {
   const body = rows.map(r => `${r.label.slice(0, 24).padEnd(24)} ${r.fps.toFixed(0).padStart(3)} ${fr() ? 'i/s' : 'fps'}  p95 ${r.p95.toFixed(0).padStart(3)} ms  ${String(r.calls).padStart(3)} ${fr() ? 'appels' : 'calls'}  ${(r.tris / 1000).toFixed(0).padStart(4)} k tri  Q${r.tier} ×${r.pr.toFixed(2)}`);
   const worst = rows.reduce((a, r) => r.fps < a.fps ? r : a, rows[0]);
   const txt = [...head, '', ...body, '', `${fr() ? 'Moins fluide' : 'Slowest'} : ${worst.label} (${worst.fps.toFixed(0)} i/s)`].join('\n');
-  const o = document.createElement('div'); o.className = 'overlay'; o.id = 'benchCard';
-  o.innerHTML = `<div class="card" style="max-width:720px;transform:none"><h2 class="title" style="font-size:26px">${fr() ? 'Test de performance terminé' : 'Performance test done'}</h2>
+  const o = document.createElement('div'); o.className = 'overlay'; o.id = 'benchCard'; o.setAttribute('role', 'dialog'); o.setAttribute('aria-modal', 'true'); o.setAttribute('aria-labelledby', 'benchTitle');
+  o.innerHTML = `<div class="card" style="max-width:720px;transform:none"><h2 class="title" id="benchTitle" style="font-size:26px">${fr() ? 'Test de performance terminé' : 'Performance test done'}</h2>
     <p style="font-size:17px">${window.__foxStats?.on ? (fr() ? 'Résultats envoyés à Pierre (anonymement), merci ! Tu peux aussi copier ce texte. Rien n’a été sauvegardé dans ton navigateur.' : 'Results sent to Pierre (anonymously), thanks! You can also copy this text. Nothing was saved in your browser.') : (fr() ? 'Copie ce texte et envoie-le (ou fais une capture). Rien n’a été sauvegardé.' : 'Copy this text and send it (or take a screenshot). Nothing was saved.')}</p>
-    <textarea readonly style="width:100%;height:260px;font:11px/1.35 ui-monospace,monospace;box-sizing:border-box"></textarea>
+    <textarea readonly aria-label="${fr() ? 'Résultats' : 'Results'}" style="width:100%;height:260px;font:11px/1.35 ui-monospace,monospace;box-sizing:border-box"></textarea>
     <div class="card-actions" style="margin-top:10px"><button class="big" id="benchCopy">${fr() ? 'Copier' : 'Copy'}</button><button class="alt-btn" id="benchReload">${fr() ? 'Recharger la page' : 'Reload the page'}</button></div></div>`;
   document.body.append(o); const ta = o.querySelector('textarea'); ta.value = txt; S.paused = true;
   o.querySelector('#benchCopy').onclick = async () => { try { await navigator.clipboard.writeText(txt); o.querySelector('#benchCopy').textContent = fr() ? 'Copié ✓' : 'Copied ✓'; } catch (e) { ta.focus(); ta.select(); } };
@@ -92,6 +93,6 @@ export function initBench(start) {
   addEventListener('keydown', e => { if (!e.shiftKey) return; if (e.code === 'KeyP') toggleHud(); if (e.code === 'KeyB') runBench(start); });
   let taps = [];
   document.getElementById('clock')?.addEventListener('pointerdown', () => { const n = performance.now(); taps = taps.filter(t => n - t < 2500); taps.push(n); if (taps.length >= 5) { taps = []; runBench(start); } });
-  if (/bench/.test(location.hash)) { const wait_ = () => window.__foxReady ? runBench(start) : setTimeout(wait_, 300); wait_(); }
+  if (/bench/.test(location.hash)) { const wait_ = () => window.__foxReady && S.regionsLoaded ? runBench(start) : setTimeout(wait_, 300); wait_(); }   // toutes les régions sont mesurées
   return REGIONS.length;
 }

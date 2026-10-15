@@ -5,7 +5,8 @@
   --ink:#2f2a24;
   --ink-soft:#6b6155;
   --fox:#e8742a;
-  --fox-deep:#b9531a;
+  --fox-deep:#b04a12;   /* texte orange sur papier et boutons à petit texte blanc : contraste ≥ 4,5 (WCAG AA) */
+  --fox-text:#c4561a;   /* grands titres orange sur papier : contraste ≥ 3 */
   --burrow:#33241b;
   --burrow-2:#4d3627;
   --cream:#f3e6d2;
@@ -22,7 +23,11 @@ html,body{height:100%;margin:0;overflow:hidden;background:var(--sky);color:var(-
 .nogame #vignette{display:none}
 button{font-family:var(--font-ui);cursor:pointer}
 [hidden]{display:none!important}
-button:focus-visible,a:focus-visible{outline:3px solid var(--fox);outline-offset:2px}
+button:focus-visible,a:focus-visible,input:focus-visible,textarea:focus-visible,[tabindex]:focus-visible{outline:3px solid var(--fox-deep);outline-offset:2px}
+#burrow :focus-visible{outline-color:#ffb27a}
+#game:focus-visible{outline:none}
+/* Lu par les lecteurs d'écran, invisible à l'écran */
+.sr{position:absolute!important;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap;border:0}
 .og #notebook,.og #topRight,.og #help,.og #touch,.og #intro,.og #toasts,.og #bubbles{display:none!important}
 
 /* ---------- Chargement & version sans jeu ---------- */
@@ -110,7 +115,7 @@ html:has(#intro:not([hidden])) :is(#notebook,#topRight,#touch,#help){visibility:
 .p404 .card p.en{font-size:16px;color:var(--ink-soft);margin-top:-6px}
 a.big{display:inline-block;text-decoration:none}
 .card .title{font-family:var(--font-ui);font-weight:800;font-size:clamp(28px,6vw,38px);line-height:1.02;margin:0 0 10px;text-wrap:balance;letter-spacing:-.01em;padding-right:46px}
-.card .title em{font-style:normal;color:var(--fox)}
+.card .title em{font-style:normal;color:var(--fox-text)}
 .card p{font-family:var(--font-hand);font-size:20px;line-height:1.3;margin:0 0 14px}
 .keys{display:grid;grid-template-columns:auto 1fr;gap:4px 12px;font-size:14px;margin:0 0 18px;color:var(--ink-soft)}
 .keys kbd{font-family:var(--font-ui);font-weight:700;color:var(--ink);background:#efe6cc;padding:0 7px;border-radius:4px;justify-self:start}
@@ -138,7 +143,7 @@ a.big{display:inline-block;text-decoration:none}
 .btn-li{background:var(--li);color:#fff;box-shadow:0 4px 0 #084a8c}
 .btn-li b{background:#fff;color:var(--li);border-radius:4px;padding:0 4px;font-weight:800;font-size:14px}
 .btn-gh{background:transparent;color:var(--cream);box-shadow:inset 0 0 0 2px rgba(243,230,210,.45)}
-.btn-out{background:var(--fox);color:#fff}
+.btn-out{background:var(--fox-deep);color:#fff}
 .stats{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;margin:0 0 28px}
 .stat{background:rgba(255,240,220,.06);border-radius:10px;padding:12px 12px 10px;min-width:0}
 .stat strong{display:block;font-size:28px;line-height:1;color:#ffcf9e;font-variant-numeric:tabular-nums;font-weight:800}
@@ -189,7 +194,7 @@ a.big{display:inline-block;text-decoration:none}
 #tbtns button{position:absolute;pointer-events:auto;border-radius:50%;border:0;font-weight:800;font-size:14px;box-shadow:0 4px 0 rgba(0,0,0,.18);touch-action:none;padding:0;transition:transform .08s}
 #tbtns button.down{transform:translateY(3px) scale(.96);box-shadow:0 1px 0 rgba(0,0,0,.18)}
 #tbtns button.small{font-size:12px;background:rgba(251,246,230,.92);color:var(--ink)}
-#tbtns #tYap{right:0;bottom:0;width:84px;height:84px;background:var(--fox);color:#fff}
+#tbtns #tYap{right:0;bottom:0;width:84px;height:84px;background:var(--fox);color:#fff;font-size:19px}   /* grand texte : contraste suffisant sur l'orange */
 #tbtns #tGrab{right:94px;bottom:6px;width:74px;height:74px;background:var(--paper);color:var(--ink)}
 #tbtns #tSneak{right:4px;bottom:96px;width:56px;height:56px}
 #tbtns #tZoom{right:96px;bottom:96px;width:50px;height:50px}
@@ -219,8 +224,10 @@ a.big{display:inline-block;text-decoration:none}
 @media (prefers-reduced-motion:reduce){*{animation-duration:.01ms!important;transition-duration:.01ms!important}}
 
 /* ---------- v4 : indices, flèche, menu mobile, fin de partie, glands ---------- */
-#goals li{cursor:pointer;border-radius:3px}
-#goals li:focus-visible{outline:2px solid var(--fox);outline-offset:1px}
+#goals li{border-radius:3px}
+#goals li>button{all:unset;display:block;cursor:pointer;border-radius:3px;width:100%;box-sizing:border-box}
+#goals li>button:focus-visible{outline:2px solid var(--fox-deep);outline-offset:1px}
+#goals li.done>button{cursor:default}
 #goals li .hint-txt{display:block;font-size:15px;line-height:1.25;color:var(--fox-deep);margin:1px 0 4px;font-style:italic}
 #goals li.done{cursor:default}
 .nb-mode{margin:-2px 0 4px;font-size:15px;color:var(--fox-deep)}
@@ -229,8 +236,9 @@ a.big{display:inline-block;text-decoration:none}
 #notebook.collapsed .nb-tip,#notebook.collapsed .nb-mode{display:none}
 .medal-s.new{background:rgba(232,116,42,.28);color:var(--ink)}
 .medal-s b{font-weight:700;color:var(--fox-deep);font-size:12px}
+.medal-s.new b{color:#8f3c0e}
 #destArrow{position:fixed;z-index:4;transform:translate(-50%,-50%);pointer-events:none;display:flex;flex-direction:column;align-items:center;gap:2px;font-family:var(--font-ui);font-weight:800;font-size:12px;color:var(--ink)}
-#destArrow i{font-style:normal;display:grid;place-items:center;width:34px;height:34px;border-radius:50%;background:var(--fox);color:#fff;font-size:18px;box-shadow:0 3px 10px rgba(0,0,0,.2)}
+#destArrow i{font-style:normal;display:grid;place-items:center;width:34px;height:34px;border-radius:50%;background:var(--fox-deep);color:#fff;font-size:18px;box-shadow:0 3px 10px rgba(0,0,0,.2)}
 #destArrow span{background:rgba(251,246,230,.94);padding:0 7px;border-radius:999px}
 .menu-btn{display:none}
 .bubble.q{background:#fff;color:var(--ink);font-family:var(--font-ui);font-weight:800;font-size:22px;padding:0 12px;border-radius:50%;line-height:1.35}
@@ -284,7 +292,7 @@ kbd.k{font:700 10px/1 var(--font-ui);background:#efe6cc;border-radius:4px;paddin
 .card p.j-sum{font-size:17px;margin-bottom:10px}
 .j-tabs{display:flex;gap:6px;margin-bottom:12px;flex-wrap:wrap}
 .j-tabs button{border:0;background:#efe6cc;color:var(--ink);font-weight:700;font-size:14px;padding:7px 14px;border-radius:999px}
-.j-tabs button.on{background:var(--fox);color:#fff}
+.j-tabs button.on{background:var(--fox-deep);color:#fff}
 #jMap{width:100%;display:block;border-radius:6px;border:2px solid #e6dab8}
 .j-regions{list-style:none;margin:10px 0 0;padding:0;display:grid;grid-template-columns:repeat(auto-fill,minmax(min(200px,100%),1fr));gap:6px 12px}
 .j-regions li{display:flex;align-items:center;gap:8px;font-family:var(--font-hand);font-size:17px;line-height:1.15;flex-wrap:wrap}
@@ -315,10 +323,10 @@ kbd.k{font:700 10px/1 var(--font-ui);background:#efe6cc;border-radius:4px;paddin
 #mg{position:fixed;left:0;right:0;top:10px;z-index:6;text-align:center;pointer-events:none}
 .mg-bar{display:inline-flex;gap:14px;align-items:center;background:rgba(251,246,230,.95);border-radius:999px;padding:6px 8px 6px 16px;box-shadow:0 6px 16px rgba(40,50,30,.18);font-family:var(--font-ui);font-size:16px;pointer-events:auto}
 .mg-bar b{font-size:20px}
-.mg-bar .combo{color:var(--fox);font-weight:800;font-size:20px}
+.mg-bar .combo{color:var(--fox-text);font-weight:800;font-size:20px}
 .mg-help{display:table;max-width:calc(100vw - 32px);box-sizing:border-box;font-family:var(--font-hand);font-size:18px;line-height:1.2;margin:8px auto 0;padding:4px 14px;border-radius:12px;background:rgba(251,246,230,.88);box-shadow:0 4px 12px rgba(40,50,30,.12)}   /* lisible sur le décor */
 #mgFlash{font-family:var(--font-ui);font-weight:800;font-size:clamp(30px,7vw,54px);opacity:0;margin-top:18vh;text-shadow:0 3px 0 var(--paper)}
-#mgFlash.good{color:var(--fox)}
+#mgFlash.good{color:var(--fox-text)}
 #mgFlash.bad{color:#5d6b7a}
 #mgFlash.show{animation:flash 1s ease forwards}
 @keyframes flash{0%{opacity:0;transform:scale(.7)}15%{opacity:1;transform:scale(1.08)}70%{opacity:1;transform:scale(1)}100%{opacity:0}}
@@ -326,8 +334,8 @@ html.mg #touch,html.mg #notebook,html.mg #help,html.mg #destArrow,html.mg #mapBt
 html.mg #game{cursor:crosshair;touch-action:none}
 .card.mg-end{max-width:420px}
 .card p.mg-big{font-size:22px;margin:0 0 6px}
-.mg-big b{font-family:var(--font-ui);font-size:44px;color:var(--fox)}
-.mg-big em{font-style:normal;background:var(--fox);color:#fff;border-radius:999px;padding:2px 8px;font-size:14px;vertical-align:middle}
+.mg-big b{font-family:var(--font-ui);font-size:44px;color:var(--fox-text)}
+.mg-big em{font-style:normal;background:var(--fox-deep);color:#fff;border-radius:999px;padding:2px 8px;font-size:14px;vertical-align:middle}
 .mg-form{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin:6px 0}
 .mg-form label{font-family:var(--font-hand);font-size:18px;width:100%}
 .mg-form input{flex:1;min-width:120px;font:16px var(--font-ui);padding:9px 12px;border-radius:10px;border:2px solid #e6dab8;background:#fff}
@@ -348,7 +356,7 @@ html.mg #game{cursor:crosshair;touch-action:none}
 /* Terrier : plaque d'information des souvenirs */
 .den-plaque{position:fixed;left:50%;bottom:calc(64px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);z-index:6;width:min(460px,calc(100vw - 32px));box-sizing:border-box;background:var(--paper);border-radius:6px;padding:12px 16px 10px;box-shadow:0 10px 30px rgba(40,30,20,.35);border-top:4px solid #d9b84a;pointer-events:none}
 .den-plaque.in{animation:plaqueIn .28s ease-out}
-.den-plaque small{display:block;font:700 13px var(--font-ui);color:var(--fox);letter-spacing:.04em}
+.den-plaque small{display:block;font:700 13px var(--font-ui);color:var(--fox-deep);letter-spacing:.04em}
 .den-plaque b{display:block;font:800 20px/1.1 var(--font-ui)}
 .den-plaque i{display:block;font:600 14px var(--font-ui);color:var(--ink-soft);font-style:normal;margin-top:2px}
 .den-plaque p{font-family:var(--font-hand);font-size:18px;line-height:1.25;margin:6px 0 0}
@@ -357,7 +365,7 @@ html.mg #game{cursor:crosshair;touch-action:none}
 
 /* ---------- Première visite guidée (tutorial.js) : un post-it à la place du carnet ---------- */
 .tuto #notebook{display:none}
-#tuto{position:fixed;top:calc(14px + env(safe-area-inset-top,0px));left:14px;z-index:5;box-sizing:border-box;width:min(310px,calc(100vw - 28px));
+#tuto{position:fixed;top:calc(14px + env(safe-area-inset-top,0px));left:14px;z-index:6;box-sizing:border-box;width:min(310px,calc(100vw - 28px));
   background:#fff3a8;border-radius:2px 2px 4px 4px;padding:10px 14px 10px;box-shadow:0 2px 0 rgba(0,0,0,.05),0 10px 24px rgba(40,50,30,.2);transform:rotate(-1.4deg);color:var(--ink)}
 #tuto::before{content:"";position:absolute;left:50%;top:-9px;width:70px;height:18px;margin-left:-35px;background:rgba(255,255,255,.55);transform:rotate(2deg);box-shadow:0 1px 2px rgba(0,0,0,.06)}
 #tuto small{display:block;font:700 12.5px var(--font-ui);color:var(--fox-deep);letter-spacing:.04em;text-transform:uppercase}
@@ -378,7 +386,7 @@ html.mg #game{cursor:crosshair;touch-action:none}
 /* Le carnet arrive à la fin de la visite : « La suite est ici ! » */
 #notebook.nb-new{animation:nbIn .6s cubic-bezier(.3,1.4,.5,1)}
 #notebook.nb-new{box-shadow:0 0 0 3px var(--fox),0 10px 24px rgba(40,50,30,.18)}
-.nb-more{display:inline-block;margin:0 0 6px;background:var(--fox);color:#fff;font:800 14px var(--font-ui);padding:3px 12px;border-radius:999px;animation:tagBob .7s ease-in-out infinite alternate}
+.nb-more{display:inline-block;margin:0 0 6px;background:var(--fox-deep);color:#fff;font:800 14px var(--font-ui);padding:3px 12px;border-radius:999px;animation:tagBob .7s ease-in-out infinite alternate}
 @keyframes nbIn{from{opacity:0;transform:translateY(-20px) rotate(-4deg)}}
 @keyframes tagBob{to{transform:translateY(-5px)}}
 @media (max-width:640px){#tuto{width:min(226px,calc(100vw - 160px));padding:9px 11px 9px}#tuto b{font-size:17px;padding-right:40px}#tuto span{font-size:16px}#tutoSkip{font-size:14px}}

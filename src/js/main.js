@@ -30,10 +30,11 @@ import { drawBirds, gardener, npcs, sales } from './npc.js';
 import { NAV, animateNPC, buildNav, canSee, findPath, los, updateNPC } from './npclogic.js';
 import { clearRun, freshRun, loadRun, peekRun, saveRun, todayKey } from './persist.js';
 import { Q, sampleQuality } from './quality.js';
-import { REGIONS, RG, drawCrowds, endCine, ensureBuilt, isActive, openHidden, prebuild, regionAt, restoreRegions, teleport, tick as regionTick, travelTo, unlockRegion } from './regions.js';
+import { REGIONS, RG, drawCrowds, endCine, ensureBuilt, isActive, openHidden, prebuild, regionAt, restoreRegions, sortRegions, teleport, tick as regionTick, travelTo, unlockRegion } from './regions.js';
 import './regions/index.js';
 import { ACHIEVEMENTS, checkAch, grant, markDay } from './achievements.js';
-import { closeJournal, openJournal } from './journal.js';
+import { closeJournal, openJournal, refreshJournal } from './journal.js';
+import { openDialogs } from './dialogs.js';
 import { MG, endMinigameNow, mgCamera, startMinigame, updateMinigame } from './minigame.js';
 import { DAY, GOALS, MAIN_IDS, S, endBoot, modalOpen, pick, rnd, run, saved, store, t } from './state.js';
 import * as KIT from './regions/kit.js';
@@ -169,7 +170,7 @@ function frame(ts) {
   updateBlobs(); drawBirds(); cullBaked();
   renderer.render(scene, camera);
   sampleQuality(); benchFrame();
-  if (!window.__foxReady) { window.__foxReady = true; performance.mark('fox:first-frame');
+  if (!window.__foxReady) { window.__foxReady = true; performance.mark('fox:first-frame'); setTimeout(loadRegions, 0);   // le reste du monde, maintenant que le village est à l'écran
     let gl2 = false; try { gl2 = renderer.capabilities.isWebGL2; } catch (e) { /* facultatif */ }
     track('Jeu prêt', { ms: Math.round(performance.now()), touch: isTouch, pr: +devicePixelRatio.toFixed(2), coeurs: navigator.hardwareConcurrency || 0, memoire: navigator.deviceMemory || 0, webgl2: gl2 }); }
   // Bulles, indice « E », flèche, chrono
@@ -205,6 +206,12 @@ function restoreWorld() {
 /* ---------- Démarrage ---------- */
 function start(mode, resume) {
   if (S.started) return;
+  // Une partie reprise a besoin de toutes les régions (celles déjà ouvertes, l'endroit où était le renard) : elle les attend.
+  // Une partie neuve commence tout de suite, au village.
+  if (mode === 'libre' && resume && !S.regionsLoaded && !regionsFailed) {
+    const b = $('#startBtn'); b.setAttribute('aria-busy', 'true'); b.classList.add('queued');
+    whenRegions(() => { b.removeAttribute('aria-busy'); b.classList.remove('queued'); start(mode, resume); }); return;
+  }
   if (mode === 'defi') {
     const s = peekRun('defi');
     if (s) { loadRun(s); restoreWorld(); } else freshRun('defi', dailyGoals(), todayKey());
@@ -215,7 +222,7 @@ function start(mode, resume) {
   track('Partie lancée', { mode: run.mode, reprise: !!resume });
   if (run.mode === 'libre') {
     restoreRegions();
-    if (run.foxPos) { const [x, z] = run.foxPos; const R = regionAt({ x, z }); if (R.always) openHidden(R.id); else ensureBuilt(R); /* reprise dans le terrier : la salle s'ouvre */ S.moodSnap = true; fox.pos.set(x, 0, z); resolve(fox.pos, fox.r); cam.target.copy(fox.pos); camera.position.copy(fox.pos).add(CAM_OFF); }
+    if (run.foxPos && S.regionsLoaded) { const [x, z] = run.foxPos; const R = regionAt({ x, z }); if (R.always) openHidden(R.id); else ensureBuilt(R); /* reprise dans le terrier : la salle s'ouvre */ S.moodSnap = true; fox.pos.set(x, 0, z); resolve(fox.pos, fox.r); cam.target.copy(fox.pos); camera.position.copy(fox.pos).add(CAM_OFF); }
     markDay();
   }
   const tuto = tutoEligible();   // avant checkAch : un nouveau visiteur, pas un habitué
@@ -228,7 +235,7 @@ function start(mode, resume) {
 function renderIntro() {
   const s = peekRun('libre');
   const n = s ? Object.keys(s.done).length : 0;
-  $('#startBtn').textContent = s ? t().resume(n, GOALS.length) : t().start;
+  $('#startBtn').textContent = s ? (S.regionsLoaded ? t().resume(n, GOALS.length) : t().resumeWait) : t().start;   // le total n'est connu qu'avec toutes les régions
   $('#newBtn').hidden = !s;
   const best = saved.daily[todayKey()];
   $('#dailyBest').textContent = best != null ? t().dailyBest(fmt(best)) : '';
@@ -292,6 +299,30 @@ $('#resetBtn').addEventListener('click', () => {
 $('#mapBtn').addEventListener('click', () => openJournal('map'));
 $('#nbAch').addEventListener('click', e => { if (e.target.closest('#nbMap')) openJournal('map'); });
 
+/* ---------- Régions chargées après le démarrage (regions/lazy.js) ----------
+   Sur le site en ligne, elles sont dans un fichier à part : la première image n'attend pas leurs décors. Elles arrivent
+   juste après ; d'ici là, le village se joue normalement (une région ne s'ouvre qu'après plusieurs bêtises). */
+const regionWaiters = [];
+let regionsFailed = false;
+const whenRegions = fn => { if (S.regionsLoaded || regionsFailed) fn(); else regionWaiters.push(fn); };
+function loadRegions() {
+  if (loadRegions.asked) return; loadRegions.asked = true;
+  import('./regions/lazy.js').then(regionsArrived, e => {
+    // Fichier introuvable ou réseau coupé : le jeu reste au village (une partie reprise démarre quand même, sans rien perdre)
+    console.error('Régions non chargées : le jeu reste au village.', e);
+    regionsFailed = true; for (const fn of regionWaiters.splice(0)) fn();
+  });
+}
+function regionsArrived() {
+  sortRegions(); S.regionsLoaded = true;
+  prebuild(RG.village.adj);   // les voisines du village se construisent en tâche de fond (une par image)
+  renderGoals(); renderIntro(); refreshJournal();
+  if (!S.started && peekRun('libre') && !$('#startBtn').classList.contains('queued')) $('#startBtn').removeAttribute('aria-busy');
+  if (S.started) checkAch();
+  for (const fn of regionWaiters.splice(0)) fn();
+  window.__foxWorld = true;
+}
+
 /* ---------- Initialisation ---------- */
 performance.mark('fox:built'); if (window.__foxAudit) window.__foxAudit('world', world); bake(world); bakeAO(world, blobTex); performance.mark('fox:baked');
 ensureBuilt(RG.village);
@@ -319,7 +350,7 @@ window.__fox = { scene, camera, THREE: { Vector3: THREE.Vector3 }, pseudoOk,   /
   renderer, findPath, NAV, los, cam, setZoom, fox, items, npcs, props, acorns, completeGoal, yap, grabOrDrop, dropHeld,
   run, saved, S, Q, startPrint, openBurrow, start, canSee, gardener, sales,
   REGIONS, RG, unlockRegion, fauna: HERDS, DAY, WALK, blockedAt, endMinigameNow, balloonDebug, GOALS, interacts, travelTo, teleport, ensureBuilt, startMinigame, MG, checkAch, grant, ACHIEVEMENTS, openJournal, closeJournal,
-  dev: { KIT, setBuild, resolve, pace, PACE, TUTO, skipTuto, stick, nearestTarget, lb: { top: lbTop, submit: lbSubmit }, gaitStep },   // galerie d'objets, collisions, cadence, visite guidée (tests)
+  dev: { KIT, setBuild, resolve, pace, PACE, TUTO, skipTuto, stick, nearestTarget, lb: { top: lbTop, submit: lbSubmit }, gaitStep, openDialogs },   // galerie d'objets, collisions, cadence, visite guidée (tests)
   screenOf: obj => toScreen(posOf(obj).clone().setY((posOf(obj).y || 0) + 2.6)), get paused() { return S.paused; },
 };
 endBoot();   // le village est construit : le jeu reprend le hasard ordinaire
@@ -328,6 +359,7 @@ endBoot();   // le village est construit : le jeu reprend le hasard ordinaire
 window.__foxBoot = true;
 document.documentElement.classList.remove('booting');
 document.querySelectorAll('#intro [aria-busy]').forEach(b => b.removeAttribute('aria-busy'));
+if (peekRun('libre') && !S.regionsLoaded) $('#startBtn').setAttribute('aria-busy', 'true');   // « Reprendre » attend les régions
 $('#loaderSkip').hidden = true;
 if (window.__foxPending && !S.started && !OG) { const m = window.__foxPending; window.__foxPending = null; try { start(m, m === 'libre' && !!peekRun('libre')); } catch (e) { console.error(e); } }
 frame();

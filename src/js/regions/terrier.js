@@ -116,7 +116,7 @@ defineRegion({
     const shelf = { x: X(4.2), z: Z(3.9), slots: Array.from({ length: 9 }, (_, k) => ({ x: X(4.2 - 1.3 + (k % 5) * .65), y: .6 + (k < 5 ? 0 : .55), z: Z(3.9) })) };
 
     /* ---------- Plaque d'information (au bas de l'écran) ---------- */
-    const el = document.createElement('div'); el.className = 'den-plaque'; el.hidden = true; el.setAttribute('aria-live', 'polite'); document.body.append(el);
+    const el = document.createElement('div'); el.className = 'den-plaque'; el.hidden = true; el.setAttribute('aria-live', 'polite'); (document.getElementById('play') || document.body).append(el);
     let shown = null;
     const html = sp => {
       const T_ = t(), d = T_.den;

@@ -19,25 +19,31 @@ const openHints = new Set();
 
 /* ---------- Carnet ---------- */
 export function renderGoals() {
+  // Le focus clavier reste sur la même bêtise quand la liste se redessine (indice ouvert ou fermé)
+  const fid = goalsEl.contains(document.activeElement) ? document.activeElement.closest('li')?.dataset.id : null;
   goalsEl.innerHTML = ''; let n = 0; const region = S.goalRegion || S.region || 'village'; const list = activeGoals(region);
   for (const g of list) {
     const done = !!run.done[g.id]; if (done && !g.secret) n++;
-    const li = document.createElement('li'); li.dataset.id = g.id; li.tabIndex = 0; li.setAttribute('role', 'button');
-    if (g.secret && !done) { li.className = 'secret'; li.textContent = t().secret; }
+    // Chaque bêtise est un vrai bouton dans un élément de liste : lu « bouton » par les lecteurs d'écran, Entrée ou Espace ouvre l'indice
+    const li = document.createElement('li'); li.dataset.id = g.id;
+    const b = document.createElement('button'); b.type = 'button'; li.append(b);
+    if (g.secret && !done) { li.className = 'secret'; b.textContent = t().secret; }
     else {
-      li.textContent = t().goals[g.id] || g.id;
-      if (g.need && !done) { const c = document.createElement('span'); c.className = 'count'; c.textContent = ` (${Math.min(g.need, prog(g.id).size)}/${g.need})`; li.append(c); }
+      b.textContent = t().goals[g.id] || g.id;
+      if (g.need && !done) { const c = document.createElement('span'); c.className = 'count'; c.textContent = ` (${Math.min(g.need, prog(g.id).size)}/${g.need})`; b.append(c); }
     }
-    const st = document.createElement('span'); st.className = 'strike'; li.append(st);
-    if (done) li.classList.add('done');
+    const st = document.createElement('span'); st.className = 'strike'; b.append(st);
+    if (done) { li.classList.add('done'); const d = document.createElement('span'); d.className = 'sr'; d.textContent = ` (${t().aDone})`; b.append(d); }
+    else if (t().hints[g.id]) b.setAttribute('aria-expanded', String(openHints.has(g.id)));
     if (openHints.has(g.id) && !done && t().hints[g.id]) { const h = document.createElement('small'); h.className = 'hint-txt'; h.textContent = t().hints[g.id]; li.append(h); li.classList.add('open'); }
     goalsEl.append(li);
   }
+  if (fid) goalsEl.querySelector(`li[data-id="${fid}"] > button`)?.focus({ preventScroll: true });
   const total = list.filter(g => !g.secret).length;
   const daily = run.mode === 'defi';
   if (daily) $('#nbScore').textContent = `${n} / ${total}`;
   // Toutes les bêtises du monde, secrètes comprises (même compte que le carnet de voyage ; avant : « 95 / 90 » possible)
-  else { const d = GOALS.filter(g => run.done[g.id]).length; $('#nbScore').textContent = `${d} / ${GOALS.length}`; $('#nbScore').title = t().totalTasks; }
+  else { const d = GOALS.filter(g => run.done[g.id]).length; $('#nbScore').textContent = `${d} / ${S.regionsLoaded ? GOALS.length : '…'}`; $('#nbScore').title = t().totalTasks; }   // total connu quand toutes les régions sont là
   $('#nbMode').textContent = daily ? t().dailyLabel : `📍 ${t().regions?.[region] || ''} · ${n}/${total}`;
   $('#nbAcorns').textContent = `🌰 ${saved.acorns.length}/5`;
   $('#nbAcorns').title = t().acornCount;
@@ -54,7 +60,6 @@ function toggleHint(id) {
   renderGoals();
 }
 goalsEl.addEventListener('click', e => { const li = e.target.closest('li'); if (li) toggleHint(li.dataset.id); });
-goalsEl.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { const li = e.target.closest('li'); if (li) { e.preventDefault(); toggleHint(li.dataset.id); } } });
 
 let hintPick = null;
 /** nudge.js choisit la bêtise à suggérer (la plus proche dont on connaît l'endroit) et la montre d'une flèche. */

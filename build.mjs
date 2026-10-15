@@ -13,11 +13,21 @@ const CFG = JSON.parse(fs.readFileSync(SRC('site.config.json'), 'utf8'));
 const read = p => fs.readFileSync(p, 'utf8');
 
 /* ---------- 1. Bundle JS (Three.js tree-shaké + jeu) ---------- */
-const result = await esbuild.build({
-  entryPoints: [SRC('js/main.js')], bundle: true, format: 'esm', minify: true, write: false,
-  target: ['es2020'], legalComments: 'none', metafile: true, logLevel: 'warning',
-});
-const gameJs = result.outputFiles[0].text;
+const ES = { bundle: true, format: 'esm', minify: true, write: false, target: ['es2020'], legalComments: 'none', logLevel: 'warning' };
+// Aperçu tout-en-un : un seul fichier (l'import des régions lointaines devient une simple promesse)
+const gameOne = (await esbuild.build({ ...ES, entryPoints: [SRC('js/main.js')] })).outputFiles[0].text;
+// Site en ligne : découpé. game.js (moteur, village, terrier) + morceaux partagés, chargés d'emblée ; lazy-….js (les dix
+// autres régions) téléchargé juste après la première image. Les noms des morceaux portent leur empreinte (cache sûr).
+const split = await esbuild.build({ ...ES, entryPoints: { game: SRC('js/main.js') }, splitting: true, metafile: true,
+  outdir: path.join(ROOT, '.split'), entryNames: '[name]-[hash]', chunkNames: '[name]-[hash]' });
+const outKey = f => path.relative(ROOT, f.path);
+const mainOut = split.outputFiles.find(f => split.metafile.outputs[outKey(f)]?.entryPoint === 'src/js/main.js');
+if (!mainOut) throw new Error('build : sortie principale introuvable');
+const gameJs = mainOut.text;
+const chunks = split.outputFiles.filter(f => f !== mainOut && f.path.endsWith('.js')).map(f => ({ name: path.basename(f.path), text: f.text }));
+const eagerChunks = split.metafile.outputs[outKey(mainOut)].imports.filter(i => i.kind === 'import-statement').map(i => path.basename(i.path));
+const lazyChunks = split.metafile.outputs[outKey(mainOut)].imports.filter(i => i.kind === 'dynamic-import').map(i => path.basename(i.path));
+if (!lazyChunks.some(n => n.startsWith('lazy-'))) throw new Error('build : les régions lointaines ne sont pas dans un fichier à part');
 const escB = s => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 // Textes de la carte d'accueil dans chaque langue, glissés dans boot.js : si le visiteur a choisi l'autre langue,
 // la carte s'affiche d'emblée dans la sienne (la page elle-même est en anglais à « / », en français à « /fr/ »)
@@ -76,7 +86,7 @@ fs.writeFileSync(path.join(ROOT, 'dist/artifact.html'), `<title>Renard de Pierre
 ${css}</style>
 ${body}
 <script>${inlineSafe(bootJs)}</script>
-<script type="module">${inlineSafe(gameJs)}</script>
+<script type="module">${inlineSafe(gameOne)}</script>
 `);
 
 if (process.argv.includes('--artifact-only')) { console.log('aperçu ok'); process.exit(0); }
@@ -93,6 +103,7 @@ const cssMin = (await esbuild.transform(fontFace + '\n' + css, { loader: 'css', 
 fs.writeFileSync(path.join(OUT, 'assets/style.css'), cssMin);
 fs.writeFileSync(path.join(OUT, 'assets/boot.js'), bootJs);
 fs.writeFileSync(path.join(OUT, 'assets/game.js'), gameJs);
+for (const c of chunks) fs.writeFileSync(path.join(OUT, 'assets', c.name), c.text);
 const noscriptCss = '#burrow{display:block!important}#intro,#notebook,#topRight,#help,#touch,#game,#bClose,#outBtn,#loot,#endCard{display:none!important}\n';
 fs.writeFileSync(path.join(OUT, 'assets/noscript.css'), noscriptCss);
 // Version dans l'adresse des fichiers (empreinte du contenu) : après une mise à jour, un visiteur déjà venu ne garde pas
@@ -186,7 +197,7 @@ function page(lang) {
 <link rel="preload" href="/assets/fonts/baloo-2-latin-800-normal.woff2" as="font" type="font/woff2" crossorigin>
 <link rel="preload" href="/assets/fonts/patrick-hand-latin-400-normal.woff2" as="font" type="font/woff2" crossorigin>
 <link rel="modulepreload" href="/${A.game}">
-<link rel="stylesheet" href="/${A.css}">
+${eagerChunks.map(n => `<link rel="modulepreload" href="/assets/${n}">\n`).join('')}<link rel="stylesheet" href="/${A.css}">
 <noscript><link rel="stylesheet" href="/${A.noscript}"></noscript>
 <script type="application/ld+json">${JSON.stringify(jsonLd(lang)).replace(/</g, '\\u003c')}</script>
 ${umami}</head>
@@ -275,7 +286,7 @@ fs.writeFileSync(path.join(OUT, '.well-known/security.txt'), `Contact: ${CFG.lin
 fs.writeFileSync(path.join(OUT, '404.html'), `<!doctype html>
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="robots" content="noindex">
 <title>Page not found · Pierre Logre</title><link rel="icon" href="/favicon.svg" type="image/svg+xml"><link rel="stylesheet" href="/${A.css}"></head>
-<body class="p404"><div class="overlay"><div class="card"><h1 class="title">The fox <em>ate</em> this page.</h1><p>It doesn't exist, or not anymore. The rest of the village is fine (for now).</p><p class="en" lang="fr">Le renard a mangé cette page. Le reste du village est intact (pour l'instant).</p><div class="card-actions"><a class="big" href="/">Back to the village</a><a class="alt" href="/fr/" lang="fr">Version française</a></div></div></div></body></html>
+<body class="p404"><main class="overlay"><div class="card"><h1 class="title">The fox <em>ate</em> this page.</h1><p>It doesn't exist, or not anymore. The rest of the village is fine (for now).</p><p class="en" lang="fr">Le renard a mangé cette page. Le reste du village est intact (pour l'instant).</p><div class="card-actions"><a class="big" href="/">Back to the village</a><a class="alt" href="/fr/" lang="fr">Version française</a></div></div></main></body></html>
 `);
 let htaccess = read(SRC('htaccess.conf'));
 if (umami) {
@@ -293,4 +304,6 @@ fs.writeFileSync(path.join(OUT, '.htaccess'), htaccess);
 const { gzipSync } = await import('node:zlib');
 const kb = n => (n / 1024).toFixed(0) + ' Ko';
 const g = s => gzipSync(s, { level: 9 }).length;
-console.log(`build ok · game.js ${kb(gameJs.length)} (gzip ${kb(g(gameJs))}) · style.css gzip ${kb(g(cssMin))}`);
+const eagerJs = gameJs + eagerChunks.map(n => chunks.find(c => c.name === n).text).join('');
+const lazyJs = lazyChunks.map(n => chunks.find(c => c.name === n).text).join('');
+console.log(`build ok · JS au démarrage ${kb(eagerJs.length)} (gzip ${kb(g(gameJs) + eagerChunks.reduce((a, n) => a + g(chunks.find(c => c.name === n).text), 0))}) · régions après la 1re image ${kb(lazyJs.length)} (gzip ${kb(g(lazyJs))}) · tout-en-un ${kb(gameOne.length)} (gzip ${kb(g(gameOne))}) · style.css gzip ${kb(g(cssMin))}`);

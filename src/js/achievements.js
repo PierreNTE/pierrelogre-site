@@ -8,7 +8,7 @@ import { track } from './config.js';
 import { ACH_ALL, renderGoals, toast } from './hud.js';
 import { REGIONS, onAch, regionGoals } from './regions.js';
 import { todayKey } from './persist.js';
-import { GOALS, run, saved, store, t } from './state.js';
+import { GOALS, S, run, saved, store, t } from './state.js';
 
 const allDone = id => { const g = regionGoals(id); return g.length > 0 && g.every(x => run.done[x.id]); };
 const hour = () => new Date().getHours();
@@ -18,7 +18,7 @@ export const ACHIEVEMENTS = [
   { id: 'fleau' }, { id: 'insaisissable' }, { id: 'express' }, { id: 'ombre' },
   // Aventure
   { id: 'petitRenard', test: () => GOALS.filter(g => run.done[g.id]).length >= 10 },
-  { id: 'explorateur', test: () => REGIONS.every(R => R.hidden || run.discovered.includes(R.id)) },
+  { id: 'explorateur', test: () => S.regionsLoaded && REGIONS.every(R => R.hidden || run.discovered.includes(R.id)) },
   { id: 'forestier', test: () => allDone('foret') },
   { id: 'sportif', test: () => allDone('sport') },
   { id: 'pilote', test: () => allDone('moto') },
@@ -28,11 +28,11 @@ export const ACHIEVEMENTS = [
   { id: 'souverain', test: () => allDone('montagne') },
   { id: 'speedFox', test: () => (saved.mgBest || 0) >= 3000 },
   { id: 'buteur', test: () => (saved.stats.goals || 0) >= 50 },
-  { id: 'collectionneur', test: () => saved.acorns.length >= 5 && REGIONS.filter(R => R.hasCard !== false).every(R => run.cards.includes(R.id)) },
+  { id: 'collectionneur', test: () => S.regionsLoaded && saved.acorns.length >= 5 && REGIONS.filter(R => R.hasCard !== false).every(R => run.cards.includes(R.id)) },
   { id: 'fouineur', test: () => GOALS.filter(g => g.secret && run.done[g.id]).length >= 10 },
   { id: 'demenageur', test: () => (run.flags.souv || []).length >= 9 },
   { id: 'amiDesBetes', test: () => ['basseCour', 'chat', 'coq', 'canetons', 'meuh', 'crabes', 'ecureuil'].every(id => run.done[id]) },
-  { id: 'centPourCent', test: () => GOALS.every(g => run.done[g.id]) },
+  { id: 'centPourCent', test: () => S.regionsLoaded && GOALS.every(g => run.done[g.id]) },
   // Secrets
   { id: 'fidele', secret: true, test: () => (saved.days || []).length >= 3 },
   { id: 'noctambule', secret: true, test: () => hour() >= 22 || hour() < 5 },

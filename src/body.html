@@ -1,27 +1,10 @@
-<canvas id="game" tabindex="0" data-a="aGame" aria-label=""></canvas>
+<main id="play">
+<canvas id="game" tabindex="0" role="application" data-a="aGame" aria-label="" aria-describedby="help"></canvas>
 <div id="vignette" aria-hidden="true"></div>
 <div id="bubbles"></div>
 <div id="destArrow" hidden aria-hidden="true"><i>➜</i><span></span></div>
 
-<aside id="notebook" data-a="aGoals" aria-label="">
-  <h2><span data-t="nbTitle"></span><button id="nbToggle" aria-expanded="true"></button></h2>
-  <p class="nb-mode" id="nbMode"></p>
-  <ul id="goals"></ul>
-  <p class="nb-tip" id="nbTip"></p>
-  <div class="nb-ach" id="nbAch"></div>
-  <div class="nb-foot"><span><span class="clock" id="clock">0:00</span> · <span id="nbScore">0 / 13</span> · <span id="nbAcorns">🌰 0/5</span></span><button id="resetBtn"></button></div>
-</aside>
 
-<div id="topRight">
-  <a class="chip li" id="liChip" target="_blank" rel="noopener"><b>in</b><span data-t="liChip"></span></a>
-  <button class="chip menu-btn" id="menuBtn" aria-expanded="false" aria-controls="topRight" aria-label="Menu">⋯</button>
-  <button class="chip opt" id="mapBtn"><span data-t="journalBtn"></span> <kbd class="k">M</kbd></button>
-  <button class="chip opt" id="whoBtn"><span class="long" data-t="who"></span><span class="short" data-t="whoShort"></span></button>
-  <button class="chip opt" id="langBtn" aria-label="Language / Langue">FR</button>
-  <button class="chip opt" id="muteBtn" aria-pressed="false"></button>
-  <button class="chip opt" id="musicBtn" aria-pressed="true" data-t="music"></button>
-  <button class="chip opt" id="qualBtn"></button>
-</div>
 
 <div id="help"></div>
 <div id="toasts" aria-live="polite"></div>
@@ -56,6 +39,35 @@
   </div>
 </div>
 
+<div id="regionBanner" hidden aria-live="polite"><small></small><b></b></div>
+<div id="fade" hidden></div>
+<div id="mg" hidden>
+  <div class="mg-bar"><span>⏱ <b id="mgTime">45</b></span><span><b id="mgScore">0</b> <small data-t="mgPts"></small></span><span class="combo" id="mgCombo">×1</span><span id="mgLevel"></span><button class="chip" id="mgExit" data-t="mgExit"></button></div>
+  <p class="mg-help" data-t="mgHelp"></p>
+  <div id="mgFlash"></div>
+</div>
+</main>
+
+<header id="topRight">
+  <a class="chip li" id="liChip" target="_blank" rel="noopener"><b>in</b><span data-t="liChip"></span></a>
+  <button class="chip menu-btn" id="menuBtn" aria-expanded="false" aria-controls="topRight" aria-label="Menu">⋯</button>
+  <button class="chip opt" id="mapBtn"><span data-t="journalBtn"></span> <kbd class="k">M</kbd></button>
+  <button class="chip opt" id="whoBtn"><span class="long" data-t="who"></span><span class="short" data-t="whoShort"></span></button>
+  <button class="chip opt" id="langBtn" aria-label="Language / Langue">FR</button>
+  <button class="chip opt" id="muteBtn" aria-pressed="false"></button>
+  <button class="chip opt" id="musicBtn" aria-pressed="true" data-t="music"></button>
+  <button class="chip opt" id="qualBtn"></button>
+</header>
+
+<aside id="notebook" data-a="aGoals" aria-label="">
+  <h2><span data-t="nbTitle"></span><button id="nbToggle" aria-expanded="true"></button></h2>
+  <p class="nb-mode" id="nbMode"></p>
+  <ul id="goals"></ul>
+  <p class="nb-tip" id="nbTip"></p>
+  <div class="nb-ach" id="nbAch"></div>
+  <div class="nb-foot"><span><span class="clock" id="clock">0:00</span> · <span id="nbScore">0 / 13</span> · <span id="nbAcorns">🌰 0/5</span></span><button id="resetBtn"></button></div>
+</aside>
+
 <div class="overlay" id="endCard" hidden role="dialog" aria-modal="true" aria-labelledby="endTitle">
   <div class="card end">
     <h2 class="title" id="endTitle"></h2>
@@ -85,14 +97,7 @@
   </div>
 </div>
 
-<div id="regionBanner" hidden aria-live="polite"><small></small><b></b></div>
-<div id="fade" hidden></div>
 
-<div id="mg" hidden>
-  <div class="mg-bar"><span>⏱ <b id="mgTime">45</b></span><span><b id="mgScore">0</b> <small data-t="mgPts"></small></span><span class="combo" id="mgCombo">×1</span><span id="mgLevel"></span><button class="chip" id="mgExit" data-t="mgExit"></button></div>
-  <p class="mg-help" data-t="mgHelp"></p>
-  <div id="mgFlash"></div>
-</div>
 
 <div class="overlay soft" id="mgEnd" hidden role="dialog" aria-modal="true" aria-labelledby="mgEndTitle">
   <div class="card mg-end">
@@ -111,10 +116,10 @@
   <div class="card journal">
     <div class="j-head"><h2 class="title" id="jTitle" data-t="journalTitle"></h2><button class="chip" id="jClose" data-a="aClose" aria-label="">✕</button></div>
     <p class="j-sum" id="jSum"></p>
-    <div class="j-tabs" role="tablist"><button data-tab="map" role="tab" data-t="tabMap"></button><button data-tab="ach" role="tab" data-t="tabAch"></button><button data-tab="lb" role="tab" data-t="tabLb"></button></div>
-    <div class="j-pane" id="j-map"><canvas id="jMap" aria-hidden="true"></canvas><ul class="j-regions" id="jRegions"></ul></div>
-    <div class="j-pane" id="j-ach" hidden></div>
-    <div class="j-pane" id="j-lb" hidden></div>
+    <div class="j-tabs" role="tablist"><button data-tab="map" role="tab" id="t-map" aria-controls="j-map" data-t="tabMap"></button><button data-tab="ach" role="tab" id="t-ach" aria-controls="j-ach" data-t="tabAch"></button><button data-tab="lb" role="tab" id="t-lb" aria-controls="j-lb" data-t="tabLb"></button></div>
+    <div class="j-pane" id="j-map" role="tabpanel" aria-labelledby="t-map"><canvas id="jMap" aria-hidden="true"></canvas><ul class="j-regions" id="jRegions"></ul></div>
+    <div class="j-pane" id="j-ach" role="tabpanel" aria-labelledby="t-ach" hidden></div>
+    <div class="j-pane" id="j-lb" role="tabpanel" aria-labelledby="t-lb" hidden></div>
   </div>
 </div>
 
