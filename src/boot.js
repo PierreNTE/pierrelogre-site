@@ -13,12 +13,14 @@
   // La carte d'accueil s'affiche tout de suite, dans la bonne langue, pendant que le jeu se charge derrière
   var touch=false; try{ touch=matchMedia('(pointer: coarse)').matches||'ontouchstart' in window; }catch(e){}
   if(touch) document.documentElement.classList.add('is-touch');
-  var lang=null; try{ lang=JSON.parse(localStorage.getItem('fox-betises-v2')||'{}').lang; }catch(e){}
-  if(!lang) lang=(navigator.language||'fr').toLowerCase().indexOf('fr')===0?'fr':'en';
-  var EN=/*INTRO_EN*/null;
-  if(lang==='en'&&EN){
-    document.documentElement.lang='en';
-    for(var id in EN){ var el=$(id); if(el) el.innerHTML=EN[id]; }
+  // Langue : celle de la page (anglais à « / », français à « /fr/ »), sauf si le visiteur a déjà choisi avec le bouton FR / EN
+  var page=document.documentElement.lang==='fr'?'fr':'en', lang=null;
+  try{ lang=JSON.parse(localStorage.getItem('fox-betises-v2')||'{}').lang; }catch(e){}
+  if(lang!=='fr'&&lang!=='en') lang=page;
+  var INTRO=/*INTRO*/null;
+  if(lang!==page&&INTRO&&INTRO[lang]){
+    document.documentElement.lang=lang;
+    for(var id in INTRO[lang]){ var el=$(id); if(el) el.innerHTML=INTRO[lang][id]; }
   }
   // Un clic sur Jouer pendant le chargement est retenu : la partie démarre dès que le jeu est prêt
   function queue(mode,btn){ return function(e){ if(window.__foxBoot) return; e.preventDefault(); window.__foxPending=mode; btn.classList.add('queued'); }; }

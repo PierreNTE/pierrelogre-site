@@ -14,7 +14,8 @@ export const saved = Object.assign({ ach: {}, best: null, lang: null, muted: fal
 
 /** État partagé modifiable par plusieurs modules. */
 export const S = {
-  lang: saved.lang || ((navigator.language || 'fr').toLowerCase().startsWith('fr') ? 'fr' : 'en'),
+  // anglais par défaut ; français sur /fr/ ; le choix du visiteur (bouton FR / EN) l'emporte (boot.js a déjà réglé <html lang>)
+  lang: saved.lang === 'fr' || saved.lang === 'en' ? saved.lang : document.documentElement.lang === 'fr' ? 'fr' : 'en',
   paused: true, muted: !!saved.muted, coffeeShake: 0, printing: 0, sneakToggle: false, started: false, time: 0,
 };
 export const t = () => T[S.lang];

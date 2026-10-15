@@ -6,7 +6,7 @@ import { updateAcorns, acorns } from './acorns.js';
 import { checkBurrow, destinationFor, dropHeld, grabOrDrop, nearestTarget, openBurrow, startPrint, updateBirds, yap } from './actions.js';
 import { MUSIC, ambience, audio, setMusic } from './audio.js';
 import { CONFIG, OG, track } from './config.js';
-import { pseudoOk } from './leaderboard.js';
+import { pseudoOk, submit as lbSubmit, top as lbTop } from './leaderboard.js';
 import { dailyGoals } from './daily.js';
 import { bakeAO, updateBlooms } from './vegetation.js';
 import { updateHover } from './hover.js';
@@ -21,7 +21,7 @@ import { hintDest } from './nudge.js';
 import { HOOKS } from './hooks.js';
 import { CAM_OFF, RM, SUN_OFF, TX, U, WALK, bake, blobTex, blockedAt, cam, cullBaked, hemi, isTouch, outlineLOD, camera, canvas, flat2, renderer, resolve, scene, setBuild, setZoom, sun, updateBlobs, world } from './engine.js';
 import { fox, prints } from './fox.js';
-import { updateFox, updateProps } from './foxupdate.js';
+import { gaitStep, updateFox, updateProps } from './foxupdate.js';
 import { PMAX, _o, emit, leafCols, leafMesh, leaves, pMesh, parts } from './fx.js';
 import { $, applyLang, autoHint, bubbles, completeGoal, fmt, hintEl, onFinish, onLang, posOf, renderGoals, say, showEndCard, showFact, toScreen, toast, toggleLang, toggleNotebook, updateDestArrow } from './hud.js';
 import { stick } from './input.js';
@@ -35,7 +35,7 @@ import './regions/index.js';
 import { ACHIEVEMENTS, checkAch, grant, markDay } from './achievements.js';
 import { closeJournal, openJournal } from './journal.js';
 import { MG, endMinigameNow, mgCamera, startMinigame, updateMinigame } from './minigame.js';
-import { DAY, GOALS, MAIN_IDS, S, endBoot, pick, rnd, run, saved, store, t } from './state.js';
+import { DAY, GOALS, MAIN_IDS, S, endBoot, modalOpen, pick, rnd, run, saved, store, t } from './state.js';
 import * as KIT from './regions/kit.js';
 import { BURROW, COFFEE, PRINTER, coffeeMachine, leds, printer, updateCable, water } from './world.js';
 
@@ -76,7 +76,7 @@ function frame(ts) {
     // Le terrier scintille quand on s'en approche, tant qu'il n'est pas trouvé
     if (!run.done.terrier && flat2(fox.pos, BURROW) < 9 && Math.random() < dt * 10) emit(new THREE.Vector3(BURROW.x + rnd(-.6, .6), .7, BURROW.z + rnd(-.2, .3)), pick(['#ffe9a8', '#fff6d6', '#f6d36b']), { n: 1, spd: .25, up: 1.2, life: 1.8, grav: -.6, size: .7 });
     for (const e of eggs) { const d = flat2(fox.pos, e.pos); if (d < e.r && !e.inside) { e.inside = true; say(e, t().eggs[e.key], 'note', 3.4, 0, 'egg'); } else if (d > e.r + 1.2) e.inside = false; }
-    updateAcorns(dt, now, i => { S.paused = true; showFact(i, () => { S.paused = false; canvas.focus(); }); });
+    updateAcorns(dt, now, i => { S.paused = true; showFact(i, () => { S.paused = modalOpen() || !!S.cine; canvas.focus(); }); });
     if (S.started) { autoHint(); saveAcc += dt; if (saveAcc > 5) { saveAcc = 0; run.foxPos = [+fox.pos.x.toFixed(2), +fox.pos.z.toFixed(2)]; saveRun(); } }
   } else {
     fox.group.position.set(fox.pos.x, fox.lift || 0, fox.pos.z); fox.group.rotation.y = fox.yaw; fox.shadow.position.set(fox.pos.x, .03, fox.pos.z);
@@ -309,7 +309,7 @@ window.__fox = { scene, camera, THREE: { Vector3: THREE.Vector3 }, pseudoOk,   /
   renderer, findPath, NAV, los, cam, setZoom, fox, items, npcs, props, acorns, completeGoal, yap, grabOrDrop, dropHeld,
   run, saved, S, Q, startPrint, openBurrow, start, canSee, gardener, sales,
   REGIONS, RG, unlockRegion, fauna: HERDS, DAY, WALK, blockedAt, endMinigameNow, balloonDebug, GOALS, interacts, travelTo, teleport, ensureBuilt, startMinigame, MG, checkAch, grant, ACHIEVEMENTS, openJournal, closeJournal,
-  dev: { KIT, setBuild, resolve, pace, PACE, TUTO, skipTuto, stick, nearestTarget },   // galerie d'objets, collisions, cadence, visite guidée (tests)
+  dev: { KIT, setBuild, resolve, pace, PACE, TUTO, skipTuto, stick, nearestTarget, lb: { top: lbTop, submit: lbSubmit }, gaitStep },   // galerie d'objets, collisions, cadence, visite guidée (tests)
   screenOf: obj => toScreen(posOf(obj).clone().setY((posOf(obj).y || 0) + 2.6)), get paused() { return S.paused; },
 };
 endBoot();   // le village est construit : le jeu reprend le hasard ordinaire

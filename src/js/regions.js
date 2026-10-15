@@ -367,7 +367,7 @@ export function tick(dt, force) {
       if (Math.random() < dt * 3) emit(new THREE.Vector3(c.pos.x + rnd(-.3, .3), .9, c.pos.z), '#ffe9a8', { n: 1, spd: .2, up: .8, life: 1, grav: -.4, size: .5 });
       if (flat2(fox.pos, c.pos) < .9) {
         c.got = true; c.g.visible = false; c.g.userData.gone = true; if (!run.cards.includes(Rg.id)) run.cards.push(Rg.id); saveRun(); SFX.acorn();
-        S.paused = true; showCard({ icon: '💌', title: t().cardTitle(t().regions[Rg.id], run.cards.length, REGIONS.filter(r => r.hasCard !== false).length), text: t().cards[Rg.id] || '' }, () => { S.paused = false; achHook(); });
+        S.paused = true; showCard({ icon: '💌', title: t().cardTitle(t().regions[Rg.id], run.cards.length, REGIONS.filter(r => r.hasCard !== false).length), text: t().cards[Rg.id] || '' }, () => { S.paused = modalOpen() || !!S.cine; achHook(); });
       }
     }
   }

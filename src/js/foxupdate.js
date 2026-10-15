@@ -61,11 +61,10 @@ function updateFox(dt){
       if(p.kind==='chair'&&!(p.scr>0)&&v>1){ p.scr=.5; SFX.scrape(); p.spin=rnd(-4,4); } }
   }
   // ---------- animation ----------
-  const ph0=fox.phase; fox.phase+=dt*v*2.6;
-  if(v>.8&&!fox.sneaking&&Math.floor(fox.phase/Math.PI)!==Math.floor(ph0/Math.PI)) STEP[surfaceAt(fox.pos)]?.();
-  animateFox(dt,v);
+  const stepped=gaitStep(dt,v);
+  if(v>.8&&!fox.sneaking&&stepped) STEP[surfaceAt(fox.pos)]?.();
   // Poussière sous les pattes quand il court
-  if(v>6.4&&!RM&&Math.floor(fox.phase/Math.PI)!==Math.floor(ph0/Math.PI)){ const f=foxForward(); emit(new THREE.Vector3(fox.pos.x-f.x*.45,.08,fox.pos.z-f.z*.45),onPath(fox.pos.x,fox.pos.z)?'#e3d6b2':'#d9dcb8',{n:2,spd:.7,up:.6,life:.45,grav:-.4,size:.55}); }
+  if(v>6.4&&!RM&&stepped){ const f=foxForward(); emit(new THREE.Vector3(fox.pos.x-f.x*.45,.08,fox.pos.z-f.z*.45),onPath(fox.pos.x,fox.pos.z)?'#e3d6b2':'#d9dcb8',{n:2,spd:.7,up:.6,life:.45,grav:-.4,size:.55}); }
   // traces de pas
   const inMud=flat2(fox.pos,MUD)<MUD.r, inSoil=inPatch(fox.pos)||flat2(fox.pos,{x:-8,z:13.9})<1.6;
   if(inMud){ if(fox.muddy<5.5&&v>1) SFX.mud(); fox.muddy=6; }
@@ -82,32 +81,69 @@ function updateFox(dt){
 
 /* ---------- Animation du renard ----------
    Allures : trot en diagonale (marche), bond (course : les pattes avant puis arrière ensemble), pas feutrés (discrétion).
-   La patte qui avance se soulève (et le jarret se plie) ; le corps roule un peu, penche dans les virages, se cabre
-   en accélérant ; la tête compense le balancement ; oreilles, queue et paupières vivent indépendamment. */
-const lerp=(a,b,k)=>a+(b-a)*k, clamp=(x,a,b)=>Math.max(a,Math.min(b,x));
-const TROT=[0,Math.PI,Math.PI,0], BOUND=[0,.35,Math.PI,Math.PI+.35];
-const A={ blinkT:2.5, blink:0, acc:0, pv:0, lean:0 };
+   Chaque patte alterne un appui (la patte posée recule à la vitesse du sol : elle ne patine pas) et un retour
+   (patte levée, jarret plié, ramenée vite vers l'avant). La cadence suit la vitesse et la foulée suit l'amplitude.
+   Le corps descend juste ce qu'il faut pour que les pattes d'appui touchent le sol (une patte trop courte s'étire
+   un peu, une trop longue se plie) : le dos ondule naturellement au rythme des pas. À l'arrêt, les pattes se reposent.
+   Le corps roule un peu, penche dans les virages, se cabre en accélérant ; la tête compense le balancement ;
+   oreilles, queue et paupières vivent indépendamment. */
+const lerp=(a,b,k)=>a+(b-a)*k, clamp=(x,a,b)=>Math.max(a,Math.min(b,x)), frac=x=>x-Math.floor(x), smooth=x=>x*x*(3-2*x);
+// Pattes (repère du renard, avant l'échelle ×1,1) : longueur hanche → sol, bas de patte arrière (sous le jarret)
+const LEN=[.445,.445,.5,.5], LK=.297, SCALE=1.1;
+// Place de chaque patte dans le cycle [avant G, avant D, arrière G, arrière D] : trot (diagonales) → bond
+const OFF_TROT=[0,.5,.5,0], OFF_BOUND=[0,.08,.5,.58];
+/** Allure selon la vitesse : amplitude A (rad), part d'appui beta, foulée D (m), poids de la course. */
+function gait(v){
+  const vw=clamp(v/2.2,0,1), runK=clamp((v-4.8)/2.4,0,1)*(1-fox.sneak);
+  let A=lerp(.5*(.35+.65*vw),.8,runK), beta=lerp(.56,.38,runK);
+  A=lerp(A,A*.75,fox.sneak); beta=lerp(beta,.68,fox.sneak);
+  // foulée qui colle au sol, allongée de 15 % : un glissement à peine visible, pour une cadence vive mais pas frénétique
+  const D=2*.47*SCALE*Math.sin(A)/beta*1.15;
+  return { A, beta, D, runK };
+}
+/** Avance l'allure (phase des pattes) et anime le renard ; vrai à chaque foulée (bruit de pas, poussière). */
+function gaitStep(dt,v){ const ph0=fox.phase; if(v>.02) fox.phase+=dt*v*Math.PI*2/gait(v).D; animateFox(dt,v); return Math.floor(fox.phase/(Math.PI*2))!==Math.floor(ph0/(Math.PI*2)); }
+const A={ blinkT:2.5, blink:0, acc:0, pv:0, lean:0, gw:0, drop:0 };
+const TH=[0,0,0,0], ON=[0,0,0,0], SW=[0,0,0,0];
 function animateFox(dt,v){
   const now=performance.now()/1000;
-  const walkK=clamp(v/4.4,0,1), runK=clamp((v-4.6)/2.6,0,1)*(1-fox.sneak);
+  const walkK=clamp(v/4.4,0,1), G=gait(v), runK=G.runK;
   const sitting=fox.idle>4&&!fox.held;
   fox.sit+=((sitting?1:0)-fox.sit)*Math.min(1,dt*4);
   const s=fox.sit, cyc=(fox.idle-4)%14;
   const scratching=sitting&&cyc>3&&cyc<5.2, yawning=sitting&&cyc>8&&cyc<9.8;
   const crouch=fox.sneak*(1-s), carry=fox.held?1:0;
-  // allure : décalage de phase de chaque patte (trot → bond), amplitude, levée de la patte qui avance
-  const amp=(.5*walkK+.22*runK)*(1-s)*(1-.35*crouch), lift=(.06+.05*runK+.04*crouch)*walkK*(1-s);
+  // poids de l'allure : 0 à l'arrêt (les pattes reviennent doucement à la verticale), 1 dès qu'il trotte
+  A.gw+=(clamp((v-.15)/.8,0,1)-A.gw)*(dt?Math.min(1,dt*10):1);
+  const gw=A.gw*(1-s), liftH=(.075+.04*runK-.02*crouch)*gw;
+  // 1. angle de chaque patte, appui ou retour
+  let need=0, nOn=0;
+  for(let i=0;i<4;i++){
+    const u=frac(fox.phase/(Math.PI*2)+lerp(OFF_TROT[i],OFF_BOUND[i],runK));
+    if(u<G.beta){ const k=u/G.beta; TH[i]=G.A*(2*k-1)*gw; ON[i]=1; SW[i]=0; }
+    else { const k=(u-G.beta)/(1-G.beta); TH[i]=G.A*(1-2*smooth(k))*gw; ON[i]=0; SW[i]=Math.sin(Math.PI*k); }
+    if(ON[i]){ need+=LEN[i]*(1-Math.cos(TH[i])); nOn++; }
+  }
+  // 2. le corps descend pour que les pattes d'appui touchent le sol (moyenne, plafonnée ; lissé : pas d'à-coup)
+  const drop=nOn?Math.min(.075+.03*runK,need/nOn):0;
+  A.drop+=(drop-A.drop)*(dt?Math.min(1,dt*30):1);
+  const low=A.drop+.12*crouch;   // le corps se baisse aussi quand il se faufile : les pattes se plient (au lieu de s'enfoncer dans le sol)
   fox.legs.forEach((l,i)=>{
-    const ph=fox.phase+lerp(TROT[i],BOUND[i],runK), sw=Math.sin(ph), up=Math.max(0,-Math.cos(ph));
-    const hindL=i>1;
+    const hindL=i>1, L=LEN[i], th=TH[i], lowest=L*(1-Math.cos(th))-low;   // hauteur de la patte au-dessus du sol (sans correction)
     // pose assise : pattes avant droites (compensent le corps cabré), pattes arrière repliées sous la cuisse
     const sitRot=hindL?.25:.3, sitKnee=-1.45;
-    let rx=sw*amp+sitRot*s;
+    let rx=th+sitRot*s, raise=0, stretch=1;
+    if(ON[i]){ if(lowest<0) raise=-lowest; else stretch=Math.min(1.2,(L-low)/(L*Math.cos(th))); }   // trop longue : se plie ; trop courte : s'étire
+    else raise=Math.max(0,liftH*SW[i]-lowest);   // en l'air : la patte se lève au-dessus du sol
     if(hindL&&i===3&&scratching) rx=-.5+Math.sin(now*25)*.35;
-    l.rotation.x+=(rx-l.rotation.x)*(dt?Math.min(1,dt*18):1);
-    l.position.y=l.userData.y0+up*lift;
-    l.scale.y=1+(hindL?0:.12*s);
-    if(l.knee){ const kr=up*lift*5+.08*walkK+sitKnee*s+(i===3&&scratching?.6:0); l.knee.rotation.x+=(kr-l.knee.rotation.x)*(dt?Math.min(1,dt*18):1); }
+    l.rotation.x+=(rx-l.rotation.x)*(dt?Math.min(1,dt*40):1);
+    if(!hindL){ l.position.y=l.userData.y0+raise*(1-s); l.scale.y=lerp(stretch,1.12,s); }
+    else {
+      l.position.y=l.userData.y0; l.scale.y=lerp(stretch,1,s);
+      // jarret : il se plie pour lever la patte (et un peu plus au retour, comme un vrai pas), il se replie assis
+      const bend=Math.min(1.25,Math.acos(clamp(1-raise/LK,-1,1))+.35*SW[i]*gw+.06*gw);
+      const kr=bend*(1-s)+sitKnee*s+(i===3&&scratching?.6:0); l.knee.rotation.x+=(kr-l.knee.rotation.x)*(dt?Math.min(1,dt*40):1);
+    }
   });
   // petit saut (prise d'objet, coup de pied), fête, écrasement à l'atterrissage
   fox.hopT-=dt; const hop=fox.hopT>0?Math.sin((1-fox.hopT/.3)*Math.PI)*.35:0;
@@ -119,12 +155,12 @@ function animateFox(dt,v){
   const yr=dt?wrapA(fox.yaw-(fox.pyaw??fox.yaw))/dt:0; fox.pyaw=fox.yaw;
   A.lean+=(clamp(-yr*.045,-.16,.16)*Math.min(1,v/3)-A.lean)*Math.min(1,dt*8);
   // corps
-  const bob=Math.abs(Math.sin(fox.phase))*.055*walkK*(1-runK)*(1-crouch*.5), rock=Math.sin(fox.phase*2)*.07*runK;
+  const rock=Math.sin(fox.phase+.8)*.06*runK*gw;   // course : le dos se cabre et plonge à chaque bond
   const breathe=Math.sin(now*2.1)*.012*(1-walkK);
-  fox.body.position.y=bob+Math.max(0,Math.sin(fox.phase*2+.6))*.06*runK+hop-.15*crouch-.05*s;
+  fox.body.position.y=-low*(1-s)+hop-.05*s;
   fox.body.position.z=.06*s;
   fox.body.rotation.x=(-.03*runK+rock-A.acc*.004)*(1-s)-.32*s+.04*crouch;
-  fox.body.rotation.z=A.lean+Math.sin(fox.phase)*.03*walkK*(1-runK);
+  fox.body.rotation.z=A.lean+Math.sin(fox.phase)*.025*gw*(1-runK);   // trot : léger roulis d'une diagonale à l'autre
   const st=Math.min(1,v/7.6)*(1-s);
   fox.body.scale.set(1+sq*.8-st*.02,1-sq-st*.03+breathe,1+sq*.5+st*.07);
   // tête : compense le balancement, plus basse et en avant quand il se faufile, relevée quand il porte un objet
@@ -132,12 +168,12 @@ function animateFox(dt,v){
   const dip=fox.grabT>0?Math.sin((1-fox.grabT/.35)*Math.PI)*.45:0;
   const headX=(fox.yapT>0?-.45:yawning?-.55:scratching?.25:Math.sin(now*1.1)*.04)+.3*s*(scratching?0:1)+.22*crouch-.12*carry-rock*.8+.06*runK+dip;
   fox.head.rotation.x+=(headX-fox.head.rotation.x)*(dt?Math.min(1,dt*14):1);
-  fox.head.position.y=.98-bob*.6-.1*crouch; fox.head.position.z=.6+.06*crouch;
+  fox.head.position.y=.98+A.drop*.55-.1*crouch; fox.head.position.z=.6+.06*crouch;
   fox.head.rotation.z=scratching?Math.sin(now*20)*.08+.2:-A.lean*.6;
   fox.jaw.rotation.x+=((fox.yapT>0?.5:yawning?.75:0)-fox.jaw.rotation.x)*Math.min(1,dt*16||1);
   // oreilles : vivent seules, se couchent en courant, en se faufilant, en jappant
   fox.earT-=dt; if(fox.earT<-.18) fox.earT=rnd(1.5,4.5);
-  fox.ears.forEach((e,i)=>{ const tgt=fox.yapT>0?-.7:(fox.earT<0&&i===0?-.55:0)+(yawning?-.4:0)-1.0*crouch-.55*runK+Math.sin(fox.phase*2+i)*.06*walkK; e.rotation.x+=(tgt-e.rotation.x)*Math.min(1,dt*20||1); });
+  fox.ears.forEach((e,i)=>{ const tgt=fox.yapT>0?-.7:(fox.earT<0&&i===0?-.55:0)+(yawning?-.4:0)-1.0*crouch-.55*runK+Math.sin(fox.phase+i)*.05*gw; e.rotation.x+=(tgt-e.rotation.x)*Math.min(1,dt*20||1); });
   // paupières : clignement toutes les 2 à 5 s (yeux mi-clos en baillant)
   A.blinkT-=dt; if(A.blinkT<0){ A.blink=.14; A.blinkT=rnd(2,5); } A.blink=Math.max(0,A.blink-dt);
   const eyeY=A.blink>0?.12:yawning?.35:fox.stunT>0?.6:1; fox.eyes.scale.y+=(eyeY-fox.eyes.scale.y)*Math.min(1,dt*30||1);
@@ -147,8 +183,10 @@ function animateFox(dt,v){
   fox.wagT-=dt; const wag=fox.wagT>0;
   const tailAmp=(wag?.55:.25*(v>.5?1:.45))*(1-.7*crouch)*(1-.6*runK), tailF=wag?24:5.5;
   if(dt){ fox.tsv=(fox.tsv||0)+((-Math.max(-6,Math.min(6,yr))*.11-(fox.tsx||0))*55-(fox.tsv||0)*8)*dt; fox.tsx=(fox.tsx||0)+fox.tsv*dt; }
-  fox.tailSegs.forEach((sg,i)=>{ sg.rotation.y=Math.sin(now*tailF-i*.9)*tailAmp*(1+i*.35)+(fox.tsx||0)*(.7+i*.35)+s*(.45+i*.25); });
-  fox.tail.rotation.x=-.16-.12*runK+(wag?-.1:0)+.75*s+.38*crouch+Math.sin(fox.phase*2)*.08*walkK;
+  // ondulation verticale qui court le long de la queue au rythme des pas (en retard sur le corps)
+  fox.tailSegs.forEach((sg,i)=>{ sg.rotation.y=Math.sin(now*tailF-i*.9)*tailAmp*(1+i*.35)+(fox.tsx||0)*(.7+i*.35)+s*(.45+i*.25);
+    if(i) sg.rotation.x=(sg.userData.rx0??=sg.rotation.x)+Math.sin(fox.phase*2-1.2-i*.9)*.07*gw*(1-runK)*(1-crouch)+.08*(1-runK)*gw; });
+  fox.tail.rotation.x=-.16-.12*runK+(wag?-.1:0)+.75*s-.08*crouch+Math.sin(fox.phase*2-.9)*.045*gw*(1-runK);
   // lookTarget : la tête se tourne vers ce qui est intéressant à proximité (PNJ, objets)
   lookCd-=dt; if(lookCd<=0){ lookCd=.2; lookRel=v<5&&!scratching&&!fox.held?lookTarget():null; }
   const hy=lookRel==null?0:Math.max(-.7,Math.min(.7,lookRel))*(1-s*.5);
@@ -194,4 +232,4 @@ function updateProps(dt){
   }
 }
 
-export { surfaceHooks, updateFox, surfaceAt, knockPot, easeOutBounce, updateProps };
+export { surfaceHooks, updateFox, surfaceAt, knockPot, easeOutBounce, updateProps, gaitStep };

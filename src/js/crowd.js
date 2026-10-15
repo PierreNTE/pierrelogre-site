@@ -116,7 +116,7 @@ export const behave = {
     if (d < .05) { a.moving = false; return 0; }
     const s = Math.min(speed * dt, d); a.pos.x += dx / d * s; a.pos.z += dz / d * s;
     const ty = Math.atan2(dx, dz); let df = ((ty - a.yaw + Math.PI) % (2 * Math.PI) + 2 * Math.PI) % (2 * Math.PI) - Math.PI; a.yaw += df * Math.min(1, dt * 10);
-    a.walk += dt * speed * 2.6; a.moving = true; return d - s;
+    a.walk += dt * speed * 4.2; a.moving = true; return d - s;   // même cadence que les habitants (npclogic.js, STRIDE)
   },
   /** Flâne au hasard dans un rectangle. */
   wander(a, rect, dt, speed = 1.1) {

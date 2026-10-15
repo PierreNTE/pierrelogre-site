@@ -18,6 +18,8 @@ Lance un serveur local qui reproduit la CSP stricte d'OVH (.htaccess), puis vér
      le long d'un mur, « Passer », plafond 60 i/s des écrans 120 Hz, téléphone à l'horizontale sans chevauchement
  13. réactions : habitant surpris → agacé → il chasse le renard (sans l'attraper) ; objet lâché de surprise ;
      « Doublé ! » ; indice qui montre l'endroit
+ 14. classement partagé : faux serveur Supabase (aucune écriture dans le vrai classement), requêtes conformes, repli local
+ 15. langues : anglais par défaut à « / », français à « /fr/ », choix retenu ; référencement (hreflang, Open Graph, schema.org, llms.txt)
 Aucune erreur console n'est tolérée.
 """
 import asyncio, json, os, re, subprocess, sys, time, functools, http.server, threading
@@ -34,7 +36,7 @@ results = []
 def serve():
     csp = re.search(r'Content-Security-Policy "([^"]+)"', open(os.path.join(WWW, '.htaccess')).read()).group(1).replace(' upgrade-insecure-requests', '')
     class H(http.server.SimpleHTTPRequestHandler):
-        extensions_map = {**http.server.SimpleHTTPRequestHandler.extensions_map, '.js': 'text/javascript', '.woff2': 'font/woff2', '.svg': 'image/svg+xml'}
+        extensions_map = {**http.server.SimpleHTTPRequestHandler.extensions_map, '.js': 'text/javascript', '.woff2': 'font/woff2', '.svg': 'image/svg+xml', '.txt': 'text/plain; charset=utf-8'}
         def end_headers(self):
             self.send_header('Content-Security-Policy', csp); self.send_header('X-Content-Type-Options', 'nosniff'); super().end_headers()
         def send_error(self, code, message=None, explain=None):
@@ -57,9 +59,32 @@ JS_HELPERS = """
 def check(name, ok, detail=''):
     results.append((name, bool(ok), detail)); print(('✓ ' if ok else '✗ ') + name + (f'  [{detail}]' if detail else ''), flush=True)
 
+SUPABASE = re.compile(r'^https://[^/]+\.supabase\.co/')
+async def offline_lb(ctx, rows=None, seen=None, down=False):
+    """Les tests n'écrivent jamais dans le vrai classement : un faux serveur Supabase (PostgREST) répond à sa place.
+    down=True : serveur en panne (503), pour vérifier le repli local."""
+    rows = [] if rows is None else rows
+    async def fake(route):
+        req = route.request; h = req.headers
+        if seen is not None: seen.setdefault('headers', []).append({k: h.get(k) for k in ('apikey', 'authorization', 'prefer')})
+        if down: await route.fulfill(status=503, content_type='application/json', body='{"message":"indisponible"}'); return
+        if req.method == 'GET':
+            if seen is not None: seen.setdefault('get', []).append(req.url)
+            best = {}
+            for r in rows: best[r['pseudo']] = max(best.get(r['pseudo'], 0), r['score'])
+            body = sorted([{'pseudo': p, 'score': v} for p, v in best.items()], key=lambda x: -x['score'])[:10]
+            await route.fulfill(status=200, content_type='application/json', body=json.dumps(body))
+        elif req.method == 'POST':
+            d = json.loads(req.post_data or '{}')
+            if seen is not None: seen.setdefault('post', []).append({'url': req.url, 'body': d, 'prefer': h.get('prefer')})
+            rows.append({'pseudo': d.get('pseudo'), 'score': d.get('score', 0)}); await route.fulfill(status=201, body='')
+        else: await route.fulfill(status=204, body='')
+    await ctx.unroute(SUPABASE); await ctx.route(SUPABASE, fake)
+
 async def page(browser, w=1280, h=760, acorns_done=False, **kw):
     cine = kw.pop('cine', False)
     ctx = await browser.new_context(viewport={'width': w, 'height': h}, **kw)
+    await offline_lb(ctx)
     if not cine: await ctx.add_init_script("window.__foxNoCine=true")
     if acorns_done:  # glands déjà trouvés : aucune carte ne vient interrompre la partie scriptée
         await ctx.add_init_script("try{localStorage.setItem('fox-betises-v2', JSON.stringify({acorns:[0,1,2,3,4]}))}catch(e){}")
@@ -246,7 +271,7 @@ async def test_world(browser):
                         const lb=JSON.parse(localStorage.getItem('fox-leaderboard')||'{}'); const top=document.querySelector('#mgTop').textContent;
                         return {active, end, best:F.saved.mgBest, lb:(lb.list||[]).map(x=>x.pseudo), top, note:document.querySelector('#mgSent').textContent};""")
     check('mini-jeu « Tir au renard » : partie, score, fin', r['active'] and r['end'], f"record {r['best']}")
-    check('classement local de secours + pseudo nettoyé', r['lb'] and r['lb'][0] == 'Renardscript' and 'Renardscript' in r['top'], json.dumps(r['lb']))
+    check('classement + pseudo nettoyé (Renard<script> → Renardscript)', r['lb'] and r['lb'][0] == 'Renardscript' and 'Renardscript' in r['top'], json.dumps(r['lb']))
     pz = await js(pg, "return {bad:['C0nnard','s@lope','F.u.c.k'].map(F.pseudoOk), good:['Monique','Véronique','Pierre L.','Renard'].map(F.pseudoOk)};")
     check('pseudos abusifs refusés, prénoms courants acceptés', not any(pz['bad']) and all(pz['good']), json.dumps(pz))
     await pg.screenshot(path=f'{OUT}/minigame_end.png')
@@ -295,6 +320,7 @@ OVERLAP_JS = """()=>{ const R=s=>{const e=document.querySelector(s); if(!e||e.hi
 async def test_first_minute(browser):
     # Carte d'accueil affichée avant que le jeu soit prêt (game.js retardé de 3 s), dans la langue du visiteur
     ctx = await browser.new_context(viewport={'width': 1280, 'height': 760}, locale='en-US')
+    await offline_lb(ctx)
     await ctx.add_init_script("window.__foxNoCine=true")
     pg = await ctx.new_page(); errs = []
     pg.on('pageerror', lambda e: errs.append('pageerror: ' + str(e)))
@@ -429,13 +455,113 @@ async def test_reactions(browser):
     check('aucune erreur console (réactions)', not errs, '; '.join(errs[:3]))
     await ctx.close()
 
+async def slow_game(route):
+    await asyncio.sleep(2); await route.continue_()
+
+async def test_languages(browser):
+    """Anglais par défaut (même pour un navigateur français), français à /fr/, choix du visiteur retenu ;
+    référencement : titres, canonique, hreflang, Open Graph, données structurées, llms.txt, sitemap bilingue."""
+    import urllib.request
+    out = {}
+    for loc, path in [('fr-FR', ''), ('en-US', 'fr/')]:
+        ctx = await browser.new_context(viewport={'width': 1024, 'height': 700}, locale=loc); await offline_lb(ctx)
+        await ctx.route('**/assets/game.js*', slow_game)   # la carte d'accueil est lue avant que le jeu prenne la main
+        pg = await ctx.new_page(); errs = []
+        pg.on('pageerror', lambda e: errs.append(str(e)))
+        await pg.goto(URL + path, wait_until='commit', timeout=120000); await pg.wait_for_selector('#startBtn', state='attached'); await pg.wait_for_timeout(200)
+        early = await pg.evaluate("()=>({lang:document.documentElement.lang, h1:document.querySelector('#introH1').textContent, btn:document.querySelector('#startBtn').textContent.trim()})")
+        await pg.wait_for_function('()=>window.__foxReady===true', timeout=120000)
+        late = await js(pg, "F.start('libre', false); await wait(300); return {lang:F.S.lang, nb:document.querySelector('#notebook h2').textContent, aria:document.querySelector('#game').getAttribute('aria-label')};")
+        out[path or '/'] = (early, late, errs)
+        await ctx.close()
+    e, l, errs = out['/']
+    check('« / » en anglais par défaut, même pour un navigateur réglé en français', e['lang'] == 'en' and 'fox' in e['h1'] and e['btn'] == 'Cause mischief' and l['lang'] == 'en' and 'mischief' in l['nb'] and l['aria'].startswith('Game world') and not errs, json.dumps({'avant': e, 'jeu': l}, ensure_ascii=False))
+    e, l, errs = out['fr/']
+    check('« /fr/ » en français (carte d’accueil, jeu, libellés)', e['lang'] == 'fr' and 'renard' in e['h1'] and e['btn'] == 'Faire des bêtises' and l['lang'] == 'fr' and 'Bêtises' in l['nb'] and l['aria'].startswith('Monde du jeu') and not errs, json.dumps({'avant': e, 'jeu': l}, ensure_ascii=False))
+    # choix du visiteur (bouton FR) retenu sur « / », dès la carte d'accueil
+    ctx = await browser.new_context(viewport={'width': 1024, 'height': 700}); await offline_lb(ctx)
+    await ctx.route('**/assets/game.js*', slow_game)
+    await ctx.add_init_script("try{ if(!sessionStorage.getItem('once')){ sessionStorage.setItem('once','1'); localStorage.setItem('fox-betises-v2', JSON.stringify({lang:'fr'})); } }catch(e){}")
+    pg = await ctx.new_page()
+    await pg.goto(URL, wait_until='commit', timeout=120000); await pg.wait_for_selector('#startBtn', state='attached'); await pg.wait_for_timeout(200)
+    e = await pg.evaluate("()=>({lang:document.documentElement.lang, btn:document.querySelector('#startBtn').textContent.trim(), sw:document.querySelector('#langBtn2').textContent})")
+    await pg.wait_for_function('()=>window.__foxReady===true', timeout=120000)
+    r = await js(pg, "document.querySelector('#langBtn2').click(); await wait(200); return {lang:F.S.lang, saved:F.saved.lang, h1:document.querySelector('#introH1').textContent, sw:document.querySelector('#langBtn2').textContent};")
+    check('choix de langue du visiteur retenu (FR sur « / »), puis bouton EN', e['lang'] == 'fr' and e['btn'] == 'Faire des bêtises' and e['sw'] == 'EN' and r['lang'] == 'en' and r['saved'] == 'en' and 'fox' in r['h1'] and r['sw'] == 'FR', json.dumps({'avant': e, 'après': r}, ensure_ascii=False))
+    await ctx.close()
+    # sans JavaScript : la fiche dans la langue de la page
+    ctx = await browser.new_context(java_script_enabled=False, viewport={'width': 1024, 'height': 700}); pg = await ctx.new_page()
+    await pg.goto(URL); en = await pg.inner_text('#burrow'); await pg.goto(URL + 'fr/'); fr = await pg.inner_text('#burrow')
+    check('sans JavaScript : fiche en anglais à « / », en français à « /fr/ »', "THE FOX'S TRAIL" in en.upper() and 'Follow me on LinkedIn' in en and 'LE PARCOURS DU RENARD' in fr.upper() and 'Me suivre sur LinkedIn' in fr)
+    await ctx.close()
+    # référencement
+    def get(u):
+        with urllib.request.urlopen(URL + u) as r: return r.status, r.headers.get('Content-Type', ''), r.read().decode('utf-8')
+    seo = {}
+    for u in ['', 'fr/']:
+        st, ct, html = get(u)
+        head = html.split('</head>')[0]
+        ld = json.loads(re.search(r'<script type="application/ld\+json">(.+?)</script>', head).group(1))
+        types = [x['@type'] for x in ld['@graph']]
+        seo[u or '/'] = {'title': re.search(r'<title>(.+?)</title>', head).group(1), 'canon': re.search(r'rel="canonical" href="([^"]+)"', head).group(1),
+                         'hreflang': sorted(re.findall(r'hreflang="([^"]+)"', head)), 'locale': re.search(r'og:locale" content="([^"]+)"', head).group(1),
+                         'ogimg': re.search(r'og:image" content="([^"]+)"', head).group(1), 'types': types, 'desc_len': len(re.search(r'name="description" content="([^"]+)"', head).group(1))}
+    st, ct, llms = get('llms.txt'); _, _, smap = get('sitemap.xml')
+    ok = (seo['/']['canon'].endswith('.com/') and seo['fr/']['canon'].endswith('/fr/') and all(v['hreflang'] == ['en', 'fr', 'x-default'] for v in seo.values())
+          and seo['/']['locale'] == 'en_US' and seo['fr/']['locale'] == 'fr_FR' and seo['/']['ogimg'].endswith('og-image-en.jpg') and 'Account Executive' in seo['/']['title']
+          and all({'ProfilePage', 'Person', 'WebSite', 'VideoGame'} <= set(v['types']) for v in seo.values()) and all(v['desc_len'] <= 165 for v in seo.values())
+          and st == 200 and ct.startswith('text/plain') and '# Pierre Logre' in llms and 'Sopra Steria' in llms and smap.count('hreflang="fr"') == 2)
+    check('référencement : titres, canonique, hreflang, Open Graph, données structurées, llms.txt, sitemap bilingue', ok, json.dumps(seo, ensure_ascii=False))
+
+async def test_leaderboard_online(browser):
+    """Classement partagé : requêtes conformes (clé publique seule, vue « leaderboard », ajout minimal), meilleur score
+    par pseudo, pseudos abusifs filtrés, repli local si le serveur refuse. Faux serveur : rien n'est écrit dans le vrai."""
+    cfg = json.load(open(os.path.join(ROOT, 'src', 'site.config.json'))).get('leaderboard', {})
+    key = cfg.get('publishableKey') or cfg.get('anonKey')
+    if not (cfg.get('supabaseUrl') and key):
+        check('classement en ligne : non configuré (repli local seulement)', True); return
+    rows = [{'pseudo': 'Monique', 'score': 900}, {'pseudo': 'Monique', 'score': 400}, {'pseudo': 'C0nnard', 'score': 5000}, {'pseudo': 'Renard', 'score': 700}]
+    seen = {}
+    ctx = await browser.new_context(viewport={'width': 900, 'height': 600})
+    await offline_lb(ctx, rows, seen)
+    await ctx.add_init_script("window.__foxNoCine=true")
+    pg = await ctx.new_page(); errs = []; phase = {'down': False}
+    pg.on('pageerror', lambda e: errs.append('pageerror: ' + str(e)))
+    # pendant la panne simulée, Chrome signale le 503 du faux serveur dans la console : seul ce message-là est attendu
+    pg.on('console', lambda m: errs.append(f'{m.type}: {m.text}') if m.type in ('error', 'warning') and 'preloaded using link preload' not in m.text
+          and not (phase['down'] and SUPABASE.match((m.location or {}).get('url', '')) and '503' in m.text) else None)
+    await pg.goto(URL, timeout=120000); await ready(pg)
+    r = await js(pg, """F.start('libre', false); await wait(300); F.dev.skipTuto(); const L=F.dev.lb;
+        const before=await L.top(); const sent=await L.submit('Véro', 1234); const after=await L.top();
+        F.openJournal('lb'); for(let i=0;i<40&&!document.querySelector('#j-lb .lb li');i++) await wait(100);
+        const pane=document.querySelector('#j-lb').innerText; F.closeJournal();
+        return {before, sent, after, pane};""")
+    names = [x['pseudo'] for x in r['after']['list']]
+    bad = [h for h in seen.get('headers', []) if h['apikey'] != key or (h['authorization'] and key.startswith('sb_publishable_'))]
+    post = seen.get('post', [])
+    ok = (r['before']['online'] and r['sent'] and r['after']['online'] and names[:3] == ['Véro', 'Monique', 'Renard'] and 'C0nnard' not in names
+          and names.count('Monique') == 1 and not bad and all('/rest/v1/leaderboard?' in u for u in seen.get('get', []))
+          and post and post[0]['url'].endswith('/rest/v1/scores') and post[0]['prefer'] == 'return=minimal'
+          and post[0]['body'] == {'pseudo': 'Véro', 'score': 1234, 'game': 'handball'} and ('Shared online leaderboard' in r['pane'] or 'Classement partagé en ligne' in r['pane']))
+    check('classement en ligne : clé publique seule, meilleur score par pseudo, pseudo abusif filtré, envoi conforme', ok,
+          json.dumps({'noms': names, 'entêtes refusés': len(bad), 'envoi': post[:1], 'carnet': r['pane'][:80]}, ensure_ascii=False))
+    # serveur en panne : le score reste dans ce navigateur, le carnet le dit, sans erreur du jeu
+    phase['down'] = True; await offline_lb(ctx, rows, seen, down=True)
+    r = await js(pg, """await new Promise(r=>setTimeout(r,21000)); const L=F.dev.lb; const sent=await L.submit('Véro', 2000); const t=await L.top();
+        F.openJournal('lb'); for(let i=0;i<40&&!document.querySelector('#j-lb .lb li');i++) await wait(100); const pane=document.querySelector('#j-lb').innerText; F.closeJournal();
+        return {sent, online:t.online, top:t.list[0], pane};""")
+    check('classement injoignable : score gardé dans le navigateur, le carnet le signale', r['sent'] is False and r['online'] is False and r['top'] and r['top']['score'] == 2000
+          and ('unreachable' in r['pane'] or 'injoignable' in r['pane']), json.dumps(r, ensure_ascii=False))
+    check('aucune erreur console (classement en ligne)', not errs, '; '.join(errs[:3]))
+    await ctx.close()
+
 async def main():
     srv = serve()
     async with async_playwright() as p:
         launch = lambda args: p.chromium.launch(args=args)
         b = await launch(GL)
         only = [x for x in os.environ.get('TESTS', '').split(',') if x]
-        for t in (test_playthrough, test_stealth_and_drop, test_daily, test_mobile_and_perf, test_world, test_first_minute, test_touch_feel, test_reactions):
+        for t in (test_playthrough, test_stealth_and_drop, test_daily, test_mobile_and_perf, test_world, test_first_minute, test_touch_feel, test_reactions, test_leaderboard_online, test_languages):
             if only and t.__name__ not in only: continue
             try: await t(b)
             except Exception as e:

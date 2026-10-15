@@ -4,7 +4,7 @@
 const T = {
 fr:{
   loading:"Le renard se réveille…", skip:"Le jeu tarde à se charger ? Voir le profil sans jouer", nogame:"Version sans jeu : ton navigateur n'affiche pas la 3D. Voici directement le terrier.",
-  legal:"<b>Mentions légales.</b> Site personnel édité par Pierre Logre, contact via LinkedIn. Hébergeur : OVH SAS, 2 rue Kellermann, 59100 Roubaix, France, tél. 1007. Aucun cookie ni traceur publicitaire : seuls ta langue, le son, ta partie en cours et tes succès sont gardés dans ton navigateur.",
+  legal:"<b>Mentions légales.</b> Site personnel édité par Pierre Logre, contact via LinkedIn. Hébergeur : OVH SAS, 2 rue Kellermann, 59100 Roubaix, France, tél. 1007. Aucun cookie ni traceur publicitaire : seuls ta langue, le son, ta partie en cours et tes succès sont gardés dans ton navigateur. Si tu envoies un score au classement du mini-jeu, ton pseudo et ton score sont publiés (classement hébergé par Supabase, à Paris).",
   nbTitle:"Bêtises du jour", fold:"replier", unfold:"déplier", reset:"recommencer", resetSure:"sûr ? clique encore",
   secret:"??? (bêtise secrète)", sound:"🔊 Son", muted:"🔇 Muet", who:"Qui est le renard ?", whoShort:"Profil", liChip:"Pierre", tYap:"Glapir", tGrab:"Attraper", hintGrab:"✋",
   help:'<kbd>ZQSD</kbd> bouger · <kbd>Maj</kbd> courir · <kbd>C</kbd> discret · <kbd>Espace</kbd> glapir · <kbd>E</kbd> attraper · <kbd>Molette</kbd> zoom', music:"♪ Musique", tZoom:"Zoom",
@@ -56,7 +56,7 @@ fr:{
 },
 en:{
   loading:"The fox is waking up…", skip:"Game taking a while? See the profile without playing", nogame:"No-game version: your browser can't display 3D. Here's the den directly.",
-  legal:"<b>Legal notice.</b> Personal website published by Pierre Logre, contact via LinkedIn. Host: OVH SAS, 2 rue Kellermann, 59100 Roubaix, France, phone +33 9 72 10 10 07. No cookies or ad trackers: only your language, sound setting, game progress and achievements are kept in your browser.",
+  legal:"<b>Legal notice.</b> Personal website published by Pierre Logre, contact via LinkedIn. Host: OVH SAS, 2 rue Kellermann, 59100 Roubaix, France, phone +33 9 72 10 10 07. No cookies or ad trackers: only your language, sound setting, game progress and achievements are kept in your browser. If you send a score to the mini-game leaderboard, your nickname and score are published (leaderboard hosted by Supabase, in Paris).",
   nbTitle:"Today's mischief", fold:"fold", unfold:"unfold", reset:"restart", resetSure:"sure? click again",
   secret:"??? (secret mischief)", sound:"🔊 Sound", muted:"🔇 Muted", who:"Who's the fox?", whoShort:"About", liChip:"Pierre", tYap:"Yap", tGrab:"Grab", hintGrab:"✋",
   help:'<kbd>WASD</kbd> move · <kbd>Shift</kbd> run · <kbd>C</kbd> sneak · <kbd>Space</kbd> yap · <kbd>E</kbd> grab · <kbd>Wheel</kbd> zoom', music:"♪ Music", tZoom:"Zoom",
@@ -207,7 +207,7 @@ Object.assign(T.fr, {
   mgTitle: "Tir au renard", mgPts: "points", mgExit: "Quitter", mgHelp: "Vise avec la souris ou le doigt, tire en cliquant (ou Espace). Lucarne : 150 points. Combo jusqu'à ×5.",
   mgLevel: n => `Niv. ${n}`, mgLevelUp: n => `Le gardien se réveille : niveau <b>${n}</b>`, mgGoal: "BUT !", mgCorner: "LUCARNE !", mgBonus: "CIBLE ! +3 s", mgSaved: "Arrêté…", mgPost: "Poteau !",
   mgStats: (g, s, b) => `${g} but${g > 1 ? 's' : ''} sur ${s} tir${s > 1 ? 's' : ''} · record : ${b}`,
-  mgPseudo: "Ton pseudo pour le classement :", mgSend: "Envoyer", mgAgain: "Rejouer", mgQuit: "Retour au terrain",
+  mgPseudo: "Ton pseudo pour le classement (public) :", mgSend: "Envoyer", mgAgain: "Rejouer", mgQuit: "Retour au terrain",
   mgPseudoShort: "2 caractères minimum.", mgPseudoBad: "Ce pseudo n'est pas accepté : choisis-en un autre.", mgSentOnline: "Score envoyé au classement partagé !", mgSentLocal: "Score gardé dans ce navigateur.",
   trCancel: "Rester ici", trTitle: "Où va le renard ?",
   amb: { hedgehog: "Le hérisson se roule en boule. Vexé.", hen: ["Cot cot !", "Cotcodet !", "Cot ?!"], rooster: "Cocorico !", duck: "Coin ! Coin !", cow: ["Meuh.", "Meuuuh…"], cat: "Pfff !", crab: "Clac clac !", squirrel: "Tchk-tchk-tchk !", duckling: "Piou ? Piou piou !",
@@ -247,7 +247,7 @@ Object.assign(T.en, {
   mgTitle: "Fox penalty shootout", mgPts: "points", mgExit: "Quit", mgHelp: "Aim with the mouse or your finger, shoot by clicking (or Space). Top corners: 150 points. Combo up to ×5.",
   mgLevel: n => `Lvl ${n}`, mgLevelUp: n => `The keeper wakes up: level <b>${n}</b>`, mgGoal: "GOAL!", mgCorner: "TOP CORNER!", mgBonus: "TARGET! +3 s", mgSaved: "Saved…", mgPost: "Post!",
   mgStats: (g, s, b) => `${g} goal${g === 1 ? '' : 's'} from ${s} shot${s === 1 ? '' : 's'} · best: ${b}`,
-  mgPseudo: "Your nickname for the leaderboard:", mgSend: "Send", mgAgain: "Play again", mgQuit: "Back to the court",
+  mgPseudo: "Your nickname for the leaderboard (public):", mgSend: "Send", mgAgain: "Play again", mgQuit: "Back to the court",
   mgPseudoShort: "At least 2 characters.", mgPseudoBad: "That nickname isn't allowed: please pick another one.", mgSentOnline: "Score sent to the shared leaderboard!", mgSentLocal: "Score saved in this browser.",
   trCancel: "Stay here", trTitle: "Where is the fox going?",
   amb: { hedgehog: "The hedgehog curls into a ball. Offended.", hen: ["Cluck cluck!", "Bok bok!", "Bok?!"], rooster: "Cock-a-doodle-doo!", duck: "Quack! Quack!", cow: ["Moo.", "Moooo…"], cat: "Hiss!", crab: "Click clack!", squirrel: "Chk-chk-chk!", duckling: "Peep? Peep peep!",
@@ -272,6 +272,7 @@ Object.assign(T.en.ach, {
 /* ---------- 5.7 : première visite guidée, commandes tactiles ---------- */
 Object.assign(T.fr, {
   colon: " :",
+  aGame: "Monde du jeu : un renard dans un village vendéen et un bureau", aGoals: "Liste des bêtises", aClose: "Fermer",
   tDrop: "Poser",
   tuto: {
     skip: "Passer", more: "La suite est ici !", n: (i, tot) => `Bêtise ${i}/${tot}`,
@@ -295,6 +296,7 @@ Object.assign(T.fr, {
 });
 Object.assign(T.en, {
   colon: ":",
+  aGame: "Game world: a fox in a village in Vendée and an office", aGoals: "Mischief list", aClose: "Close",
   tDrop: "Drop",
   tuto: {
     skip: "Skip", more: "More mischief here!", n: (i, tot) => `Mischief ${i}/${tot}`,

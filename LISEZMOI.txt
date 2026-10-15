@@ -1,6 +1,18 @@
 pierrelogre.com · le renard fait des bêtises (version 5 : le monde s'agrandit)
 ============================================================================
 
+Version 5.9 : anglais par défaut, classement partagé, renard plus naturel
+-------------------------------------------------------------------------
+- Le site s'ouvre en anglais pour tout le monde (pierrelogre.com) ; la version française est à
+  pierrelogre.com/fr/ (bouton FR / EN en jeu, le choix est retenu).
+- Référencement en anglais : titre, description, aperçu LinkedIn en anglais, données structurées
+  (profil, personne, jeu), fichier llms.txt pour les assistants IA (ChatGPT, Claude, Perplexity…),
+  plan du site bilingue.
+- Classement du mini-jeu commun à tous les visiteurs (Supabase), meilleur score par pseudo.
+- Renard : nouvelle démarche (les pattes posées ne glissent plus, le corps descend sur ses appuis,
+  vrai bond au galop, s'accroupit en se faufilant, queue basse) ; les habitants ne « patinent » plus.
+- Échap ferme les cartes de fin de partie et du mini-jeu.
+
 Finitions avant mise en ligne (5.8)
 -----------------------------------
 - Mise à jour sans accroc : un visiteur déjà venu reçoit tout de suite la nouvelle version (adresses des
@@ -63,23 +75,19 @@ Mise en ligne (manuelle, par FileZilla)
    l'hébergement OVH suffit (espace client OVH, rubrique de l'hébergement, « Certificat SSL ») :
    les certificats payants ne sont pas utiles, pas plus que l'option « Visibilité Pro » (gestion payante
    de présence en ligne) : le site n'en dépend pas.
-3. Ouvre https://pierrelogre.com en navigation privée, puis https://pierrelogre.com/nimporte-quoi
-   (la page 404 du renard doit s'afficher).
+3. Ouvre https://pierrelogre.com en navigation privée (en anglais), https://pierrelogre.com/fr/ (en français),
+   puis https://pierrelogre.com/nimporte-quoi (la page 404 du renard doit s'afficher).
 4. Retire pierrelogre.com du projet Vercel « pierre-logre » (Settings > Domains) si ce n'est pas fait.
 
-Classement partagé (facultatif, gratuit)
-----------------------------------------
-Sans rien faire, le classement du mini-jeu fonctionne déjà, mais chaque visiteur ne voit que ses
-propres scores. Pour un classement commun à tous :
-1. Crée un compte sur https://supabase.com puis un projet (région Europe, offre gratuite).
-2. Dans le projet : SQL Editor > New query, colle le contenu de supabase/leaderboard.sql
-   (dossier source), puis Run. La table « scores » est créée avec ses règles de sécurité :
-   lecture et ajout seulement, pseudo et score vérifiés, anti-spam.
-3. Project Settings > API : copie l'URL du projet et la clé publique « anon » (ou « publishable »).
-   NE COPIE JAMAIS la clé « service_role » / « secret ».
-4. Dans src/site.config.json : renseigne "leaderboard": { "supabaseUrl": "...", "anonKey": "..." }
-   puis reconstruis (npm run build) ou pousse sur GitHub si le déploiement automatique est actif.
-   Le build autorise ce domaine dans la CSP, et seulement lui.
+Classement partagé (Supabase)
+-----------------------------
+Le classement du mini-jeu est maintenant commun à tous les visiteurs. Il est déjà en place : projet
+Supabase gratuit « pierrelogre-classement » (Paris) dans ton organisation PierreNTE. Rien à faire.
+- Seule la clé publique (« publishable ») est dans le site. NE METS JAMAIS la clé secrète dans le site.
+- Supabase met en pause un projet gratuit inactif 7 jours (tu reçois un e-mail avant). Pour l'éviter :
+  une partie de temps en temps suffit, ou le workflow GitHub « anti-pause » si tu actives GitHub (plus bas).
+  Si le projet est en pause, le jeu continue avec le classement du navigateur.
+- Retirer un pseudo : supabase.com > projet > SQL Editor > delete from public.scores where pseudo = 'xxx';
 
 Mise en ligne automatique (facultative, recommandée)
 ----------------------------------------------------
@@ -108,7 +116,9 @@ Sécurité du compte et du domaine (à faire une fois)
     TXT  _dmarc.pierrelogre.com  "v=DMARC1; p=quarantine"
 - Ajoute un enregistrement CAA : pierrelogre.com CAA 0 issue "letsencrypt.org"
 
-Aperçu LinkedIn
----------------
+Aperçu LinkedIn et Google
+-------------------------
 Après la mise en ligne, colle l'URL dans https://www.linkedin.com/post-inspector/
-pour que LinkedIn rafraîchisse l'aperçu.
+pour que LinkedIn rafraîchisse l'aperçu (il sera en anglais).
+Google : ajoute le site dans https://search.google.com/search-console (propriété « pierrelogre.com »,
+validation par enregistrement DNS chez OVH), puis envoie le plan du site : https://pierrelogre.com/sitemap.xml

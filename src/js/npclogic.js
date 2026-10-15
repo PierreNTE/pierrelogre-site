@@ -73,6 +73,9 @@ export function findPath(a, b, nav = navAt(a)) {
   const pts = []; for (let c = g0; c !== -1; c = nav.from[c]) pts.push(new THREE.Vector3(nav.x0 + (c % W) * nav.cs, 0, nav.z0 + (c / W | 0) * nav.cs));
   pts.reverse(); pts.push(new THREE.Vector3(b.x, 0, b.z)); return pts;
 }
+/** Cadence des pas : une jambe de 0,6 m qui balance de ±0,6 rad avance d'environ 0,7 m par pas ; à 4,2 les pieds suivent
+   le sol (avant : 2,6, les habitants « patinaient », les pas trop lents pour leur vitesse). */
+export const STRIDE = 4.2;
 export function steer(n, target, speed, dt) {
   let tg = target; const nav = n.nav || NAV;
   if (nav && !los(n.pos, target, nav)) {
@@ -83,7 +86,7 @@ export function steer(n, target, speed, dt) {
   const dx = tg.x - n.pos.x, dz = tg.z - n.pos.z, d = Math.hypot(dx, dz);
   if (d < .05) return flat2(target, n.pos);
   const s = Math.min(speed * dt, d); n.pos.x += dx / d * s; n.pos.z += dz / d * s;
-  n.yaw = lerpAngle(n.yaw, Math.atan2(dx, dz), Math.min(1, dt * 10)); n.walk += dt * speed * 2.6; n.moving = true;
+  n.yaw = lerpAngle(n.yaw, Math.atan2(dx, dz), Math.min(1, dt * 10)); n.walk += dt * speed * STRIDE; n.moving = true;
   resolve(n.pos, n.r);
   return flat2(target, n.pos);
 }

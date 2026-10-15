@@ -111,14 +111,29 @@ Exemple : « Ajoute un monde spatial ».
 Carte, carnet, sauvegarde, succès « 100 % » et explorateur suivent automatiquement.
 Une ambiance musicale se choisit dans `STYLES` (`audio.js`).
 
-## Classement partagé (facultatif)
+## Classement partagé (Supabase)
 
-Sans configuration, le classement du mini-jeu est gardé dans le navigateur. Les pseudos sont nettoyés
-(2 à 16 caractères) et les pseudos injurieux sont refusés (`pseudoOk` dans `leaderboard.js`, même règle
-côté base dans `leaderboard.sql`). Pour un classement commun :
-créer un projet gratuit sur supabase.com, exécuter `supabase/leaderboard.sql` (SQL Editor), puis renseigner
-`leaderboard.supabaseUrl` et `leaderboard.anonKey` (clé publique « anon » / « publishable ») dans
-`src/site.config.json`. Le build ajoute le domaine Supabase à la CSP. Ne jamais y mettre la clé `service_role`.
+Le classement du mini-jeu est commun à tous les visiteurs : projet Supabase gratuit « pierrelogre-classement »
+(région Paris), table `scores` et vue `leaderboard` (meilleur score de chaque pseudo), règles dans
+`supabase/leaderboard.sql` (lecture et ajout seulement, pseudo et score vérifiés, pseudos injurieux refusés,
+anti-spam : 5 scores par pseudo et par minute, 300 par minute, 3 000 par jour). Le site n'a que la clé
+**publishable** (`leaderboard.publishableKey` dans `src/site.config.json`), publique par conception ; le build
+refuse une clé secrète et n'ajoute que ce domaine à la CSP. Si Supabase ne répond pas, le classement retombe
+sur les scores du navigateur, et le carnet de voyage le signale.
+
+- Les tests n'écrivent jamais dans le vrai classement : un faux serveur Supabase leur répond.
+- Supabase met en pause un projet gratuit sans activité pendant 7 jours : le workflow
+  `.github/workflows/keepalive.yml` le lit une fois par jour (une fois le dépôt sur GitHub).
+- Vider le classement : Supabase > SQL Editor > `delete from public.scores;` (ou une ligne : `where pseudo = '…'`).
+
+## Langues, référencement (SEO) et assistants IA (GEO)
+
+- `/` : page en anglais (langue par défaut, quel que soit le navigateur) ; `/fr/` : la même page en français.
+  Mêmes fichiers du jeu ; le bouton FR / EN change la langue en jeu et ce choix est retenu.
+- Chaque page : titre, description, Open Graph (image d'aperçu dans sa langue), canonique, `hreflang`
+  (en, fr, x-default), données structurées schema.org (ProfilePage, Person, WebSite, VideoGame).
+- `llms.txt` : le profil en texte simple pour les assistants IA ; `sitemap.xml` bilingue ; `robots.txt` ouvert à tous.
+- Textes : `META` dans `build.mjs` (référencement) et `i18n.js` (page et jeu).
 
 ## Ajouter une bêtise
 

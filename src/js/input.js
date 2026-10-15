@@ -16,6 +16,9 @@ addEventListener('keydown',e=>{
   if(!$('#factCard').hidden){ if(e.key==='Escape'||e.key==='Enter'){ e.preventDefault(); closeFact(); } return; }
   if(journalOpen()){ if(e.key==='Escape'||e.code==='KeyM'){ e.preventDefault(); closeJournal(); } return; }
   if(travelOpen()){ if(e.key==='Escape'){ e.preventDefault(); closeTravel(); } return; }
+  // Échap ferme aussi la carte de fin de partie (continuer) et celle du mini-jeu (retour au terrain)
+  if(!$('#endCard').hidden){ if(e.key==='Escape'){ const b=!$('#contBtn').hidden?$('#contBtn'):null; if(b){ e.preventDefault(); b.click(); } } return; }
+  if(!$('#mgEnd').hidden){ if(e.key==='Escape'&&e.target!==$('#mgPseudo')){ e.preventDefault(); $('#mgQuit').click(); } return; }
   if(e.code==='KeyM'&&!e.repeat&&S.started&&!S.paused&&!S.mg){ openJournal(); return; }
   if(e.ctrlKey||e.metaKey||e.altKey) return;
   if(S.paused) return;
