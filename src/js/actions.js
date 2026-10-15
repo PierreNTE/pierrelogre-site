@@ -208,6 +208,7 @@ export function checkBurrow() {
   if (d < .85 && !inBurrowZone) {
     inBurrowZone = true;
     if (fox.held && fox.held.kind === 'baguette') { const b = fox.held; fox.held = null; b.held = false; b.gone = true; b.mesh.visible = false; run.loot = true; completeGoal('baguette'); giveUp(b); }
+    if (!run.done.terrier) track('Terrier trouvé', { secondes: Math.round(run.elapsed) });
     completeGoal('terrier'); if (HOOKS.enterDen) HOOKS.enterDen(); else openBurrow();   // la salle souterraine (regions/terrier.js)
   } else if (d > 1.6) inBurrowZone = false;
 }

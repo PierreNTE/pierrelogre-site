@@ -5,6 +5,7 @@
 import { RM, isTouch, renderer, sun } from './engine.js';
 import { LEAVES, PQ } from './fx.js';
 import { S, saved } from './state.js';
+import { track } from './config.js';
 
 /** mode : 'auto' (mesure la fluidité), 'high' ou 'low' (choisis dans le menu, gardés dans le navigateur). */
 export const Q = { decide: f => decide(f), tier: 0, leafCount: RM ? 14 : LEAVES, done: false, mode: ['auto', 'high', 'low'].includes(saved.quality) ? saved.quality : 'auto' };
@@ -30,6 +31,8 @@ export function sampleQuality() {
   if (now - t0 < 3000) return;
   const fps = frames * 1000 / (now - t0); frames = 0; t0 = now;
   decide(fps);
+  // Qualité retenue et fluidité, par type d'appareil (mesure d'audience) : de quoi régler les paliers d'après les vrais téléphones
+  if (Q.done) track('Qualité', { tier: Q.tier, fps: Math.round(fps), pr: +renderer.getPixelRatio().toFixed(2), mode: Q.mode });
 }
 /** Décision à la fin d'une fenêtre de mesure (séparée pour les tests : window.__fox.Q.decide). */
 function decide(fps) {

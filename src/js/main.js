@@ -169,7 +169,9 @@ function frame(ts) {
   updateBlobs(); drawBirds(); cullBaked();
   renderer.render(scene, camera);
   sampleQuality(); benchFrame();
-  if (!window.__foxReady) { window.__foxReady = true; performance.mark('fox:first-frame'); }
+  if (!window.__foxReady) { window.__foxReady = true; performance.mark('fox:first-frame');
+    let gl2 = false; try { gl2 = renderer.capabilities.isWebGL2; } catch (e) { /* facultatif */ }
+    track('Jeu prêt', { ms: Math.round(performance.now()), touch: isTouch, pr: +devicePixelRatio.toFixed(2), coeurs: navigator.hardwareConcurrency || 0, memoire: navigator.deviceMemory || 0, webgl2: gl2 }); }
   // Bulles, indice « E », flèche, chrono
   for (let i = bubbles.length - 1; i >= 0; i--) {
     const b = bubbles[i]; b.t -= dt;
@@ -259,6 +261,14 @@ $('#contBtn').addEventListener('click', () => { $('#endCard').hidden = true; S.p
 function replay() { clearRun(run.mode); try { sessionStorage.setItem('fox-autostart', run.mode); } catch (e) { /* facultatif */ } location.reload(); }
 $('#replayBtn').addEventListener('click', replay);
 $('#endWho').addEventListener('click', openBurrow);
+
+/* ---------- Départ : combien de temps on a joué, jusqu'où on est allé (une fois par visite) ---------- */
+let leftOnce = false;
+document.addEventListener('visibilitychange', () => {
+  if (!document.hidden || leftOnce) return; leftOnce = true;
+  track('Départ', { secondes: Math.round(run.elapsed), partie: S.started, betises: Object.keys(run.done).length, zones: run.unlocked.length, visite_guidee: !!saved.tuto });
+  window.__foxStats?.flush();
+});
 
 /* ---------- Boutons d'interface ---------- */
 if (innerWidth < 640 || innerHeight < 500) toggleNotebook();   // petit écran (ou téléphone à l'horizontale) : carnet replié au départ

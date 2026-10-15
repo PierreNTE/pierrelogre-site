@@ -23,8 +23,14 @@ const escB = s => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace
 // la carte s'affiche d'emblée dans la sienne (la page elle-même est en anglais à « / », en français à « /fr/ »)
 const intro = L => ({ introH1: L.introH1, introP: escB(L.introP), introKeys: L.keys.map(([k, v]) => `<kbd>${escB(k)}</kbd><span>${escB(v)}</span>`).join(''),
   startBtn: escB(L.start), dailyBtn: escB(L.daily), newBtn: escB(L.newGame), dailyNoteTxt: escB(L.dailyNote), introWho: escB(L.introWho), loaderSkip: escB(L.skip), langBtn2: L === T.fr ? 'EN' : 'FR' });
-const bootSrc = read(SRC('boot.js')).replace('/*INTRO*/null', () => JSON.stringify({ en: intro(T.en), fr: intro(T.fr) }));
-if (bootSrc === read(SRC('boot.js'))) throw new Error('boot.js : emplacement INTRO introuvable');
+// Supabase (classement + mesure d'audience) : seule une clé PUBLIQUE est acceptée (publishable, ou ancienne clé anon)
+const LB = CFG.leaderboard || {}, PUBKEY = LB.publishableKey || LB.anonKey || '';
+{ let role = null; if (/^eyJ/.test(PUBKEY)) { try { role = JSON.parse(Buffer.from(PUBKEY.split('.')[1], 'base64url').toString()).role; } catch (e) { role = '?'; } }
+  if (/^sb_secret_/.test(PUBKEY) || (role && role !== 'anon')) throw new Error('site.config.json : clé secrète interdite dans le site (mettre la clé publishable)'); }
+const STATS = /^https:\/\//.test(LB.supabaseUrl || '') && PUBKEY ? { url: LB.supabaseUrl.replace(/\/$/, ''), key: PUBKEY } : null;
+const bootRaw = read(SRC('boot.js'));
+const bootSrc = bootRaw.replace('/*INTRO*/null', () => JSON.stringify({ en: intro(T.en), fr: intro(T.fr) })).replace('/*STATS*/null', () => JSON.stringify(STATS));
+if (!bootRaw.includes('/*INTRO*/null') || !bootRaw.includes('/*STATS*/null')) throw new Error('boot.js : emplacement INTRO ou STATS introuvable');
 const bootJs = (await esbuild.transform(bootSrc, { minify: true, target: 'es2015' })).code;
 const css = read(SRC('style.css'));
 
@@ -276,10 +282,6 @@ if (umami) {
   const host = new URL(CFG.umami.src).origin;
   htaccess = htaccess.replace("script-src 'self'", `script-src 'self' ${host}`).replace("connect-src 'self'", `connect-src 'self' ${host}`);
 }
-// Classement en ligne (Supabase) : seule une clé PUBLIQUE est acceptée (publishable, ou ancienne clé anon)
-{ const L = CFG.leaderboard || {}, key = L.publishableKey || L.anonKey || '';
-  let role = null; if (/^eyJ/.test(key)) { try { role = JSON.parse(Buffer.from(key.split('.')[1], 'base64url').toString()).role; } catch (e) { role = '?'; } }
-  if (/^sb_secret_/.test(key) || (role && role !== 'anon')) throw new Error('site.config.json : clé secrète interdite dans le site (mettre la clé publishable)'); }
 // Classement en ligne (Supabase) : seul ce domaine est ajouté aux connexions autorisées
 if (CFG.leaderboard && /^https:\/\//.test(CFG.leaderboard.supabaseUrl || '')) {
   const host = new URL(CFG.leaderboard.supabaseUrl).origin;

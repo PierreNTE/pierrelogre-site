@@ -19,6 +19,7 @@ Lance un serveur local qui reproduit la CSP stricte d'OVH (.htaccess), puis vér
  13. réactions : habitant surpris → agacé → il chasse le renard (sans l'attraper) ; objet lâché de surprise ;
      « Doublé ! » ; indice qui montre l'endroit
  14. classement partagé : faux serveur Supabase (aucune écriture dans le vrai classement), requêtes conformes, repli local
+ 16. mesure d'audience sans cookie : événements anonymes, aucun stockage, coupée par GPC / DNT et hors de pierrelogre.com
  15. langues : anglais par défaut à « / », français à « /fr/ », choix retenu ; référencement (hreflang, Open Graph, schema.org, llms.txt)
 Aucune erreur console n'est tolérée.
 """
@@ -66,6 +67,9 @@ async def offline_lb(ctx, rows=None, seen=None, down=False):
     rows = [] if rows is None else rows
     async def fake(route):
         req = route.request; h = req.headers
+        if '/rest/v1/events' in req.url:   # mesure d'audience : notée à part, jamais mêlée au classement
+            if seen is not None and req.method == 'POST': seen.setdefault('events', []).extend(json.loads(req.post_data or '[]')); seen.setdefault('ev_headers', []).append({k: h.get(k) for k in ('apikey', 'authorization', 'prefer', 'cookie')})
+            await route.fulfill(status=201, body=''); return
         if seen is not None: seen.setdefault('headers', []).append({k: h.get(k) for k in ('apikey', 'authorization', 'prefer')})
         if down: await route.fulfill(status=503, content_type='application/json', body='{"message":"indisponible"}'); return
         if req.method == 'GET':
@@ -519,6 +523,44 @@ async def test_languages(browser):
           and st == 200 and ct.startswith('text/plain') and '# Pierre Logre' in llms and 'Sopra Steria' in llms and smap.count('hreflang="fr"') == 2)
     check('référencement : titres, canonique, hreflang, Open Graph, données structurées, llms.txt, sitemap bilingue', ok, json.dumps(seo, ensure_ascii=False))
 
+async def test_stats(browser):
+    """Mesure d'audience sans cookie : événements bien formés (numéro de visite au hasard, langue, page, appareil),
+    aucun cookie ni stockage, rien en test ordinaire ni hors de pierrelogre.com, rien si le navigateur demande GPC / DNT."""
+    seen = {}
+    ctx = await browser.new_context(viewport={'width': 1024, 'height': 700}, locale='fr-FR')
+    await offline_lb(ctx, [], seen)
+    await ctx.add_init_script("window.__foxNoCine=true; window.__foxStatsTest=true")
+    pg = await ctx.new_page(); errs = []
+    pg.on('pageerror', lambda e: errs.append('pageerror: ' + str(e)))
+    await pg.goto(URL + 'fr/?utm_source=linkedin', timeout=120000); await ready(pg)
+    r = await js(pg, """F.start('libre', false); await wait(400); F.dev.skipTuto(); F.completeGoal('reunion'); document.querySelector('#whoBtn').click(); await wait(200);
+        document.querySelector('#liBtn').addEventListener('click', e => e.preventDefault(), { once: true }); document.querySelector('#liBtn').click(); await wait(100);
+        window.__foxStats.flush(); await wait(600);
+        return {cookie: document.cookie, keys: Object.keys(localStorage), on: window.__foxStats.on};""")
+    ev = seen.get('events', []); names = [e['name'] for e in ev]
+    visits = {e['visit'] for e in ev}
+    shape = all(re.fullmatch(r'[a-z0-9]{8,16}', e['visit']) and e['lang'] in ('en', 'fr') and e['page'] in ('/', '/fr/') and e['device'] in ('phone', 'tablet', 'desktop') and isinstance(e['props'], dict) for e in ev)
+    v = next((e for e in ev if e['name'] == 'Visite'), {})
+    ok = (r['on'] and {'Visite', 'Jeu prêt', 'Partie lancée', 'Tutoriel passé', 'Terrier ouvert', 'Clic LinkedIn'} <= set(names) and len(visits) == 1 and shape
+          and v.get('page') == '/fr/' and v.get('lang') == 'fr' and v.get('props', {}).get('utm') == 'linkedin' and r['cookie'] == ''
+          and not [k for k in r['keys'] if 'stat' in k.lower() or 'visit' in k.lower()] and not any(h.get('cookie') for h in seen.get('ev_headers', [])))
+    check('mesure d’audience : événements anonymes bien formés, un seul numéro de visite, ni cookie ni stockage', ok,
+          json.dumps({'événements': names, 'visite': v, 'stockage': r['keys']}, ensure_ascii=False)[:400])
+    await pg.reload(timeout=120000); await ready(pg)
+    await js(pg, "window.__foxStats.send('Partie lancée', {}); window.__foxStats.flush(); await wait(400);")
+    check('nouveau chargement → nouveau numéro de visite (aucun suivi d’une visite à l’autre)', len({e['visit'] for e in seen.get('events', [])}) == 2)
+    check('aucune erreur console (mesure d’audience)', not errs, '; '.join(errs[:3]))
+    await ctx.close()
+    # Navigateur qui demande de ne pas être suivi (GPC) : rien n'est envoyé ; et sans le drapeau de test (adresse ≠ pierrelogre.com) non plus
+    for label, init in [('GPC', "window.__foxStatsTest=true; Object.defineProperty(Navigator.prototype,'globalPrivacyControl',{get:()=>true})"), ('hors du site', '')]:
+        seen2 = {}
+        ctx = await browser.new_context(viewport={'width': 800, 'height': 600}); await offline_lb(ctx, [], seen2)
+        await ctx.add_init_script("window.__foxNoCine=true;" + init)
+        pg = await ctx.new_page(); await pg.goto(URL, timeout=120000); await ready(pg)
+        r = await js(pg, "F.start('libre', false); await wait(300); window.__foxStats.flush(); await wait(400); return window.__foxStats.on;")
+        check(f'mesure d’audience coupée ({label})', r is False and not seen2.get('events'), json.dumps(seen2.get('events', [])[:2], ensure_ascii=False))
+        await ctx.close()
+
 async def test_leaderboard_online(browser):
     """Classement partagé : requêtes conformes (clé publique seule, vue « leaderboard », ajout minimal), meilleur score
     par pseudo, pseudos abusifs filtrés, repli local si le serveur refuse. Faux serveur : rien n'est écrit dans le vrai."""
@@ -567,7 +609,7 @@ async def main():
         launch = lambda args: p.chromium.launch(args=args)
         b = await launch(GL)
         only = [x for x in os.environ.get('TESTS', '').split(',') if x]
-        for t in (test_playthrough, test_stealth_and_drop, test_daily, test_mobile_and_perf, test_world, test_first_minute, test_touch_feel, test_reactions, test_leaderboard_online, test_languages):
+        for t in (test_playthrough, test_stealth_and_drop, test_daily, test_mobile_and_perf, test_world, test_first_minute, test_touch_feel, test_reactions, test_leaderboard_online, test_languages, test_stats):
             if only and t.__name__ not in only: continue
             try: await t(b)
             except Exception as e:
