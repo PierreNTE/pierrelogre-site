@@ -140,7 +140,7 @@ async def test_playthrough(browser):
     end = await js(pg, "for(let i=0;i<40&&document.querySelector('#endCard').hidden;i++) await wait(250); const c=document.querySelector('#endCard'); return {visible:!c.hidden, stats:c.querySelectorAll('#endStats dt').length, li:document.querySelector('#endLi').href, share:!!document.querySelector('#shareBtn,#shareText,#copyNote')||document.documentElement.innerHTML.includes('share-offsite'), fleau:!!F.saved.ach.fleau};")
     check('écran de fin : carte de progression + lien profil, sans bouton de partage', end['visible'] and end['stats'] >= 4 and 'linkedin.com/in/' in end['li'] and not end['share'], f"stats {end['stats']} · partage {end['share']}")
     check('succès « Fléau » débloqué', end['fleau'])
-    await pg.screenshot(path=f'{OUT}/end_card.png')
+    await pg.screenshot(path=f'{OUT}/end_card.png', timeout=120000)
     # Dans le terrier : une plaque raconte chaque souvenir du parcours, le tableau de liège ouvre la fiche complète
     r = await js(pg, """document.querySelector('#contBtn').click(); await wait(400); go(2, 262-3.15, Math.PI); await wait(1200);
                         const pl=document.querySelector('.den-plaque'); const plaque=pl&&!pl.hidden?pl.innerText:'';
@@ -171,7 +171,7 @@ async def test_stealth_and_drop(browser):
     r4 = await js(pg, """const a=F.acorns[0]; go(a.pos.x,a.pos.z,0); await wait(1200); const card=!document.querySelector('#factCard').hidden; const txt=document.querySelector('#factText').textContent;
                          document.querySelector('#factClose').click(); await wait(200); return {card, txt, saved:F.saved.acorns.length, paused:F.paused};""")
     check('gland doré → carte d’anecdote sauvegardée', r4['card'] and r4['saved'] >= 1 and not r4['paused'], r4['txt'][:50])
-    await pg.screenshot(path=f'{OUT}/stealth.png')
+    await pg.screenshot(path=f'{OUT}/stealth.png', timeout=120000)
     # Sauvegarde : 2 bêtises puis rechargement
     await js(pg, "F.dropHeld(); go(22.5,5,0); await wait(300); F.yap(); await wait(300); go(7.6,8.2,-Math.PI/2); await wait(300); F.grabOrDrop(); await wait(600);")
     await pg.reload(timeout=120000); await ready(pg)
@@ -219,7 +219,7 @@ async def test_mobile_and_perf(browser):
     # Qualité auto : un téléphone fluide au palier 1 retrouve la pleine résolution (essai, gardé s'il reste fluide)
     r = await js(pg, "F.Q.done=false; F.Q.tier=1; F.renderer.setPixelRatio(1); F.Q.decide(60); const a=F.renderer.getPixelRatio(); F.Q.decide(60); const b=F.renderer.getPixelRatio(); F.Q.decide(59); return {a, b, c:F.renderer.getPixelRatio(), done:F.Q.done};")
     check('qualité auto : retour à la pleine résolution si le téléphone reste fluide', r['a'] == 1 and r['b'] > 1 and r['c'] == r['b'] and r['done'], json.dumps(r))
-    await pg.screenshot(path=f'{OUT}/mobile.png')
+    await pg.screenshot(path=f'{OUT}/mobile.png', timeout=120000)
     await ctx.close()
     ctx, pg, errs = await page(browser, 1280, 760); await ready(pg)
     await js(pg, "F.start('libre', false); await wait(1500);")
@@ -229,7 +229,7 @@ async def test_mobile_and_perf(browser):
         calls.append(c)
     check('budget village : < 180 appels de dessin', max(calls) < 180, ' / '.join(map(str, calls)))
     await js(pg, "go(-8,13.6,0); await wait(2500);")
-    await pg.screenshot(path=f'{OUT}/occlusion_burrow.png')
+    await pg.screenshot(path=f'{OUT}/occlusion_burrow.png', timeout=120000)
     check('aucune erreur console (mobile, perf)', not errs, '; '.join(errs[:3]))
     await ctx.close()
 
@@ -254,7 +254,7 @@ async def test_world(browser):
     for rid in ['foret', 'sport', 'moto', 'riviere', 'plage', 'gare', 'nantes', 'paris', 'montagne', 'ile']:
         c = await js(pg, f"""const R=F.RG['{rid}']; F.unlockRegion(R,false); F.teleport(R.spawn.x,R.spawn.z,0); await wait(3200); return [F.S.region, F.renderer.info.render.calls];""")
         calls[rid] = c
-        await pg.screenshot(path=f'{OUT}/region_{rid}.png')
+        await pg.screenshot(path=f'{OUT}/region_{rid}.png', timeout=120000)
     bad = {k: v for k, v in calls.items() if v[0] != k}
     check('voyage dans chaque région (terriers)', not bad, json.dumps(bad) if bad else f"{len(calls)} régions")
     worst = max(v[1] for v in calls.values())
@@ -274,14 +274,14 @@ async def test_world(browser):
     check('classement + pseudo nettoyé (Renard<script> → Renardscript)', r['lb'] and r['lb'][0] == 'Renardscript' and 'Renardscript' in r['top'], json.dumps(r['lb']))
     pz = await js(pg, "return {bad:['C0nnard','s@lope','F.u.c.k'].map(F.pseudoOk), good:['Monique','Véronique','Pierre L.','Renard'].map(F.pseudoOk)};")
     check('pseudos abusifs refusés, prénoms courants acceptés', not any(pz['bad']) and all(pz['good']), json.dumps(pz))
-    await pg.screenshot(path=f'{OUT}/minigame_end.png')
+    await pg.screenshot(path=f'{OUT}/minigame_end.png', timeout=120000)
     await js(pg, "document.querySelector('#mgQuit').click(); await wait(400);")
     # Carnet de voyage : carte, succès, classement
     r = await js(pg, """F.openJournal('map'); await wait(400); const map=!document.querySelector('#journal').hidden, li=document.querySelectorAll('#jRegions li').length;
                         document.querySelector('[data-tab=ach]').click(); await wait(200); const ach=document.querySelectorAll('.ach').length;
                         document.querySelector('[data-tab=lb]').click(); await wait(600); const lb=document.querySelectorAll('#j-lb .lb li').length; F.closeJournal(); return {map, li, ach, lb};""")
     check('carnet de voyage : carte, succès, classement', r['map'] and r['li'] >= 10 and r['ach'] >= 20 and r['lb'] >= 1, json.dumps(r))
-    await pg.screenshot(path=f'{OUT}/journal.png')
+    await pg.screenshot(path=f'{OUT}/journal.png', timeout=120000)
     # Une bêtise de région + sauvegarde v2 (régions ouvertes, position) après rechargement
     dbg = await js(pg, "F.completeGoal('ola'); F.teleport(-290,10,0); await wait(1500); return {paused:F.paused, x:f.pos.x};")
     await pg.reload(timeout=120000); await ready(pg)
@@ -295,12 +295,14 @@ async def test_world(browser):
     await ctx.close()
     # Plan de caméra à l'ouverture d'une région + défi du jour sans ouverture
     ctx, pg, errs = await page(browser, 800, 600, acorns_done=True, cine=True); await ready(pg)
-    # rendu logiciel lent : la construction de la zone voisine peut retarder le plan de quelques secondes ; on attend qu'il
-    # commence (15 s au plus), puis qu'il se termine (30 s au plus)
-    r = await js(pg, """F.start('libre', false); await wait(500); for(const id of ['jardinier','reunion','imprimante','mug']) F.completeGoal(id);
-                        let seen=false; for(let i=0;i<150&&!seen;i++){ if(F.S.cine) seen=true; else await wait(100); } for(let i=0;i<300&&F.S.cine;i++) await wait(100); await wait(500);
-                        return {seen, after:!!F.S.cine, paused:F.paused, banner:document.querySelector('#regionBanner b').textContent};""")
-    check('ouverture : plan de caméra puis retour au jeu', r['seen'] and not r['after'] and not r['paused'], json.dumps(r))
+    # Le plan est noté au moment où le jeu le lance et le termine (en rendu logiciel, la première image de la forêt
+    # compile ses shaders et bloque la page plus longtemps que le plan lui-même : un simple sondage le manquerait)
+    r = await js(pg, """F.start('libre', false); await wait(500);
+                        let cine=F.S.cine, seen=false, ended=false; Object.defineProperty(F.S,'cine',{configurable:true, get(){ return cine; }, set(x){ if(x) seen=true; else if(cine) ended=true; cine=x; }});
+                        for(const id of ['jardinier','reunion','imprimante','mug']) F.completeGoal(id);
+                        for(let i=0;i<600&&!ended;i++) await wait(100); await wait(500);
+                        return {seen, ended, after:!!F.S.cine, paused:F.paused, banner:document.querySelector('#regionBanner b').textContent};""")
+    check('ouverture : plan de caméra puis retour au jeu', r['seen'] and r['ended'] and not r['after'] and not r['paused'], json.dumps(r))
     await ctx.close()
     ctx, pg, errs = await page(browser, 375, 667, is_mobile=True, has_touch=True, acorns_done=True); await ready(pg)
     r = await js(pg, """F.start('defi'); await wait(300); for(const g of F.run.goals.slice(0,4)) F.completeGoal(g); await wait(300); const u=F.run.unlocked.length;
@@ -311,7 +313,7 @@ async def test_world(browser):
     r = await js(pg, """F.start('libre', false); await wait(300); F.openJournal('ach'); await wait(400); const j=document.querySelector('#journal .card').getBoundingClientRect();
                         return {w:Math.round(j.width), right:Math.round(j.right), scrollW:document.documentElement.scrollWidth};""")
     check('mobile : carnet de voyage lisible, sans débordement', r['right'] <= 375 and r['scrollW'] <= 375, json.dumps(r))
-    await pg.screenshot(path=f'{OUT}/journal_mobile.png')
+    await pg.screenshot(path=f'{OUT}/journal_mobile.png', timeout=120000)
     check('aucune erreur console (plans, mobile)', not errs, '; '.join(errs[:3]))
     await ctx.close()
 
@@ -335,13 +337,13 @@ async def test_first_minute(browser):
     r = await pg.evaluate("""()=>({intro:!document.querySelector('#intro').hidden, busy:document.querySelector('#startBtn').getAttribute('aria-busy'), lang:document.documentElement.lang,
         h1:document.querySelector('#introH1').textContent, btn:document.querySelector('#startBtn').textContent, ready:!!window.__foxReady, hud:getComputedStyle(document.querySelector('#notebook')).visibility})""")
     check('accueil : carte affichée avant le jeu, en anglais pour un visiteur anglophone, bouton qui tourne', r['intro'] and r['busy'] == 'true' and r['lang'] == 'en' and 'fox' in r['h1'] and r['btn'] == 'Cause mischief' and not r['ready'] and r['hud'] == 'hidden', json.dumps(r))
-    await pg.screenshot(path=f'{OUT}/intro_loading.png')
+    await pg.screenshot(path=f'{OUT}/intro_loading.png', timeout=120000)
     await pg.click('#startBtn')
     await pg.wait_for_function('()=>window.__foxReady===true', timeout=120000)
     r = await js(pg, """for(let i=0;i<60&&!F.S.started;i++) await wait(100); return {started:F.S.started, tuto:F.dev.TUTO.on, step:F.dev.TUTO.step, busy:document.querySelector('#startBtn').hasAttribute('aria-busy'),
                         nb:getComputedStyle(document.querySelector('#notebook')).display, post:document.querySelector('#tuto').innerText};""")
     check('accueil : clic pendant le chargement retenu → partie lancée dès que le jeu est prêt, visite guidée', r['started'] and r['tuto'] and r['step'] == 'yap' and not r['busy'] and r['nb'] == 'none' and 'gardener' in r['post'], json.dumps(r))
-    await pg.screenshot(path=f'{OUT}/tuto_step1.png')
+    await pg.screenshot(path=f'{OUT}/tuto_step1.png', timeout=120000)
     # Les trois bêtises guidées, avec les vraies règles du jeu (le jardinier réagit plus lentement pendant la visite)
     r = await js(pg, """const g=npc('gardener'), h=item('chapeau'), steps=[]; const until=async(fn,n=300)=>{ for(let i=0;i<n&&!fn();i++) await wait(50); };
         go(g.pos.x+2,g.pos.z+1.6,-2.3); await wait(300); F.yap(); const cool=+g.cool.toFixed(2);
@@ -351,12 +353,13 @@ async def test_first_minute(browser):
         await until(()=>F.dev.TUTO.step==='fountain'); steps.push(F.dev.TUTO.step);
         go(-4,3.3,Math.PI); await wait(300); F.dropHeld(); await until(()=>F.dev.TUTO.step==='done'); steps.push(F.dev.TUTO.step);
         const win=document.querySelector('#tuto').classList.contains('win');
-        await until(()=>!F.dev.TUTO.on,400); await wait(400); const nb=document.querySelector('#notebook');
-        return {cool, ease, steps, win, on:F.dev.TUTO.on, saved:F.saved.tuto, nb:getComputedStyle(nb).display, more:!!nb.querySelector('.nb-more'), easeAfter:g.easeK,
+        // « la suite est ici » : l'étiquette apparaît avec le carnet puis s'efface après 8 s ; on la guette pendant l'attente
+        let more=false; await until(()=>{ more=more||!!document.querySelector('#notebook .nb-more'); return !F.dev.TUTO.on; },400); await wait(400); const nb=document.querySelector('#notebook'); more=more||!!nb.querySelector('.nb-more');
+        return {cool, ease, steps, win, on:F.dev.TUTO.on, saved:F.saved.tuto, nb:getComputedStyle(nb).display, more, easeAfter:g.easeK,
                 done:['jardinier','chapeau','chapeauEau'].every(i=>F.run.done[i])};""")
     check('visite guidée : glapir → chapeau → fontaine, puis le carnet revient (« la suite est ici »)', r['steps'] == ['grab', 'fountain', 'done'] and r['win'] and not r['on'] and r['saved'] == 1 and r['nb'] == 'block' and r['more'] and r['done'], json.dumps(r))
     check('visite guidée : le jardinier réagit plus lentement (2,6 s, ×0,8), puis redevient normal', r['cool'] >= 2.4 and r['ease'] == .8 and r['easeAfter'] == 1, json.dumps(r))
-    await pg.screenshot(path=f'{OUT}/tuto_done.png')
+    await pg.screenshot(path=f'{OUT}/tuto_done.png', timeout=120000)
     await js(pg, "localStorage.removeItem('fox-run-libre'); location.reload();")
     await pg.wait_for_function('()=>window.__foxReady===true', timeout=120000)
     r = await js(pg, "F.start('libre', false); await wait(500); return {on:F.dev.TUTO.on, nb:getComputedStyle(document.querySelector('#notebook')).display};")
@@ -369,7 +372,7 @@ async def test_touch_feel(browser):
     await js(pg, "F.start('libre', false); await wait(500); document.querySelector('#toasts').insertAdjacentHTML('beforeend','<div class=\"toast\">Bêtise accomplie : test de chevauchement assez long</div>'); await wait(200);")
     r = await pg.evaluate(OVERLAP_JS)
     check('téléphone 390×844 : post-it de la visite, boutons et carnet sans chevauchement', not r['overlaps'] and not r['off'] and r['scrollW'] <= 390, json.dumps(r))
-    await pg.screenshot(path=f'{OUT}/touch_tuto.png')
+    await pg.screenshot(path=f'{OUT}/touch_tuto.png', timeout=120000)
     r = await js(pg, "document.querySelector('#tutoSkip').click(); await wait(700); const nb=document.querySelector('#notebook'); return {on:F.dev.TUTO.on, saved:F.saved.tuto, disp:getComputedStyle(nb).display, collapsed:nb.classList.contains('collapsed'), more:!!nb.querySelector('.nb-more')};")
     check('visite guidée : « Passer » rend la main ; au téléphone le carnet reste replié mais signalé', not r['on'] and r['saved'] == 1 and r['disp'] == 'block' and r['collapsed'] and r['more'], json.dumps(r))
     # Joystick flottant : vrais touchers (CDP)
@@ -422,11 +425,11 @@ async def test_touch_feel(browser):
     ctx, pg, errs = await page(browser, 844, 390, is_mobile=True, has_touch=True, device_scale_factor=2); await ready(pg)
     await js(pg, "F.start('libre', false); await wait(500); document.querySelector('#toasts').insertAdjacentHTML('beforeend','<div class=\"toast\">Bêtise accomplie : test de chevauchement assez long</div>'); await wait(200);")
     r1 = await pg.evaluate(OVERLAP_JS)
-    await pg.screenshot(path=f'{OUT}/touch_landscape_tuto.png')
+    await pg.screenshot(path=f'{OUT}/touch_landscape_tuto.png', timeout=120000)
     await js(pg, "F.dev.skipTuto(); await wait(900); const nb=document.querySelector('#notebook'); for(let i=0;i<40&&nb.getAnimations().length;i++) await wait(100);")   # fin de l'entrée du carnet
     r2 = await pg.evaluate(OVERLAP_JS)
     check('téléphone à l’horizontale (844×390) : rien ne se chevauche, ni pendant ni après la visite', not r1['overlaps'] and not r1['off'] and not r2['overlaps'] and not r2['off'], json.dumps({'pendant': r1, 'après': r2}))
-    await pg.screenshot(path=f'{OUT}/touch_landscape.png')
+    await pg.screenshot(path=f'{OUT}/touch_landscape.png', timeout=120000)
     check('aucune erreur console (téléphone à l’horizontale)', not errs, '; '.join(errs[:3]))
     await ctx.close()
 
