@@ -95,7 +95,7 @@ async def page(browser, w=1280, h=760, acorns_done=False, **kw):
     return ctx, pg, errs
 
 async def ready(pg):
-    await pg.wait_for_function('window.__foxReady===true', timeout=120000)
+    await pg.wait_for_function('()=>window.__foxReady===true', timeout=120000)   # forme fonction : la CSP (sans unsafe-eval) refuse une chaîne
 
 async def js(pg, body):
     return await pg.evaluate('async()=>{' + JS_HELPERS + body + '}')
@@ -295,8 +295,11 @@ async def test_world(browser):
     await ctx.close()
     # Plan de caméra à l'ouverture d'une région + défi du jour sans ouverture
     ctx, pg, errs = await page(browser, 800, 600, acorns_done=True, cine=True); await ready(pg)
+    # rendu logiciel lent : la construction de la zone voisine peut retarder le plan de quelques secondes ; on attend qu'il
+    # commence (15 s au plus), puis qu'il se termine (30 s au plus)
     r = await js(pg, """F.start('libre', false); await wait(500); for(const id of ['jardinier','reunion','imprimante','mug']) F.completeGoal(id);
-                        let seen=false; for(let i=0;i<40;i++){ if(F.S.cine) seen=true; await wait(100); } await wait(3000); return {seen, after:!!F.S.cine, paused:F.paused, banner:document.querySelector('#regionBanner b').textContent};""")
+                        let seen=false; for(let i=0;i<150&&!seen;i++){ if(F.S.cine) seen=true; else await wait(100); } for(let i=0;i<300&&F.S.cine;i++) await wait(100); await wait(500);
+                        return {seen, after:!!F.S.cine, paused:F.paused, banner:document.querySelector('#regionBanner b').textContent};""")
     check('ouverture : plan de caméra puis retour au jeu', r['seen'] and not r['after'] and not r['paused'], json.dumps(r))
     await ctx.close()
     ctx, pg, errs = await page(browser, 375, 667, is_mobile=True, has_touch=True, acorns_done=True); await ready(pg)
