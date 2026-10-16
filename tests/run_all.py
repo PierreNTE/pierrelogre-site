@@ -398,7 +398,7 @@ async def test_first_minute(browser):
         h1:document.querySelector('#introH1').textContent, btn:document.querySelector('#startBtn').textContent, ready:!!window.__foxReady, hud:getComputedStyle(document.querySelector('#notebook')).visibility})""")
     check('accueil : carte affichée avant le jeu, en anglais pour un visiteur anglophone, bouton qui tourne', r['intro'] and r['busy'] == 'true' and r['lang'] == 'en' and 'fox' in r['h1'] and r['btn'] == 'Cause mischief' and not r['ready'] and r['hud'] == 'hidden', json.dumps(r))
     await pg.screenshot(path=f'{OUT}/intro_loading.png', timeout=120000)
-    await pg.click('#startBtn')
+    await pg.click('#startBtn', timeout=120000)   # page très occupée pendant le chargement en rendu logiciel
     await pg.wait_for_function('()=>window.__foxReady===true', timeout=120000)
     r = await js(pg, """for(let i=0;i<60&&!F.S.started;i++) await wait(100); return {started:F.S.started, tuto:F.dev.TUTO.on, step:F.dev.TUTO.step, busy:document.querySelector('#startBtn').hasAttribute('aria-busy'),
                         nb:getComputedStyle(document.querySelector('#notebook')).display, post:document.querySelector('#tuto').innerText};""")
@@ -705,7 +705,7 @@ async def test_lazy_regions(browser):
 
 async def test_presentation(browser):
     """Première visite : le renard se présente (5 s au plus) face au visiteur, puis la carte d'accueil revient ; une seule fois ;
-    passée par une touche ; arrêtée par « Jouer » ; jamais avec « réduire les animations ».
+    un clic ou un toucher passe à la bulle suivante, Échap ou « Jouer » arrêtent tout ; jamais avec « réduire les animations ».
     En rendu logiciel, les premières images prennent plusieurs secondes : on vérifie d'abord que la présentation a bien eu lieu
     à la première visite, puis on la rejoue (F.dev.present) une fois le jeu fluide pour en contrôler le déroulé."""
     ctx = await browser.new_context(viewport={'width': 1280, 'height': 760}); await offline_lb(ctx)
@@ -741,8 +741,22 @@ async def test_presentation(browser):
         dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
         return {on, hidden, end:F.dev.presentInfo.end, after:F.dev.presenting(), card:!document.documentElement.classList.contains('presenting'), saved:JSON.parse(localStorage.getItem('fox-betises-v2')||'{}').presented}; }""")
     on = k['on'] and k['end'] == 'keydown' and not k['after']
+    # Un toucher passe à la bulle suivante (pas tout) ; après la dernière, la caméra remonte ; encore un : fin
+    tap = await js(pg, """F.dev.present(); const I=F.dev.presentInfo, out=[], hint=document.querySelector('.pres-hint')?.textContent;
+        const tap=()=>dispatchEvent(new PointerEvent('pointerdown', { bubbles: true }));
+        const until=async(fn)=>{ for(let i=0;i<300&&!fn();i++) await wait(50); };
+        await until(()=>I.frames>0); tap(); await until(()=>I.lines.length>=1); out.push([F.dev.presenting(), I.lines.length]);
+        tap(); await until(()=>I.lines.length>=2); out.push([F.dev.presenting(), I.lines.length]);
+        tap(); await until(()=>I.lines.length>=3); out.push([F.dev.presenting(), I.lines.length]);
+        tap(); await wait(100); out.push([F.dev.presenting(), I.lines.length]);
+        tap(); await wait(100); return {out, end:I.end, steps:I.steps, on:F.dev.presenting(), hint, hintGone:!document.querySelector('.pres-hint')};""")
+    check('présentation : chaque toucher passe à la bulle suivante (pas tout), puis la caméra remonte ; consigne affichée',
+          # rendu logiciel lent : une image peut couvrir deux bulles ; l'essentiel : un toucher ne coupe pas tout
+          tap['out'][0] == [True, 1] and tap['out'][1][0] and tap['out'][1][1] >= 2 and tap['out'][2][1] == 3
+          and not tap['on'] and tap['end'] == 'pointerdown' and 3 <= tap['steps'] <= 4
+          and tap['hint'] == "Tap for what's next" and tap['hintGone'], json.dumps(tap))
     s = await js(pg, "F.dev.present(); const on=F.dev.presenting(); F.start('libre', false); await wait(300); return {on, after:F.dev.presenting(), started:F.S.started, cls:document.documentElement.classList.contains('presenting')};")
-    check('présentation passée par une touche, et arrêtée par « Jouer » (téléphone)', on and k['card'] and k['saved'] == 1 and s['on'] and not s['after'] and s['started'] and not s['cls'], json.dumps({'on': on, **k, 'jouer': s}))
+    check('présentation arrêtée par Échap, et par « Jouer » (téléphone)', on and k['card'] and k['saved'] == 1 and s['on'] and not s['after'] and s['started'] and not s['cls'], json.dumps({'on': on, **k, 'jouer': s}))
     await ctx.close()
     ctx = await browser.new_context(viewport={'width': 1024, 'height': 700}, reduced_motion='reduce'); await offline_lb(ctx)
     pg = await ctx.new_page(); await pg.goto(URL, timeout=120000); await ready(pg); await pg.wait_for_timeout(500)

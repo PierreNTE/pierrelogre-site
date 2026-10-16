@@ -2,12 +2,12 @@
    Présentation du renard : à la toute première visite, quand le jeu est prêt, la caméra descend face au renard,
    qui regarde le visiteur et se présente en trois bulles, puis remonte ; la carte d'accueil revient. 4,8 s en tout.
    - seulement si rien n'est encore gardé dans le navigateur (FIRST_VISIT), jamais avec « réduire les animations » ;
-   - un clic, une touche, la molette ou un toucher la passent ; « Jouer » aussi ;
+   - un clic, un toucher ou une touche passent à la bulle suivante (après la dernière : fin) ; Échap ou « Jouer » arrêtent tout ;
    - réglée sur l'horloge réelle, à partir de la première image : 4,8 s même sur un appareil lent (des images sautent) ;
    - pendant ce temps, les régions voisines attendent pour se construire (pas d'à-coup) et la vue est raccourcie.
    ===================================================================== */
 import * as THREE from 'three';
-import { CAM_OFF, RM, cam, camera, scene } from './engine.js';
+import { CAM_OFF, RM, cam, camera, isTouch, scene } from './engine.js';
 import { fox } from './fox.js';
 import { gaitStep } from './foxupdate.js';
 import { say } from './hud.js';
@@ -16,10 +16,23 @@ import { FIRST_VISIT, S, modalOpen, saved, store, t } from './state.js';
 export const DUR = 4.8;
 const P = { on: false, t0: 0, said: 0, from: null, fog: null };
 /** Pour les tests : la présentation a-t-elle eu lieu, combien d'images, quelles bulles. */
-export const presentInfo = { ran: 0, frames: 0, lines: [], near: 99, end: '', dur: DUR };
+export const presentInfo = { ran: 0, frames: 0, lines: [], near: 99, end: '', dur: DUR, steps: 0 };
 const _close = new THREE.Vector3(), _closeLook = new THREE.Vector3(), _far = new THREE.Vector3(), _pos = new THREE.Vector3(), _look = new THREE.Vector3();
 const ease = k => (k = Math.max(0, Math.min(1, k)), k < .5 ? 2 * k * k : 1 - Math.pow(-2 * k + 2, 2) / 2);
-const SKIP = ['pointerdown', 'keydown', 'wheel', 'touchstart'];
+const INPUT = ['pointerdown', 'keydown'];
+const STEPS = [.9, 2.3, 3.4, 3.9];   // bulle 1, bulle 2, bulle 3, puis la caméra remonte
+let hint = null;
+/** Clic, toucher ou touche : la bulle suivante (l'horloge saute à son début). Échap : fin. Après la dernière : fin. */
+function onInput(e) {
+  if (!P.on) return;
+  if (e.type === 'keydown') {
+    if (e.key === 'Escape') { endPresentation(e); return; }
+    if (['Shift', 'Control', 'Alt', 'Meta', 'Tab'].includes(e.key) || e.repeat) return;
+  }
+  const now = performance.now(), k = P.t0 ? (now - P.t0) / 1000 : 0, to = STEPS.find(x => x > k + .05);
+  if (to === undefined) { endPresentation(e); return; }
+  P.t0 = (P.t0 || now) - (to - k) * 1000; presentInfo.steps++;
+}
 
 export const presenting = () => P.on;
 /** Gros plan de trois quarts (la fontaine n'est pas pile derrière sa tête) ; plus proche et plus bas en portrait. */
@@ -35,12 +48,15 @@ export function maybePresent(force = false) {
     const later = () => { if (document.hidden) return; document.removeEventListener('visibilitychange', later); maybePresent(); };
     document.addEventListener('visibilitychange', later); return false;
   }
-  P.on = true; P.t0 = 0; P.said = 0; S.presenting = true; presentInfo.ran++; presentInfo.frames = 0; presentInfo.lines = []; presentInfo.near = 99; presentInfo.end = '';   // l'horloge part à la première image dessinée (la première peut être longue à venir)
+  P.on = true; P.t0 = 0; P.said = 0; S.presenting = true; presentInfo.ran++; presentInfo.frames = 0; presentInfo.lines = []; presentInfo.near = 99; presentInfo.end = ''; presentInfo.steps = 0;   // l'horloge part à la première image dessinée (la première peut être longue à venir)
   P.from = { pos: camera.position.clone(), look: cam.target.clone() };
   P.fog = { near: scene.fog.near, far: scene.fog.far, cam: camera.far };   // rendus à la fin
   const v = view(); fox.yaw = Math.atan2(v.side, v.dist); fox.idle = 0; fox.vel.set(0, 0, 0);   // trois quarts, face à la caméra
   document.documentElement.classList.add('presenting');
-  for (const ev of SKIP) addEventListener(ev, endPresentation, { capture: true, passive: true });
+  for (const ev of INPUT) addEventListener(ev, onInput, { capture: true, passive: true });
+  // Petit mode d'emploi en bas de l'écran : on passe à la suite, on ne saute pas tout par mégarde
+  hint = document.createElement('p'); hint.className = 'pres-hint'; hint.textContent = isTouch ? t().presNextTouch : t().presNext;
+  (document.getElementById('play') || document.body).append(hint);
   return true;
 }
 
@@ -49,7 +65,8 @@ export function endPresentation(e) {
   if (!P.on) return;
   presentInfo.end = e === 'time' ? 'temps' : e && e.type ? e.type : 'jeu';
   P.on = false; S.presenting = false;
-  for (const ev of SKIP) removeEventListener(ev, endPresentation, { capture: true });
+  for (const ev of INPUT) removeEventListener(ev, onInput, { capture: true });
+  if (hint) { hint.remove(); hint = null; }
   document.documentElement.classList.remove('presenting');
   if (P.fog) { scene.fog.near = P.fog.near; scene.fog.far = P.fog.far; camera.far = P.fog.cam; camera.updateProjectionMatrix(); }
   saved.presented = 1; store.set(saved);   // vue une fois : elle ne revient pas

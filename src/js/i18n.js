@@ -272,7 +272,7 @@ Object.assign(T.en.ach, {
 /* ---------- 5.7 : première visite guidée, commandes tactiles ---------- */
 Object.assign(T.fr, {
   colon: " :",
-  aGame: "Monde du jeu : un renard dans un village vendéen et un bureau", aGoals: "Liste des bêtises", aClose: "Fermer", legalLink: "Mentions légales", dailyLbTitle: "Classement du défi du jour", dlPseudo: "Ton pseudo pour le classement du jour (public) :", dlSentOnline: "Temps envoyé au classement du jour !", dlSentLocal: "Temps gardé dans ce navigateur.", dlEmpty: "Personne encore aujourd'hui : à toi de jouer !", dlToday: "Défi du jour (aujourd'hui)", presHi: "Salut ! Moi, c'est le renard.", presMischief: "Ici, je fais des bêtises…", presJoin: "Tu viens m'aider ?", aDone: "faite",
+  aGame: "Monde du jeu : un renard dans un village vendéen et un bureau", aGoals: "Liste des bêtises", aClose: "Fermer", legalLink: "Mentions légales", dailyLbTitle: "Classement du défi du jour", dlPseudo: "Ton pseudo pour le classement du jour (public) :", dlSentOnline: "Temps envoyé au classement du jour !", dlSentLocal: "Temps gardé dans ce navigateur.", dlEmpty: "Personne encore aujourd'hui : à toi de jouer !", dlToday: "Défi du jour (aujourd'hui)", presHi: "Salut ! Moi, c'est le renard.", presMischief: "Ici, je fais des bêtises…", presJoin: "Tu viens m'aider ?", presNext: "Clique pour la suite · Échap pour passer", presNextTouch: "Touche l'écran pour la suite", aDone: "faite",
   tDrop: "Poser",
   tuto: {
     skip: "Passer", more: "La suite est ici !", n: (i, tot) => `Bêtise ${i}/${tot}`,
@@ -296,7 +296,7 @@ Object.assign(T.fr, {
 });
 Object.assign(T.en, {
   colon: ":",
-  aGame: "Game world: a fox in a village in Vendée and an office", aGoals: "Mischief list", aClose: "Close", legalLink: "Legal notice", dailyLbTitle: "Today's challenge leaderboard", dlPseudo: "Your nickname for today's leaderboard (public):", dlSentOnline: "Time sent to today's leaderboard!", dlSentLocal: "Time saved in this browser.", dlEmpty: "Nobody yet today: your turn!", dlToday: "Daily challenge (today)", presHi: "Hi! I'm the fox.", presMischief: "Around here, I cause mischief…", presJoin: "Want to help?", aDone: "done",
+  aGame: "Game world: a fox in a village in Vendée and an office", aGoals: "Mischief list", aClose: "Close", legalLink: "Legal notice", dailyLbTitle: "Today's challenge leaderboard", dlPseudo: "Your nickname for today's leaderboard (public):", dlSentOnline: "Time sent to today's leaderboard!", dlSentLocal: "Time saved in this browser.", dlEmpty: "Nobody yet today: your turn!", dlToday: "Daily challenge (today)", presHi: "Hi! I'm the fox.", presMischief: "Around here, I cause mischief…", presJoin: "Want to help?", presNext: "Click for what's next · Esc to skip", presNextTouch: "Tap for what's next", aDone: "done",
   tDrop: "Drop",
   tuto: {
     skip: "Skip", more: "More mischief here!", n: (i, tot) => `Mischief ${i}/${tot}`,

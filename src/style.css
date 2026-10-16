@@ -425,6 +425,7 @@ html.mg #game{cursor:crosshair;touch-action:none}
 #intro{transition:opacity .35s ease}
 html.presenting #intro{opacity:0;pointer-events:none}
 .bubble.talk{font-size:24px;padding:6px 16px;border-radius:16px;max-width:min(82vw,440px);white-space:normal;text-align:center}
+.pres-hint{position:fixed;left:50%;bottom:calc(22px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);z-index:7;margin:0;padding:5px 14px;border-radius:999px;background:rgba(251,246,230,.88);color:var(--ink-soft);font:600 14px var(--font-ui);white-space:nowrap;pointer-events:none;box-shadow:0 4px 12px rgba(40,50,30,.12)}
 
 /* Pages de texte (mentions légales) : on fait défiler et on peut sélectionner le texte */
 html.doc,html.doc body{height:auto;overflow:auto;touch-action:auto;user-select:text;-webkit-user-select:text}
