@@ -8,7 +8,9 @@ import { canvas } from './engine.js';
 import { fox } from './fox.js';
 import { $, fmt } from './hud.js';
 import { keys } from './input.js';
-import { ONLINE, top } from './leaderboard.js';
+import { ONLINE, top, topDaily } from './leaderboard.js';
+import { fillTimes } from './dailyboard.js';
+import { todayKey } from './persist.js';
 import { REGIONS, RG, isOpen, regionDone, regionGoals, travelTo } from './regions.js';
 import { GOALS, S, modalOpen, run, saved, t } from './state.js';
 
@@ -94,8 +96,12 @@ async function renderLb() {
   if (tab !== 'lb') return;
   pane.innerHTML = `<h3>${t().mgTitle}</h3><p class="lb-note">${online ? t().lbOnline : (ONLINE ? t().lbOffline : t().lbLocal)}</p>`
     + (list.length ? `<ol class="lb">${list.map(x => `<li${x.pseudo === saved.pseudo ? ' class="me"' : ''}><b></b><span>${x.pseudo.replace(/[<>&]/g, '')}</span><em>${x.score}</em></li>`).join('')}</ol>` : `<p class="lb-note">${t().lbEmpty}</p>`)
-    + `<p class="lb-note">${t().lbBest(saved.mgBest || 0)}</p>`;
+    + `<p class="lb-note">${t().lbBest(saved.mgBest || 0)}</p>`
+    + `<h3>${t().dlToday}</h3><ol class="lb" id="jDaily"><li class="empty">${t().lbLoading}</li></ol>`;
   pane.querySelectorAll('.lb b').forEach((b, i) => { b.textContent = i + 1; });
+  // Défi du jour : les meilleurs temps d'aujourd'hui
+  const d = await topDaily(todayKey());
+  if (tab === 'lb' && $('#jDaily')) fillTimes($('#jDaily'), d.list, saved.pseudo);
 }
 
 el.addEventListener('click', e => { const b = e.target.closest('[data-tab]'); if (b) { tab = b.dataset.tab; render(); } });

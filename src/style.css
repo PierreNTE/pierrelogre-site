@@ -308,7 +308,7 @@ kbd.k{font:700 10px/1 var(--font-ui);background:#efe6cc;border-radius:4px;paddin
 .ach b{font-family:var(--font-ui);font-size:14px}
 .ach span{font-family:var(--font-hand);font-size:15px;line-height:1.15}
 .lb{list-style:none;margin:6px 0 12px;padding:0;counter-reset:none}
-.lb li{display:grid;grid-template-columns:28px 1fr auto;gap:8px;font-family:var(--font-hand);font-size:19px;padding:3px 8px;border-radius:6px}
+.lb li{display:grid;grid-template-columns:28px 1fr auto;align-items:center;gap:8px;font-family:var(--font-hand);font-size:19px;padding:3px 8px;border-radius:6px}
 .lb li:nth-child(odd){background:#f3ecd9}
 .lb li.me{background:#fbe0c6}
 .lb li.empty{display:block}   /* « Aucun score pour l'instant » : sur toute la largeur (avant : un mot par ligne dans la colonne du rang) */
@@ -444,3 +444,9 @@ html.doc,html.doc body{height:auto;overflow:auto;touch-action:auto;user-select:t
 @media (max-width:540px){.doc .sheet{padding:20px 16px 14px}}
 .p404 .doc-foot{margin:14px 0 0;font-size:13.5px;color:var(--ink-soft)}
 .p404 .doc-foot a{color:var(--ink-soft)}
+
+/* Défi du jour terminé : classement du jour dans la carte de fin */
+.end-lb{margin:10px 0 6px;text-align:left}
+.end-lb h3{font:800 18px/1.2 var(--font-ui);margin:0 0 4px}
+.end-lb .lb{max-height:min(32vh,250px);overflow-y:auto;margin-bottom:4px}
+.end-lb .copy-note{min-height:0}

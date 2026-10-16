@@ -3,7 +3,7 @@ import { cam, canvas, isTouch, setZoom } from './engine.js';
 import { fox } from './fox.js';
 import { $, closeFact, toggleNotebook } from './hud.js';
 import { closeJournal, closeTravel, journalOpen, openJournal, travelOpen } from './journal.js';
-import { S } from './state.js';
+import { S, run } from './state.js';
 
 /* =====================================================================
    Entrées
@@ -17,7 +17,7 @@ addEventListener('keydown',e=>{
   if(journalOpen()){ if(e.key==='Escape'||e.code==='KeyM'){ e.preventDefault(); closeJournal(); } return; }
   if(travelOpen()){ if(e.key==='Escape'){ e.preventDefault(); closeTravel(); } return; }
   // Échap ferme aussi la carte de fin de partie (continuer) et celle du mini-jeu (retour au terrain)
-  if(!$('#endCard').hidden){ if(e.key==='Escape'){ const b=!$('#contBtn').hidden?$('#contBtn'):null; if(b){ e.preventDefault(); b.click(); } } return; }
+  if(!$('#endCard').hidden){ if(e.key==='Escape'&&run.mode!=='defi'){ const b=!$('#contBtn').hidden?$('#contBtn'):null; if(b){ e.preventDefault(); b.click(); } } return; }   // défi : Échap ne recharge pas la page
   if(!$('#mgEnd').hidden){ if(e.key==='Escape'&&e.target!==$('#mgPseudo')){ e.preventDefault(); $('#mgQuit').click(); } return; }
   if(e.code==='KeyM'&&!e.repeat&&S.started&&!S.paused&&!S.mg){ openJournal(); return; }
   if(e.ctrlKey||e.metaKey||e.altKey) return;

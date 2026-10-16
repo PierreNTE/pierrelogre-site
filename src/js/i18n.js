@@ -4,7 +4,7 @@
 const T = {
 fr:{
   loading:"Le renard se réveille…", skip:"Le jeu tarde à se charger ? Voir le profil sans jouer", nogame:"Version sans jeu : ton navigateur n'affiche pas la 3D. Voici directement le terrier.",
-  legal:"<b>Mentions légales.</b> Site personnel non commercial de Pierre Logre, contact via LinkedIn. Hébergeur : OVH SAS, 2 rue Kellermann, 59100 Roubaix, France, tél. 1007. Aucun cookie : seuls tes réglages et ta partie restent dans ton navigateur. Mesure d'audience anonyme, sans cookie ni adresse IP, effacée après 13 mois. Si tu envoies un score au classement, ton pseudo et ton score sont publiés. <a href=\"/fr/mentions-legales/\">Mentions légales et confidentialité complètes</a>.",
+  legal:"<b>Mentions légales.</b> Site personnel non commercial de Pierre Logre, contact via LinkedIn. Hébergeur : OVH SAS, 2 rue Kellermann, 59100 Roubaix, France, tél. 1007. Aucun cookie : seuls tes réglages et ta partie restent dans ton navigateur. Mesure d'audience anonyme, sans cookie ni adresse IP, effacée après 13 mois. Si tu envoies un score ou un temps au classement, ton pseudo et ce résultat sont publiés. <a href=\"/fr/mentions-legales/\">Mentions légales et confidentialité complètes</a>.",
   nbTitle:"Bêtises du jour", fold:"replier", unfold:"déplier", reset:"recommencer", resetSure:"sûr ? clique encore",
   secret:"??? (bêtise secrète)", sound:"🔊 Son", muted:"🔇 Muet", who:"Qui est le renard ?", whoShort:"Profil", liChip:"Pierre", tYap:"Glapir", tGrab:"Attraper", hintGrab:"✋",
   help:'<kbd>ZQSD</kbd> bouger · <kbd>Maj</kbd> courir · <kbd>C</kbd> discret · <kbd>Espace</kbd> glapir · <kbd>E</kbd> attraper · <kbd>Molette</kbd> zoom', music:"♪ Musique", tZoom:"Zoom",
@@ -56,7 +56,7 @@ fr:{
 },
 en:{
   loading:"The fox is waking up…", skip:"Game taking a while? See the profile without playing", nogame:"No-game version: your browser can't display 3D. Here's the den directly.",
-  legal:"<b>Legal notice.</b> Non-commercial personal website of Pierre Logre, contact via LinkedIn. Host: OVH SAS, 2 rue Kellermann, 59100 Roubaix, France, phone +33 9 72 10 10 07. No cookies: only your settings and game progress stay in your browser. Anonymous audience measurement, no cookies, no IP address, deleted after 13 months. If you send a score to the leaderboard, your nickname and score are published. <a href=\"/legal/\">Full legal notice and privacy policy</a>.",
+  legal:"<b>Legal notice.</b> Non-commercial personal website of Pierre Logre, contact via LinkedIn. Host: OVH SAS, 2 rue Kellermann, 59100 Roubaix, France, phone +33 9 72 10 10 07. No cookies: only your settings and game progress stay in your browser. Anonymous audience measurement, no cookies, no IP address, deleted after 13 months. If you send a score or a time to a leaderboard, your nickname and that result are published. <a href=\"/legal/\">Full legal notice and privacy policy</a>.",
   nbTitle:"Today's mischief", fold:"fold", unfold:"unfold", reset:"restart", resetSure:"sure? click again",
   secret:"??? (secret mischief)", sound:"🔊 Sound", muted:"🔇 Muted", who:"Who's the fox?", whoShort:"About", liChip:"Pierre", tYap:"Yap", tGrab:"Grab", hintGrab:"✋",
   help:'<kbd>WASD</kbd> move · <kbd>Shift</kbd> run · <kbd>C</kbd> sneak · <kbd>Space</kbd> yap · <kbd>E</kbd> grab · <kbd>Wheel</kbd> zoom', music:"♪ Music", tZoom:"Zoom",
@@ -135,7 +135,7 @@ Object.assign(T.fr, {
   dailyNote: "5 bêtises tirées au sort, les mêmes pour tout le monde aujourd'hui.", dailyBest: s => `Ton record du jour : ${s}`,
   dailyLabel: "Défi du jour",
   endTitle: "Bêtises terminées !", endDaily: "Défi du jour réussi !", endSub: "Le village se remet doucement de ton passage.",
-  endDailySub: "Reviens demain : un nouveau défi t'attend.",
+  endDailySub: "Inscris ton temps au classement du jour, puis continue l'aventure. Demain, un nouveau défi t'attend.",
   endTime: "Temps", endBest: "Record", endCaught: "Attrapé", endSeen: "Repéré", times: n => n === 0 ? "jamais" : `${n} fois`,
   endFollow: "Suivre Pierre sur LinkedIn", endReplay: "Rejouer", endWho: "Voir le terrier", newBadge: "Nouveau !",
   acornTitle: n => `Gland doré ${n}/5`, acornCount: "Glands", acornClose: "Continuer", acornMore: "Plus sur LinkedIn ↗",
@@ -174,7 +174,7 @@ Object.assign(T.en, {
   dailyNote: "5 random mischiefs, the same for everyone today.", dailyBest: s => `Your best today: ${s}`,
   dailyLabel: "Daily challenge",
   endTitle: "All mischief done!", endDaily: "Daily challenge complete!", endSub: "The village is slowly recovering from your visit.",
-  endDailySub: "Come back tomorrow for a new challenge.",
+  endDailySub: "Put your time on today's leaderboard, then carry on with the adventure. A new challenge awaits tomorrow.",
   endTime: "Time", endBest: "Best", endCaught: "Caught", endSeen: "Spotted", times: n => n === 0 ? "never" : `${n}×`,
   endFollow: "Follow Pierre on LinkedIn", endReplay: "Play again", endWho: "See the den", newBadge: "New!",
   acornTitle: n => `Golden acorn ${n}/5`, acornCount: "Acorns", acornClose: "Continue", acornMore: "More on LinkedIn ↗",
@@ -272,7 +272,7 @@ Object.assign(T.en.ach, {
 /* ---------- 5.7 : première visite guidée, commandes tactiles ---------- */
 Object.assign(T.fr, {
   colon: " :",
-  aGame: "Monde du jeu : un renard dans un village vendéen et un bureau", aGoals: "Liste des bêtises", aClose: "Fermer", legalLink: "Mentions légales", presHi: "Salut ! Moi, c'est le renard.", presMischief: "Ici, je fais des bêtises…", presJoin: "Tu viens m'aider ?", aDone: "faite",
+  aGame: "Monde du jeu : un renard dans un village vendéen et un bureau", aGoals: "Liste des bêtises", aClose: "Fermer", legalLink: "Mentions légales", dailyLbTitle: "Classement du défi du jour", dlPseudo: "Ton pseudo pour le classement du jour (public) :", dlSentOnline: "Temps envoyé au classement du jour !", dlSentLocal: "Temps gardé dans ce navigateur.", dlEmpty: "Personne encore aujourd'hui : à toi de jouer !", dlToday: "Défi du jour (aujourd'hui)", presHi: "Salut ! Moi, c'est le renard.", presMischief: "Ici, je fais des bêtises…", presJoin: "Tu viens m'aider ?", aDone: "faite",
   tDrop: "Poser",
   tuto: {
     skip: "Passer", more: "La suite est ici !", n: (i, tot) => `Bêtise ${i}/${tot}`,
@@ -296,7 +296,7 @@ Object.assign(T.fr, {
 });
 Object.assign(T.en, {
   colon: ":",
-  aGame: "Game world: a fox in a village in Vendée and an office", aGoals: "Mischief list", aClose: "Close", legalLink: "Legal notice", presHi: "Hi! I'm the fox.", presMischief: "Around here, I cause mischief…", presJoin: "Want to help?", aDone: "done",
+  aGame: "Game world: a fox in a village in Vendée and an office", aGoals: "Mischief list", aClose: "Close", legalLink: "Legal notice", dailyLbTitle: "Today's challenge leaderboard", dlPseudo: "Your nickname for today's leaderboard (public):", dlSentOnline: "Time sent to today's leaderboard!", dlSentLocal: "Time saved in this browser.", dlEmpty: "Nobody yet today: your turn!", dlToday: "Daily challenge (today)", presHi: "Hi! I'm the fox.", presMischief: "Around here, I cause mischief…", presJoin: "Want to help?", aDone: "done",
   tDrop: "Drop",
   tuto: {
     skip: "Skip", more: "More mischief here!", n: (i, tot) => `Mischief ${i}/${tot}`,

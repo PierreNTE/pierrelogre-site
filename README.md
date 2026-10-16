@@ -80,10 +80,12 @@ src/
     ambient.js    vie ambiante : papillons, vols d'oiseaux, fumées, pollens, lapins, hérisson, grenouille, montgolfière
     hover.js      micro-interactions à la souris (survol, clic sur les habitants)
     dialogs.js    fenêtres accessibles : focus dedans, Tab en boucle, reste de la page inerte, retour du focus
+    dailyboard.js défi du jour réussi : classement du jour et envoi du temps (carte de fin)
     presentation.js  première visite : le renard se présente face au visiteur (4,8 s), puis la carte d'accueil revient
   legal.mjs, legal.js             mentions légales (FR / EN) et bouton « ne pas compter mes visites »
 supabase/leaderboard.sql   table + règles de sécurité du classement
 supabase/stats.sql         mesure d'audience sans cookie (table events, vues stats_*, effacement à 13 mois)
+supabase/daily.sql         classement du défi du jour (table daily_times, vue daily_leaderboard, effacement à 30 jours)
 tests/            run_all.py (tests), og.py (image d'aperçu), csp_server.py (serveur local avec la CSP)
 .github/workflows/deploy.yml   build + tests + envoi FTPS sur OVH à chaque push sur main
 ```
@@ -130,6 +132,9 @@ sur les scores du navigateur, et le carnet de voyage le signale.
 - Supabase met en pause un projet gratuit sans activité pendant 7 jours : le workflow
   `.github/workflows/keepalive.yml` le lit une fois par jour (une fois le dépôt sur GitHub).
 - Vider le classement : Supabase > SQL Editor > `delete from public.scores;` (ou une ligne : `where pseudo = '…'`).
+- Défi du jour : `supabase/daily.sql` (table `daily_times`, vue `daily_leaderboard` = meilleur temps de chaque pseudo
+  par jour, ajout limité à hier / aujourd'hui / demain, 10 s à 2 h, effacement après 30 jours). Client : `topDaily`,
+  `submitDaily` (`leaderboard.js`), carte de fin `dailyboard.js`, top du jour dans le carnet de voyage.
 
 ## Langues, référencement (SEO) et assistants IA (GEO)
 

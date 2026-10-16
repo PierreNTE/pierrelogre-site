@@ -167,10 +167,11 @@ export function showEndCard({ secs, unlocked, newBest }) {
   const best = daily ? saved.daily[run.day] : saved.best;
   const rows = [[T_.endTime, fmt(secs) + (newBest ? ` · ${T_.newBadge}` : '')], [T_.endBest, fmt(best)], [T_.endCaught, T_.times(run.caught)], [T_.endSeen, T_.times(run.alerts)]];
   $('#endStats').innerHTML = rows.map(([k, v]) => `<div><dt>${k}</dt><dd>${v}</dd></div>`).join('');
-  $('#contBtn').hidden = daily; $('#replayBtn').hidden = !daily;
+  // Défi du jour : « Continuer l'aventure » passe à la partie libre (la campagne), « Rejouer » relance le défi
+  $('#contBtn').hidden = false; $('#replayBtn').hidden = !daily; $('#endLb').hidden = !daily;
   $('#endAch').innerHTML = daily ? '' : ACH.map(id => `<span class="medal-s${saved.ach[id] ? ' on' : ''}${unlocked.includes(id) ? ' new' : ''}" title="${T_.ach[id][1]}"><i></i>${T_.ach[id][0]}${unlocked.includes(id) ? ` <b>${T_.newBadge}</b>` : ''}</span>`).join('');
   $('#endLi').href = CONFIG.linkedin;
-  $('#endCard').hidden = false; $(daily ? '#replayBtn' : '#contBtn').focus({ preventScroll: true });
+  $('#endCard').hidden = false; $('#contBtn').focus({ preventScroll: true });
   if (!RM) confetti();
 }
 $('#endLi').addEventListener('click', () => track('Clic LinkedIn', { depuis: 'fin' }));

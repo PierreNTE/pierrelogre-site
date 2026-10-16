@@ -27,6 +27,7 @@ Lance un serveur local qui reproduit la CSP stricte d'OVH (.htaccess), puis vér
      reprise qui l'attend sans rien perdre
  19. première visite : le renard se présente (5 s au plus), une seule fois, passée d'une touche, jamais si animations réduites
  20. mentions légales : pages FR / EN complètes, liées partout, lisibles sans JavaScript ; « ne pas compter mes visites »
+ 21. défi du jour réussi : classement du jour (faux Supabase), « Continuer l'aventure » vers la partie libre
 Aucune erreur console n'est tolérée.
 """
 import asyncio, json, os, re, subprocess, sys, time, functools, http.server, threading
@@ -71,8 +72,19 @@ async def offline_lb(ctx, rows=None, seen=None, down=False):
     """Les tests n'écrivent jamais dans le vrai classement : un faux serveur Supabase (PostgREST) répond à sa place.
     down=True : serveur en panne (503), pour vérifier le repli local."""
     rows = [] if rows is None else rows
+    daily = seen.setdefault('daily_rows', []) if seen is not None else []
     async def fake(route):
         req = route.request; h = req.headers
+        if '/rest/v1/daily' in req.url:    # classement du défi du jour : à part (table daily_times, vue daily_leaderboard)
+            if req.method == 'POST':
+                d = json.loads(req.post_data or '{}'); daily.append(d)
+                if seen is not None: seen.setdefault('daily_post', []).append({'url': req.url, 'body': d, 'prefer': h.get('prefer'), 'apikey': h.get('apikey')})
+                await route.fulfill(status=201, body=''); return
+            if seen is not None: seen.setdefault('daily_get', []).append(req.url)
+            day = (re.search(r'day=eq\.([0-9-]+)', req.url) or [None, ''])[1]; best = {}
+            for d in daily:
+                if d.get('day') == day: best[d['pseudo']] = min(best.get(d['pseudo'], 1e9), d['secs'])
+            await route.fulfill(status=200, content_type='application/json', body=json.dumps(sorted([{'pseudo': k, 'secs': v} for k, v in best.items()], key=lambda x: x['secs'])[:10])); return
         if '/rest/v1/events' in req.url:   # mesure d'audience : notée à part, jamais mêlée au classement
             if seen is not None and req.method == 'POST': seen.setdefault('events', []).extend(json.loads(req.post_data or '[]')); seen.setdefault('ev_headers', []).append({k: h.get(k) for k in ('apikey', 'authorization', 'prefer', 'cookie')})
             await route.fulfill(status=201, body=''); return
@@ -201,6 +213,42 @@ async def test_daily(browser):
     await js(pg, "document.querySelector('#dailyBtn').click(); await wait(500);")
     r = await js(pg, "return {mode:F.run.mode, n:F.run.goals.length, li:document.querySelectorAll('#goals li').length, label:document.querySelector('#nbMode').textContent};")
     check('défi du jour : 5 bêtises', r['mode'] == 'defi' and r['n'] == 5 and r['li'] == 5, json.dumps(r))
+    await ctx.close()
+
+async def test_daily_end(browser):
+    """Défi du jour réussi : classement du jour (temps envoyé, meilleur temps par pseudo), « Continuer l'aventure »
+    qui passe à la partie libre, « Rejouer » ; le carnet de voyage montre aussi le top du jour."""
+    seen = {'daily_rows': [{'day': '', 'pseudo': 'Renarde', 'secs': 61.2}]}
+    ctx = await browser.new_context(viewport={'width': 1024, 'height': 700}); await offline_lb(ctx, [], seen)
+    await ctx.add_init_script("window.__foxNoCine=true; try{ if(!sessionStorage.getItem('seed')){ sessionStorage.setItem('seed','1'); localStorage.setItem('fox-betises-v2', JSON.stringify({tuto:1, acorns:[0,1,2,3,4]})); } }catch(e){}")
+    pg = await ctx.new_page(); errs = []
+    pg.on('pageerror', lambda e: errs.append('pageerror: ' + str(e)))
+    pg.on('console', lambda m: errs.append(f'{m.type}: {m.text}') if m.type in ('error', 'warning') and 'preloaded using link preload' not in m.text else None)
+    await pg.goto(URL, timeout=120000); await ready(pg)
+    day = await pg.evaluate("()=>window.__fox.run.day || (()=>{ const d=new Date(); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`; })()")
+    seen['daily_rows'][0]['day'] = day
+    r = await js(pg, """F.start('defi'); await wait(400); F.run.elapsed=83.44; for(const g of [...F.run.goals]) F.completeGoal(g);
+        for(let i=0;i<60&&document.querySelector('#endCard').hidden;i++) await wait(100); for(let i=0;i<60&&!document.querySelector('#dlTop .empty, #dlTop li span');i++) await wait(100); await wait(400);
+        const q=s=>document.querySelector(s);
+        return {card:!q('#endCard').hidden, lb:!q('#endLb').hidden, cont:!q('#contBtn').hidden&&q('#contBtn').textContent, replay:!q('#replayBtn').hidden, focus:document.activeElement.id,
+                top:[...document.querySelectorAll('#dlTop li')].map(li=>li.textContent), online:q('#dlOnline').textContent, day:F.run.day};""")
+    await pg.fill('#dlPseudo', 'Pierre'); await pg.click('#dlSend'); await pg.wait_for_timeout(1200)
+    r2 = await pg.evaluate("()=>({sent:document.querySelector('#dlSent').textContent, top:[...document.querySelectorAll('#dlTop li')].map(li=>li.textContent), me:!!document.querySelector('#dlTop li.me')})")
+    post = (seen.get('daily_post') or [{}])[0]
+    check('défi du jour réussi : classement du jour (temps au dixième), « Continuer l’aventure » et « Rejouer »', r['card'] and r['lb'] and r['cont'] in ("Continue the adventure", "Continuer l'aventure")
+          and r['replay'] and r['focus'] == 'contBtn' and r['top'] and 'Renarde' in r['top'][0] and '1:01.2' in r['top'][0] and r['day'] == day, json.dumps(r, ensure_ascii=False))
+    check('défi du jour : temps envoyé (jour, pseudo, secondes), meilleur temps par pseudo, mon rang surligné', post.get('body') == {'day': day, 'pseudo': 'Pierre', 'secs': 83.4}
+          and 'daily_times' in post.get('url', '') and post.get('prefer') == 'return=minimal' and r2['me'] and any('Pierre' in x and '1:23.4' in x for x in r2['top'])
+          and any(f'day=eq.{day}' in u and 'order=secs.asc' in u for u in seen.get('daily_get', [])), json.dumps({'post': post, **r2}, ensure_ascii=False))
+    # « Continuer l'aventure » : la page se recharge en partie libre
+    async with pg.expect_navigation(timeout=120000): await pg.click('#contBtn')
+    await ready(pg)
+    await pg.wait_for_function('()=>window.__fox.S.started===true', timeout=60000)
+    c = await pg.evaluate("()=>({mode:window.__fox.run.mode, started:window.__fox.S.started, goals:window.__fox.run.goals.length, intro:document.querySelector('#intro').hidden})")
+    j = await js(pg, "F.dev.skipTuto(); F.openJournal('lb'); for(let i=0;i<60&&!document.querySelector('#jDaily li span');i++) await wait(100); return [...document.querySelectorAll('#jDaily li')].map(li=>li.textContent);")
+    check('« Continuer l’aventure » : passe à la partie libre ; le carnet de voyage montre le top du jour', c['mode'] == 'libre' and c['started'] and c['goals'] >= 13 and c['intro']
+          and j and 'Renarde' in j[0] and any('Pierre' in x for x in j), json.dumps({**c, 'carnet': j}, ensure_ascii=False))
+    check('aucune erreur console (défi du jour réussi)', not errs, '; '.join(errs[:3]))
     await ctx.close()
 
 async def test_fallbacks(browser_factory):
@@ -827,7 +875,7 @@ async def main():
         launch = lambda args: p.chromium.launch(args=args)
         b = await launch(GL)
         only = [x for x in os.environ.get('TESTS', '').split(',') if x]
-        for t in (test_playthrough, test_stealth_and_drop, test_daily, test_mobile_and_perf, test_world, test_first_minute, test_touch_feel, test_reactions, test_leaderboard_online, test_languages, test_stats, test_accessibility, test_lazy_regions, test_presentation, test_legal):
+        for t in (test_playthrough, test_stealth_and_drop, test_daily, test_daily_end, test_mobile_and_perf, test_world, test_first_minute, test_touch_feel, test_reactions, test_leaderboard_online, test_languages, test_stats, test_accessibility, test_lazy_regions, test_presentation, test_legal):
             if only and t.__name__ not in only: continue
             try: await t(b)
             except Exception as e:

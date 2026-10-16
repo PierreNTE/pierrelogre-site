@@ -35,6 +35,7 @@ import './regions/index.js';
 import { ACHIEVEMENTS, checkAch, grant, markDay } from './achievements.js';
 import { closeJournal, openJournal, refreshJournal } from './journal.js';
 import { openDialogs } from './dialogs.js';
+import { showDailyBoard } from './dailyboard.js';
 import { endPresentation, maybePresent, presentFrame, presentInfo, presenting } from './presentation.js';
 import { MG, endMinigameNow, mgCamera, startMinigame, updateMinigame } from './minigame.js';
 import { DAY, GOALS, MAIN_IDS, S, endBoot, modalOpen, pick, rnd, run, saved, store, t } from './state.js';
@@ -267,9 +268,11 @@ onFinish(() => {
   }
   store.set(saved); saveRun(); renderGoals(); $('#clock').textContent = fmt(secs);
   track('Partie terminée', { mode: run.mode, secondes: Math.round(secs) });
-  setTimeout(() => { if (MG.active) return; S.paused = true; showEndCard({ secs, unlocked, newBest }); }, 1400);
+  setTimeout(() => { if (MG.active) return; S.paused = true; showEndCard({ secs, unlocked, newBest }); if (run.mode === 'defi') showDailyBoard(secs, run.day); }, 1400);
 });
-$('#contBtn').addEventListener('click', () => { $('#endCard').hidden = true; S.paused = false; canvas.focus(); checkAch(); });
+// Défi du jour fini : on passe à la partie libre (reprise de la partie en cours s'il y en a une)
+function toCampaign() { try { sessionStorage.setItem('fox-autostart', peekRun('libre') ? 'libre-resume' : 'libre'); } catch (e) { /* facultatif */ } location.reload(); }
+$('#contBtn').addEventListener('click', () => { if (run.mode === 'defi') { toCampaign(); return; } $('#endCard').hidden = true; S.paused = false; canvas.focus(); checkAch(); });
 function replay() { clearRun(run.mode); try { sessionStorage.setItem('fox-autostart', run.mode); } catch (e) { /* facultatif */ } location.reload(); }
 $('#replayBtn').addEventListener('click', replay);
 $('#endWho').addEventListener('click', openBurrow);

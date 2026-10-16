@@ -13,6 +13,15 @@ Version 5.11 : mentions légales complètes, présentation du renard, renard plu
   « Jouer » la passent ; jamais si l'appareil demande de réduire les animations.
 - Renard redessiné : tête un peu plus grosse, grands yeux brillants, museau plus court, joues plus
   discrètes, pattes fines noires jusqu'au coude comme un vrai renard roux, queue plus touffue.
+- Défi du jour réussi : bouton « Continuer l'aventure » (on passe à la partie libre, en reprenant la
+  partie en cours s'il y en a une) et classement du jour (meilleur temps de chaque pseudo, au dixième de
+  seconde), aussi visible dans le carnet de voyage (onglet Classement). « Rejouer » relance le défi.
+
+À FAIRE UNE FOIS : créer le classement du défi du jour dans Supabase
+---------------------------------------------------------------------
+supabase.com > projet « pierrelogre-classement » > SQL Editor > New query : colle tout le contenu du
+fichier supabase/daily.sql (dans foxsite-source.zip, ou le fichier daily.sql livré à part), puis Run.
+Tant que ce n'est pas fait, le classement du jour reste celui du navigateur du joueur.
 
 Version 5.10 : mesure d'audience, téléphones, chargement, accessibilité
 -----------------------------------------------------------------------
@@ -134,18 +143,20 @@ Supabase gratuit « pierrelogre-classement » (Paris) dans ton organisation Pier
   Si le projet est en pause, le jeu continue avec le classement du navigateur.
 - Retirer un pseudo : supabase.com > projet > SQL Editor > delete from public.scores where pseudo = 'xxx';
 
-Mise en ligne automatique (facultative, recommandée)
-----------------------------------------------------
-Le dossier source (foxsite-source.zip) contient un workflow GitHub Actions :
-à chaque modification poussée sur GitHub, il construit le site, lance les tests,
-puis l'envoie sur OVH en FTPS. Pour l'activer :
-1. Crée un dépôt privé sur GitHub et pousse-y le contenu de foxsite-source.zip.
-2. Dans le dépôt : Settings > Secrets and variables > Actions, crée :
+Mise en ligne automatique (recommandée)
+--------------------------------------
+Le dossier source contient le workflow GitHub Actions .github/workflows/deploy.yml : à chaque mise à jour
+de la branche main, GitHub construit le site, lance tous les tests, et seulement s'ils passent, envoie le
+site sur OVH en FTPS (miroir exact du dossier www/). Ce qu'il faut faire une fois :
+1. Sur github.com, crée un dépôt PRIVÉ vide (sans README), par exemple « pierrelogre-site ».
+2. Dans ce dépôt : Settings > Secrets and variables > Actions > New repository secret, crée :
      OVH_FTP_HOST      ftp.cluster121.hosting.ovh.net
      OVH_FTP_USER      ton identifiant FTP (espace client OVH > Hébergement > FTP-SSH)
      OVH_FTP_PASSWORD  ton mot de passe FTP
    Ces identifiants ne doivent jamais apparaître ailleurs (ni dans le code, ni dans un message).
-3. Onglet Actions > « Déploiement pierrelogre.com » > Run workflow.
+3. Donne le nom du dépôt à Claude : il y envoie le code ; le premier déploiement part tout seul.
+Ensuite, chaque modification arrive sous forme de « pull request » : un clic sur « Merge » la met en ligne.
+Suivi : onglet Actions du dépôt (vert = en ligne, rouge = rien n'a été envoyé, le site reste tel quel).
 
 Ajouter un monde plus tard
 --------------------------

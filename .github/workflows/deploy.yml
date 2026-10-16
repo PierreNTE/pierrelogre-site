@@ -1,4 +1,5 @@
-# Build, tests, puis déploiement sur l'hébergement OVH à chaque push sur main.
+# Build, tests, puis déploiement sur l'hébergement OVH à chaque push sur main (rien n'est envoyé si un test échoue).
+# Le miroir supprime sur OVH les fichiers qui ne sont plus dans le site (sauf .ovhconfig).
 # Secrets à créer dans GitHub (Settings > Secrets and variables > Actions) :
 #   OVH_FTP_HOST      ex. ftp.cluster121.hosting.ovh.net
 #   OVH_FTP_USER      identifiant FTP de l'hébergement (espace client OVH > Hébergement > FTP-SSH)
@@ -12,6 +13,7 @@ concurrency: deploy
 jobs:
   build-test-deploy:
     runs-on: ubuntu-latest
+    timeout-minutes: 75   # la suite de tests tourne en rendu logiciel : 20 à 40 min
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
