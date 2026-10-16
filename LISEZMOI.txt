@@ -9,8 +9,8 @@ Version 5.11 : mentions légales complètes, présentation du renard, renard plu
   navigateur, mesure d'audience, classement, droits RGPD et CNIL, accessibilité, crédits.
 - Bouton « Ne pas compter mes visites sur ce navigateur » sur cette page (la mesure d'audience le respecte).
 - Première visite : le renard se présente en moins de 5 secondes (gros plan, il regarde le visiteur et
-  lui parle en trois bulles), puis la carte d'accueil revient. Une seule fois ; un clic, une touche ou
-  « Jouer » la passent ; jamais si l'appareil demande de réduire les animations.
+  lui parle en trois bulles), puis la carte d'accueil revient. Une seule fois. Un clic ou un toucher passe à la
+  bulle suivante ; Échap ou « Jouer » arrêtent tout ; jamais si l'appareil demande de réduire les animations.
 - Renard redessiné : tête un peu plus grosse, grands yeux brillants, museau plus court, joues plus
   discrètes, pattes fines noires jusqu'au coude comme un vrai renard roux, queue plus touffue.
 - Défi du jour réussi : bouton « Continuer l'aventure » (on passe à la partie libre, en reprenant la

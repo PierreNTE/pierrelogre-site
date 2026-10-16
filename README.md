@@ -185,8 +185,8 @@ Même projet Supabase que le classement, règles dans `supabase/stats.sql`. Le c
 
 `presentation.js` : si rien n'est encore gardé dans le navigateur, quand le jeu est prêt, la caméra descend face au
 renard qui se présente en trois bulles (textes `presHi`, `presMischief`, `presJoin` dans `i18n.js`), puis la carte
-d'accueil revient : 4,8 s, sur l'horloge réelle à partir de la première image. Un clic, une touche ou « Jouer » la
-passent ; jamais avec « réduire les animations » ni dans les tests qui posent `window.__foxNoCine`. Pendant ce temps,
+d'accueil revient : 4,8 s, sur l'horloge réelle à partir de la première image. Un clic, un toucher ou une touche passent
+à la bulle suivante (consigne en bas de l'écran), Échap ou « Jouer » l'arrêtent ; jamais avec « réduire les animations » ni dans les tests qui posent `window.__foxNoCine`. Pendant ce temps,
 la vue est raccourcie et les régions voisines attendent pour se construire. `F.dev.present()` la rejoue.
 
 ## Premier chargement
