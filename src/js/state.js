@@ -9,6 +9,8 @@ export const store = {
   set(v, key = 'fox-betises-v2') { if (S.bench) return; try { localStorage.setItem(key, JSON.stringify(v)); } catch (e) { /* stockage indisponible */ } },   // test de performance : rien n'est sauvegardé
   del(key) { if (S.bench) return; try { localStorage.removeItem(key); } catch (e) { /* idem */ } },
 };
+/** Première visite : rien n'a encore été gardé dans ce navigateur (le renard se présente, voir presentation.js). */
+export const FIRST_VISIT = (() => { try { return localStorage.getItem('fox-betises-v2') === null; } catch (e) { return false; } })();
 /** Préférences et succès, gardés d'une partie à l'autre. */
 export const saved = Object.assign({ ach: {}, best: null, lang: null, muted: false, acorns: [], daily: {}, stats: {}, days: [], pseudo: '', mgBest: 0 }, store.get());
 
@@ -17,6 +19,7 @@ export const S = {
   // anglais par défaut ; français sur /fr/ ; le choix du visiteur (bouton FR / EN) l'emporte (boot.js a déjà réglé <html lang>)
   lang: saved.lang === 'fr' || saved.lang === 'en' ? saved.lang : document.documentElement.lang === 'fr' ? 'fr' : 'en',
   regionsLoaded: false,   // toutes les régions sont-elles arrivées ? (voir regions/lazy.js)
+  presenting: false,      // le renard se présente (presentation.js)
   paused: true, muted: !!saved.muted, coffeeShake: 0, printing: 0, sneakToggle: false, started: false, time: 0,
 };
 export const t = () => T[S.lang];

@@ -6,6 +6,7 @@ import path from 'node:path';
 import * as esbuild from 'esbuild';
 import crypto from 'node:crypto';
 import { T } from './src/js/i18n.js';
+import { LEGAL, LEGAL_UPDATED } from './src/legal.mjs';
 
 const ROOT = path.dirname(new URL(import.meta.url).pathname);
 const SRC = p => path.join(ROOT, 'src', p);
@@ -32,7 +33,7 @@ const escB = s => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace
 // Textes de la carte d'accueil dans chaque langue, glissés dans boot.js : si le visiteur a choisi l'autre langue,
 // la carte s'affiche d'emblée dans la sienne (la page elle-même est en anglais à « / », en français à « /fr/ »)
 const intro = L => ({ introH1: L.introH1, introP: escB(L.introP), introKeys: L.keys.map(([k, v]) => `<kbd>${escB(k)}</kbd><span>${escB(v)}</span>`).join(''),
-  startBtn: escB(L.start), dailyBtn: escB(L.daily), newBtn: escB(L.newGame), dailyNoteTxt: escB(L.dailyNote), introWho: escB(L.introWho), loaderSkip: escB(L.skip), langBtn2: L === T.fr ? 'EN' : 'FR' });
+  startBtn: escB(L.start), dailyBtn: escB(L.daily), newBtn: escB(L.newGame), dailyNoteTxt: escB(L.dailyNote), introWho: escB(L.introWho), legalLink: escB(L.legalLink), loaderSkip: escB(L.skip), langBtn2: L === T.fr ? 'EN' : 'FR' });
 // Supabase (classement + mesure d'audience) : seule une clé PUBLIQUE est acceptée (publishable, ou ancienne clé anon)
 const LB = CFG.leaderboard || {}, PUBKEY = LB.publishableKey || LB.anonKey || '';
 { let role = null; if (/^eyJ/.test(PUBKEY)) { try { role = JSON.parse(Buffer.from(PUBKEY.split('.')[1], 'base64url').toString()).role; } catch (e) { role = '?'; } }
@@ -52,7 +53,8 @@ function makeBody(lang) {
     .replace(/(<([a-z0-9]+)\b[^>]*\bdata-t="([A-Za-z]+)"[^>]*>)(<\/\2>)/g,
       (m, open, tag, key, close) => (key in F && typeof F[key] === 'string') ? open + esc(F[key]) + close : m)
     .replace(/data-a="([A-Za-z]+)" aria-label=""/g, (m, key) => `data-a="${key}" aria-label="${esc(F[key] || '')}"`)
-    .replace(/(id="langBtn2?"[^>]*>)FR(<\/button>)/g, (m, a, b) => a + (lang === 'fr' ? 'EN' : 'FR') + b);
+    .replace(/(id="langBtn2?"[^>]*>)FR(<\/button>)/g, (m, a, b) => a + (lang === 'fr' ? 'EN' : 'FR') + b)
+    .replace('id="legalLink" href="/legal/"', `id="legalLink" href="/${LEGAL[lang].path}"`);
   const fill = (id, inner) => {
     const re = new RegExp(`(<([a-z0-9]+)\\b[^>]*\\bid="${id}"[^>]*>)(</\\2>)`);
     if (!re.test(body)) throw new Error('élément introuvable : #' + id);
@@ -286,8 +288,39 @@ fs.writeFileSync(path.join(OUT, '.well-known/security.txt'), `Contact: ${CFG.lin
 fs.writeFileSync(path.join(OUT, '404.html'), `<!doctype html>
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="robots" content="noindex">
 <title>Page not found · Pierre Logre</title><link rel="icon" href="/favicon.svg" type="image/svg+xml"><link rel="stylesheet" href="/${A.css}"></head>
-<body class="p404"><main class="overlay"><div class="card"><h1 class="title">The fox <em>ate</em> this page.</h1><p>It doesn't exist, or not anymore. The rest of the village is fine (for now).</p><p class="en" lang="fr">Le renard a mangé cette page. Le reste du village est intact (pour l'instant).</p><div class="card-actions"><a class="big" href="/">Back to the village</a><a class="alt" href="/fr/" lang="fr">Version française</a></div></div></main></body></html>
+<body class="p404"><main class="overlay"><div class="card"><h1 class="title">The fox <em>ate</em> this page.</h1><p>It doesn't exist, or not anymore. The rest of the village is fine (for now).</p><p class="en" lang="fr">Le renard a mangé cette page. Le reste du village est intact (pour l'instant).</p><div class="card-actions"><a class="big" href="/">Back to the village</a><a class="alt" href="/fr/" lang="fr">Version française</a></div><p class="doc-foot"><a href="/legal/">Legal notice</a> · <a href="/fr/mentions-legales/" lang="fr">Mentions légales</a></p></div></main></body></html>
 `);
+// Mentions légales et confidentialité : une page par langue (/legal/, /fr/mentions-legales/), lisible sans JavaScript ;
+// le bouton « ne pas compter mes visites » (assets/legal.js) garde ce choix dans le navigateur, boot.js le respecte
+const legalJs = (await esbuild.transform(read(SRC('legal.js')), { minify: true, target: 'es2015' })).code;
+fs.writeFileSync(path.join(OUT, 'assets/legal.js'), legalJs);
+for (const lang of ['fr', 'en']) {
+  const L = LEGAL[lang], other = lang === 'fr' ? 'en' : 'fr', url = SITE + L.path, J = L.js;
+  const btn = `<button type="button" id="statsBtn" hidden data-on="${esc(J.on)}" data-off="${esc(J.off)}" data-dnt="${esc(J.dnt)}" data-stop="${esc(J.stop)}" data-again="${esc(J.again)}"></button>`;
+  const body = L.sections(CFG.linkedin).map(([h, html]) => `<section>\n<h2>${esc(h)}</h2>\n${html}\n</section>`).join('\n')
+    .replace('<button type="button" id="statsBtn" hidden></button>', btn);
+  if (!body.includes('data-stop=')) throw new Error('mentions légales : bouton de la mesure d\'audience introuvable');
+  fs.mkdirSync(path.join(OUT, L.path), { recursive: true });
+  fs.writeFileSync(path.join(OUT, L.path, 'index.html'), `<!doctype html>
+<html lang="${lang}" class="doc"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>${esc(L.title)}</title>
+<meta name="description" content="${esc(L.desc)}">
+<meta name="referrer" content="strict-origin-when-cross-origin"><meta name="theme-color" content="#cfe3cf">
+<link rel="canonical" href="${url}">
+<link rel="alternate" hreflang="${lang}" href="${url}"><link rel="alternate" hreflang="${other}" href="${SITE + LEGAL[other].path}">
+<link rel="icon" href="/favicon.svg" type="image/svg+xml"><link rel="stylesheet" href="/${A.css}"></head>
+<body><main>
+<nav class="doc-nav" aria-label="${lang === 'fr' ? 'Navigation' : 'Navigation'}"><a href="${L.home}">${esc(L.back)}</a><a href="${L.other}" lang="${other}" hreflang="${other}">${esc(L.otherLabel)}</a></nav>
+<article class="sheet">
+<h1>${L.h1}</h1>
+<p class="muted">${esc(L.updated)}${lang === 'fr' ? ' :' : ':'} ${LEGAL_UPDATED[lang]}</p>
+${body}
+</article>
+</main>
+<script src="/assets/legal.js${v(legalJs)}"></script>
+</body></html>
+`);
+}
 let htaccess = read(SRC('htaccess.conf'));
 if (umami) {
   const host = new URL(CFG.umami.src).origin;

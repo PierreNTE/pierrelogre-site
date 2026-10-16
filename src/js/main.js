@@ -35,6 +35,7 @@ import './regions/index.js';
 import { ACHIEVEMENTS, checkAch, grant, markDay } from './achievements.js';
 import { closeJournal, openJournal, refreshJournal } from './journal.js';
 import { openDialogs } from './dialogs.js';
+import { endPresentation, maybePresent, presentFrame, presentInfo, presenting } from './presentation.js';
 import { MG, endMinigameNow, mgCamera, startMinigame, updateMinigame } from './minigame.js';
 import { DAY, GOALS, MAIN_IDS, S, endBoot, modalOpen, pick, rnd, run, saved, store, t } from './state.js';
 import * as KIT from './regions/kit.js';
@@ -150,9 +151,12 @@ function frame(ts) {
       lead.x += (fox.vel.x * .32 - lead.x) * Math.min(1, dt * 1.5); lead.z += (fox.vel.z * .26 - lead.z) * Math.min(1, dt * 1.5);
       const idleK = Math.min(1, Math.max(0, fox.idle - 3) / 4); _p.x += lead.x + Math.sin(now * .21) * .35 * idleK; _p.z += lead.z + Math.sin(now * .16 + 1) * .25 * idleK;
     }
-    if (S.cine) { cam.target.lerp(_p, 1 - Math.pow(.15, dt)); if (performance.now() > S.cine.end) endCine(); }
-    else if (RM) cam.target.copy(_p); else cam.target.lerp(_p, 1 - Math.pow(.002, dt));
-    camera.position.copy(cam.target).addScaledVector(CAM_OFF, cam.zoom); camera.position.y += (fox.lift || 0) * .8; camera.lookAt(cam.target.x, (fox.lift || 0) * .8, cam.target.z);
+    if (presenting() && presentFrame(dt, _p)) { /* première visite : le renard se présente (presentation.js place la caméra) */ }
+    else {
+      if (S.cine) { cam.target.lerp(_p, 1 - Math.pow(.15, dt)); if (performance.now() > S.cine.end) endCine(); }
+      else if (RM) cam.target.copy(_p); else cam.target.lerp(_p, 1 - Math.pow(.002, dt));
+      camera.position.copy(cam.target).addScaledVector(CAM_OFF, cam.zoom); camera.position.y += (fox.lift || 0) * .8; camera.lookAt(cam.target.x, (fox.lift || 0) * .8, cam.target.z);
+    }
     if (Math.abs(cam.zoom - zPrev) > 1e-4 || fogDirty) { fogDirty = false; const md = S.mood || {}; scene.fog.near = (md.near || 40) * cam.zoom; scene.fog.far = (md.far || 75) * cam.zoom; if (!OG) { camera.far = scene.fog.far + 14; camera.updateProjectionMatrix(); } const sc = sun.shadow.camera, k = Math.max(1, cam.zoom); sc.left = -24 * k; sc.right = 24 * k; sc.top = 22 * k; sc.bottom = -22 * k; sc.updateProjectionMatrix(); }
   }
   // Couleurs du ciel et du brouillard selon la région
@@ -206,6 +210,7 @@ function restoreWorld() {
 /* ---------- Démarrage ---------- */
 function start(mode, resume) {
   if (S.started) return;
+  endPresentation();   // « Jouer » pendant la présentation du renard : elle s'arrête là
   // Une partie reprise a besoin de toutes les régions (celles déjà ouvertes, l'endroit où était le renard) : elle les attend.
   // Une partie neuve commence tout de suite, au village.
   if (mode === 'libre' && resume && !S.regionsLoaded && !regionsFailed) {
@@ -350,7 +355,7 @@ window.__fox = { scene, camera, THREE: { Vector3: THREE.Vector3 }, pseudoOk,   /
   renderer, findPath, NAV, los, cam, setZoom, fox, items, npcs, props, acorns, completeGoal, yap, grabOrDrop, dropHeld,
   run, saved, S, Q, startPrint, openBurrow, start, canSee, gardener, sales,
   REGIONS, RG, unlockRegion, fauna: HERDS, DAY, WALK, blockedAt, endMinigameNow, balloonDebug, GOALS, interacts, travelTo, teleport, ensureBuilt, startMinigame, MG, checkAch, grant, ACHIEVEMENTS, openJournal, closeJournal,
-  dev: { KIT, setBuild, resolve, pace, PACE, TUTO, skipTuto, stick, nearestTarget, lb: { top: lbTop, submit: lbSubmit }, gaitStep, openDialogs },   // galerie d'objets, collisions, cadence, visite guidée (tests)
+  dev: { KIT, setBuild, resolve, pace, PACE, TUTO, skipTuto, stick, nearestTarget, lb: { top: lbTop, submit: lbSubmit }, gaitStep, openDialogs, presenting, presentInfo, present: () => maybePresent(true) },   // galerie d'objets, collisions, cadence, visite guidée (tests)
   screenOf: obj => toScreen(posOf(obj).clone().setY((posOf(obj).y || 0) + 2.6)), get paused() { return S.paused; },
 };
 endBoot();   // le village est construit : le jeu reprend le hasard ordinaire
@@ -362,4 +367,5 @@ document.querySelectorAll('#intro [aria-busy]').forEach(b => b.removeAttribute('
 if (peekRun('libre') && !S.regionsLoaded) $('#startBtn').setAttribute('aria-busy', 'true');   // « Reprendre » attend les régions
 $('#loaderSkip').hidden = true;
 if (window.__foxPending && !S.started && !OG) { const m = window.__foxPending; window.__foxPending = null; try { start(m, m === 'libre' && !!peekRun('libre')); } catch (e) { console.error(e); } }
+if (!S.started && !OG) maybePresent();   // première visite : le renard se présente (5 s au plus), puis la carte d'accueil revient
 frame();

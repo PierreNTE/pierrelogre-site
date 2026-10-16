@@ -1,6 +1,19 @@
 pierrelogre.com · le renard fait des bêtises (version 5 : le monde s'agrandit)
 ============================================================================
 
+Version 5.11 : mentions légales complètes, présentation du renard, renard plus mignon
+--------------------------------------------------------------------------------------
+- Page « Mentions légales et confidentialité » en français (pierrelogre.com/fr/mentions-legales/) et
+  en anglais (pierrelogre.com/legal/), lisible sans JavaScript, liée depuis la carte d'accueil, la fiche
+  « Qui est le renard ? » et la page 404 : éditeur, hébergeur, cookies (aucun), ce qui est gardé dans le
+  navigateur, mesure d'audience, classement, droits RGPD et CNIL, accessibilité, crédits.
+- Bouton « Ne pas compter mes visites sur ce navigateur » sur cette page (la mesure d'audience le respecte).
+- Première visite : le renard se présente en moins de 5 secondes (gros plan, il regarde le visiteur et
+  lui parle en trois bulles), puis la carte d'accueil revient. Une seule fois ; un clic, une touche ou
+  « Jouer » la passent ; jamais si l'appareil demande de réduire les animations.
+- Renard redessiné : tête un peu plus grosse, grands yeux brillants, museau plus court, joues plus
+  discrètes, pattes fines noires jusqu'au coude comme un vrai renard roux, queue plus touffue.
+
 Version 5.10 : mesure d'audience, téléphones, chargement, accessibilité
 -----------------------------------------------------------------------
 - Mesure d'audience sans cookie (Supabase, même projet que le classement) : visites, parties,
@@ -107,7 +120,8 @@ Mise en ligne (manuelle, par FileZilla)
    les certificats payants ne sont pas utiles, pas plus que l'option « Visibilité Pro » (gestion payante
    de présence en ligne) : le site n'en dépend pas.
 3. Ouvre https://pierrelogre.com en navigation privée (en anglais), https://pierrelogre.com/fr/ (en français),
-   puis https://pierrelogre.com/nimporte-quoi (la page 404 du renard doit s'afficher).
+   puis https://pierrelogre.com/nimporte-quoi (la page 404 du renard doit s'afficher) et
+   https://pierrelogre.com/fr/mentions-legales/ (les mentions légales).
 4. Retire pierrelogre.com du projet Vercel « pierre-logre » (Settings > Domains) si ce n'est pas fait.
 
 Classement partagé (Supabase)

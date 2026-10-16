@@ -5,10 +5,12 @@
   /* ---------- Mesure d'audience sans cookie (supabase/stats.sql) ----------
      Un numéro de visite tiré au hasard à chaque chargement, gardé seulement en mémoire : impossible de reconnaître
      un visiteur d'une fois sur l'autre. Ni cookie, ni stockage, ni adresse IP enregistrée. Seulement sur
-     pierrelogre.com (jamais en test ni dans l'aperçu), et jamais si le navigateur demande « Do Not Track » ou GPC. */
+     pierrelogre.com (jamais en test ni dans l'aperçu), et jamais si le navigateur demande « Do Not Track » ou GPC,
+     ni si le visiteur l'a coupée sur la page des mentions légales. */
   var ST=/*STATS*/null, host=location.hostname;
+  var nostats=false; try{ nostats=localStorage.getItem('fox-nostats')==='1'; }catch(e){}   // choix fait sur la page des mentions légales
   var allowed=!!ST&&(host==='pierrelogre.com'||host==='www.pierrelogre.com'||window.__foxStatsTest===true)
-    &&!(navigator.globalPrivacyControl===true||navigator.doNotTrack==='1'||window.doNotTrack==='1');
+    &&!(navigator.globalPrivacyControl===true||navigator.doNotTrack==='1'||window.doNotTrack==='1'||nostats);
   var visit=''; while(visit.length<10) visit+=Math.random().toString(36).slice(2);
   visit=visit.slice(0,12).replace(/[^a-z0-9]/g,'a');
   var sw=Math.min(screen.width||innerWidth,screen.height||innerHeight);
@@ -61,6 +63,7 @@
   if(lang!==page&&INTRO&&INTRO[lang]){
     document.documentElement.lang=lang;
     for(var id in INTRO[lang]){ var el=$(id); if(el) el.innerHTML=INTRO[lang][id]; }
+    var ll=$('legalLink'); if(ll) ll.href=lang==='fr'?'/fr/mentions-legales/':'/legal/';
   }
   // Un clic sur Jouer pendant le chargement est retenu : la partie démarre dès que le jeu est prêt
   function queue(mode,btn){ return function(e){ if(window.__foxBoot) return; e.preventDefault(); window.__foxPending=mode; btn.classList.add('queued'); }; }

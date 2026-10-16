@@ -25,6 +25,8 @@ Lance un serveur local qui reproduit la CSP stricte d'OVH (.htaccess), puis vér
      tout au clavier : focus dans les fenêtres, Tab qui y reste, Échap, retour du focus, indices et onglets au clavier
  18. premier chargement allégé : régions lointaines dans un fichier à part (retenu exprès) ; jeu jouable sans lui, partie
      reprise qui l'attend sans rien perdre
+ 19. première visite : le renard se présente (5 s au plus), une seule fois, passée d'une touche, jamais si animations réduites
+ 20. mentions légales : pages FR / EN complètes, liées partout, lisibles sans JavaScript ; « ne pas compter mes visites »
 Aucune erreur console n'est tolérée.
 """
 import asyncio, json, os, re, subprocess, sys, time, functools, http.server, threading
@@ -436,7 +438,8 @@ async def test_touch_feel(browser):
     await js(pg, "F.start('libre', false); await wait(500); document.querySelector('#toasts').insertAdjacentHTML('beforeend','<div class=\"toast\">Bêtise accomplie : test de chevauchement assez long</div>'); await wait(200);")
     r1 = await pg.evaluate(OVERLAP_JS)
     await pg.screenshot(path=f'{OUT}/touch_landscape_tuto.png', timeout=120000)
-    await js(pg, "F.dev.skipTuto(); await wait(900); const nb=document.querySelector('#notebook'); for(let i=0;i<40&&nb.getAnimations().length;i++) await wait(100);")   # fin de l'entrée du carnet
+    # fin de l'entrée du carnet : on attend qu'elle commence (classe nb-new), puis que son animation soit finie
+    await js(pg, "F.dev.skipTuto(); const nb=document.querySelector('#notebook'); for(let i=0;i<60&&!nb.classList.contains('nb-new');i++) await wait(100); await wait(200); for(let i=0;i<60&&nb.getAnimations().some(a=>a.animationName==='nbIn');i++) await wait(100); await wait(100);")
     r2 = await pg.evaluate(OVERLAP_JS)
     check('téléphone à l’horizontale (844×390) : rien ne se chevauche, ni pendant ni après la visite', not r1['overlaps'] and not r1['off'] and not r2['overlaps'] and not r2['off'], json.dumps({'pendant': r1, 'après': r2}))
     await pg.screenshot(path=f'{OUT}/touch_landscape.png', timeout=120000)
@@ -652,6 +655,99 @@ async def test_lazy_regions(browser):
     check('aucune erreur console (régions chargées après le démarrage)', not errs, '; '.join(errs[:3]))
     await ctx.close()
 
+async def test_presentation(browser):
+    """Première visite : le renard se présente (5 s au plus) face au visiteur, puis la carte d'accueil revient ; une seule fois ;
+    passée par une touche ; arrêtée par « Jouer » ; jamais avec « réduire les animations ».
+    En rendu logiciel, les premières images prennent plusieurs secondes : on vérifie d'abord que la présentation a bien eu lieu
+    à la première visite, puis on la rejoue (F.dev.present) une fois le jeu fluide pour en contrôler le déroulé."""
+    ctx = await browser.new_context(viewport={'width': 1280, 'height': 760}); await offline_lb(ctx)
+    pg = await ctx.new_page(); errs = []
+    pg.on('pageerror', lambda e: errs.append('pageerror: ' + str(e)))
+    pg.on('console', lambda m: errs.append(f'{m.type}: {m.text}') if m.type in ('error', 'warning') and 'preloaded using link preload' not in m.text else None)
+    await pg.goto(URL, timeout=120000); await ready(pg)
+    await pg.wait_for_function('()=>!window.__fox.dev.presenting()', timeout=120000)
+    r0 = await pg.evaluate("()=>({...window.__fox.dev.presentInfo, saved:JSON.parse(localStorage.getItem('fox-betises-v2')||'{}').presented, card:!document.documentElement.classList.contains('presenting')})")
+    check('première visite : la présentation du renard se lance d’elle-même, puis est notée comme vue', r0['ran'] == 1 and r0['frames'] >= 1 and r0['saved'] == 1 and r0['card'], json.dumps(r0))
+    await pg.wait_for_timeout(3000)   # régions voisines construites : images plus rapides
+    r = await pg.evaluate("""async()=>{ const F=window.__fox; const fogFar=F.scene.fog.far; F.dev.present(); const t0=performance.now(), on0=F.dev.presenting(), cls=document.documentElement.classList.contains('presenting');
+        while(F.dev.presenting() && performance.now()-t0<30000) await new Promise(r=>setTimeout(r,40));
+        for(let i=0;i<100&&getComputedStyle(document.querySelector('#intro')).opacity!=='1';i++) await new Promise(r=>setTimeout(r,50));   // fondu de retour de la carte
+        const I=F.dev.presentInfo;
+        return {on0, cls, lines:I.lines, frames:I.frames, near:I.near, end:I.end, dur:I.dur, card:!document.documentElement.classList.contains('presenting'),
+                op:getComputedStyle(document.querySelector('#intro')).opacity, camY:+F.camera.position.y.toFixed(1), fog:F.scene.fog.far===fogFar}; }""")
+    # Rendu logiciel : quelques images seulement en 4,8 s (une bulle peut être sautée) ; sur un vrai appareil, les trois s'affichent
+    check('présentation : gros plan face au renard qui parle, finie à l’horloge (4,8 s), puis carte d’accueil et vue habituelle',
+          r['on0'] and r['cls'] and r['near'] < 7 and r['lines'] and r['lines'][0] == "Hi! I'm the fox." and r['end'] == 'temps' and r['dur'] <= 5
+          and r['card'] and r['op'] == '1' and r['camY'] > 10 and r['fog'], json.dumps(r))
+    await pg.screenshot(path=f'{OUT}/presentation_after.png', timeout=120000)
+    await pg.reload(timeout=120000); await ready(pg); await pg.wait_for_timeout(500)
+    again = await pg.evaluate("()=>window.__fox.dev.presentInfo.ran")
+    check('présentation vue une fois : elle ne revient pas au chargement suivant', again == 0, f'lancée {again} fois')
+    await ctx.close()
+    # Passée d'une touche ; arrêtée par « Jouer » (téléphone)
+    ctx = await browser.new_context(viewport={'width': 390, 'height': 844}, is_mobile=True, has_touch=True); await offline_lb(ctx)
+    await ctx.add_init_script("window.__foxNoCine=true")
+    pg = await ctx.new_page(); pg.on('pageerror', lambda e: errs.append('pageerror: ' + str(e)))
+    await pg.goto(URL, timeout=120000); await ready(pg)
+    k = await pg.evaluate("""()=>{ const F=window.__fox; F.dev.present(); const on=F.dev.presenting(), hidden=document.hidden;
+        dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+        return {on, hidden, end:F.dev.presentInfo.end, after:F.dev.presenting(), card:!document.documentElement.classList.contains('presenting'), saved:JSON.parse(localStorage.getItem('fox-betises-v2')||'{}').presented}; }""")
+    on = k['on'] and k['end'] == 'keydown' and not k['after']
+    s = await js(pg, "F.dev.present(); const on=F.dev.presenting(); F.start('libre', false); await wait(300); return {on, after:F.dev.presenting(), started:F.S.started, cls:document.documentElement.classList.contains('presenting')};")
+    check('présentation passée par une touche, et arrêtée par « Jouer » (téléphone)', on and k['card'] and k['saved'] == 1 and s['on'] and not s['after'] and s['started'] and not s['cls'], json.dumps({'on': on, **k, 'jouer': s}))
+    await ctx.close()
+    ctx = await browser.new_context(viewport={'width': 1024, 'height': 700}, reduced_motion='reduce'); await offline_lb(ctx)
+    pg = await ctx.new_page(); await pg.goto(URL, timeout=120000); await ready(pg); await pg.wait_for_timeout(500)
+    rm = await pg.evaluate("()=>window.__fox.dev.presentInfo.ran")
+    check('« réduire les animations » : pas de présentation', rm == 0, f'lancée {rm} fois')
+    check('aucune erreur console (présentation)', not errs, '; '.join(errs[:3]))
+    await ctx.close()
+
+async def test_legal(browser):
+    """Mentions légales : une page par langue, lisible sans JavaScript, liée depuis l'accueil, la fiche et la page 404 ;
+    éditeur, hébergeur, cookies (aucun), mesure d'audience, droits, CNIL ; aucune donnée privée ; « ne pas compter mes visites »."""
+    import urllib.request
+    got = {}
+    for path in ('legal/', 'fr/mentions-legales/', 'nimporte-quoi'):
+        try: html = urllib.request.urlopen(URL + path).read().decode()
+        except urllib.error.HTTPError as e: html = e.read().decode()
+        got[path] = html
+    en, fr, p404 = (got[k].replace('\u00a0', ' ') for k in ('legal/', 'fr/mentions-legales/', 'nimporte-quoi'))   # espaces insécables lus comme des espaces
+    need = ['OVH SAS', '2 rue Kellermann', '59100 Roubaix', '424 761 419', 'Supabase', '13', 'CNIL', 'linkedin.com/in/', 'Three.js', 'Open Font License']
+    private = re.compile(r'siret|879 121|@gmail|pierre\.logre1|cv-pierre-logre', re.I)
+    check('mentions légales : page anglaise et française complètes (éditeur, hébergeur, cookies, mesure, droits, CNIL, crédits)',
+          all(n in en for n in need) and all(n in fr for n in need) and '<html lang="en"' in en and '<html lang="fr"' in fr
+          and 'no cookies' in en and 'aucun cookie' in fr and 'article 1-1' in fr and not private.search(en + fr),
+          ', '.join(n for n in need if n not in en or n not in fr))
+    check('page 404 : liens vers les mentions légales', 'href="/legal/"' in p404 and 'href="/fr/mentions-legales/"' in p404)
+    ctx = await browser.new_context(viewport={'width': 1024, 'height': 700}); await offline_lb(ctx)
+    await ctx.add_init_script("window.__foxNoCine=true; window.__foxStatsTest=true")
+    pg = await ctx.new_page(); errs = []
+    pg.on('pageerror', lambda e: errs.append('pageerror: ' + str(e)))
+    pg.on('console', lambda m: errs.append(f'{m.type}: {m.text}') if m.type in ('error', 'warning') else None)
+    await pg.goto(URL, timeout=120000); await ready(pg)
+    r = await pg.evaluate("""()=>({card:document.querySelector('#legalLink').getAttribute('href'), cardTxt:document.querySelector('#legalLink').textContent,
+        fiche:[...document.querySelectorAll('#bLegal a')].map(a=>a.getAttribute('href')), stats:window.__foxStats.on})""")
+    await pg.goto(URL + 'fr/', timeout=120000); await ready(pg)
+    r2 = await pg.evaluate("()=>({card:document.querySelector('#legalLink').getAttribute('href'), fiche:[...document.querySelectorAll('#bLegal a')].map(a=>a.getAttribute('href'))})")
+    check('accueil et fiche : lien vers les mentions légales de la bonne langue', r['card'] == '/legal/' and r['cardTxt'] == 'Legal notice' and r['fiche'] == ['/legal/']
+          and r2['card'] == '/fr/mentions-legales/' and r2['fiche'] == ['/fr/mentions-legales/'], json.dumps({'en': r, 'fr': r2}))
+    # « Ne pas compter mes visites » : choix gardé dans le navigateur, respecté par la mesure d'audience, réversible
+    await pg.goto(URL + 'legal/', timeout=120000)
+    b0 = await pg.evaluate("()=>({btn:document.querySelector('#statsBtn').textContent, hidden:document.querySelector('#statsBtn').hidden, state:document.querySelector('#statsState').textContent})")
+    await pg.click('#statsBtn'); b1 = await pg.evaluate("()=>({flag:localStorage.getItem('fox-nostats'), state:document.querySelector('#statsState').textContent})")
+    await pg.goto(URL, timeout=120000); await ready(pg); off = await pg.evaluate("()=>window.__foxStats.on")
+    await pg.goto(URL + 'legal/', timeout=120000); await pg.click('#statsBtn'); b2 = await pg.evaluate("()=>localStorage.getItem('fox-nostats')")
+    await pg.goto(URL, timeout=120000); await ready(pg); back = await pg.evaluate("()=>window.__foxStats.on")
+    check('mentions légales : « ne pas compter mes visites » coupe la mesure d’audience, et se rétablit', r['stats'] and not b0['hidden'] and b1['flag'] == '1'
+          and b0['state'] != b1['state'] and off is False and b2 is None and back is True, json.dumps({'avant': b0, 'coupé': b1, 'mesure': [r['stats'], off, back]}, ensure_ascii=False))
+    await ctx.close()
+    ctx = await browser.new_context(java_script_enabled=False, viewport={'width': 390, 'height': 800}); pg = await ctx.new_page()
+    await pg.goto(URL + 'fr/mentions-legales/'); txt = await pg.inner_text('main'); sw = await pg.evaluate("()=>document.documentElement.scrollWidth")
+    check('mentions légales lisibles sans JavaScript, au téléphone (sans défilement horizontal)', 'Hébergement' in txt and 'CNIL' in txt and sw <= 390, f'largeur {sw}')
+    check('aucune erreur console (mentions légales)', not errs, '; '.join(errs[:3]))
+    await ctx.close()
+
 AXE_JS = os.path.join(ROOT, 'node_modules', 'axe-core', 'axe.min.js')
 AXE_RUN = """async(sel)=>{ const r = await axe.run(sel ? document.querySelector(sel) : document, { resultTypes: ['violations'],
   runOnly: { type: 'tag', values: ['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'best-practice'] } });
@@ -716,10 +812,12 @@ async def test_accessibility(browser):
     m1 = await pg.evaluate(act); await pg.keyboard.press('Space'); await pg.wait_for_timeout(300)
     m2 = await pg.evaluate("()=>document.querySelector('#burrow').hidden")
     check('souris : fiche fermée → retour au jeu, Espace ne la rouvre pas', m1 == 'game' and m2, f'{m1} · fiche cachée {m2}')
+    await pg.goto(URL + 'legal/'); await audit('mentions_en')
+    await pg.goto(URL + 'fr/mentions-legales/'); await audit('mentions_fr')
     pre = len(errs)
     await pg.goto(URL + 'nimporte-quoi'); await audit('404')
     extra = errs[pre:]   # la page 404 elle-même répond 404 (attendu, une seule ligne) ; rien d'autre n'est toléré
-    check('accessibilité : aucune erreur axe-core (WCAG 2.1 AA) sur accueil, fiche, jeu, carnet, 404', not found, json.dumps(found, ensure_ascii=False)[:400])
+    check('accessibilité : aucune erreur axe-core (WCAG 2.1 AA) sur accueil, fiche, jeu, carnet, mentions légales, 404', not found, json.dumps(found, ensure_ascii=False)[:400])
     check('aucune erreur console (accessibilité)', not errs[:pre] and len(extra) <= 1 and all('status of 404' in e for e in extra), '; '.join(errs[:3]))
     await ctx.close()
 
@@ -729,7 +827,7 @@ async def main():
         launch = lambda args: p.chromium.launch(args=args)
         b = await launch(GL)
         only = [x for x in os.environ.get('TESTS', '').split(',') if x]
-        for t in (test_playthrough, test_stealth_and_drop, test_daily, test_mobile_and_perf, test_world, test_first_minute, test_touch_feel, test_reactions, test_leaderboard_online, test_languages, test_stats, test_accessibility, test_lazy_regions):
+        for t in (test_playthrough, test_stealth_and_drop, test_daily, test_mobile_and_perf, test_world, test_first_minute, test_touch_feel, test_reactions, test_leaderboard_online, test_languages, test_stats, test_accessibility, test_lazy_regions, test_presentation, test_legal):
             if only and t.__name__ not in only: continue
             try: await t(b)
             except Exception as e:

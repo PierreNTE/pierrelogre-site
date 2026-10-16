@@ -330,7 +330,7 @@ export function travelTo(id) { const R = RG[id]; if (!R || !isOpen(id)) return; 
 let acc = 0;
 const anims = [];
 export function tick(dt, force) {
-  buildStep();
+  if (!S.presenting) buildStep();   // pas pendant la présentation du renard : elle reste fluide
   // Animations d'ouverture au temps réel (fluides même si l'image ralentit)
   const nowMs = performance.now();
   for (let i = anims.length - 1; i >= 0; i--) { const a = anims[i]; a.t0 ??= nowMs + (a.delay || 0) * 1000; if (nowMs < a.t0) continue; a.t = (nowMs - a.t0) / (a.dur * 1000); a.fn(Math.min(1, a.t)); if (a.t >= 1) anims.splice(i, 1); }

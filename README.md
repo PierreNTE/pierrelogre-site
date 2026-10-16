@@ -80,6 +80,8 @@ src/
     ambient.js    vie ambiante : papillons, vols d'oiseaux, fumées, pollens, lapins, hérisson, grenouille, montgolfière
     hover.js      micro-interactions à la souris (survol, clic sur les habitants)
     dialogs.js    fenêtres accessibles : focus dedans, Tab en boucle, reste de la page inerte, retour du focus
+    presentation.js  première visite : le renard se présente face au visiteur (4,8 s), puis la carte d'accueil revient
+  legal.mjs, legal.js             mentions légales (FR / EN) et bouton « ne pas compter mes visites »
 supabase/leaderboard.sql   table + règles de sécurité du classement
 supabase/stats.sql         mesure d'audience sans cookie (table events, vues stats_*, effacement à 13 mois)
 tests/            run_all.py (tests), og.py (image d'aperçu), csp_server.py (serveur local avec la CSP)
@@ -165,6 +167,22 @@ Même projet Supabase que le classement, règles dans `supabase/stats.sql`. Le c
 - Lien partagé sur LinkedIn : ajouter `?utm_source=linkedin` pour le voir dans `stats_sources`.
 - Umami (facultatif, en plus) : renseigner `umami.src` et `umami.websiteId` dans `src/site.config.json` ; le build
   ajoute le script et autorise son domaine dans la CSP.
+
+## Mentions légales et confidentialité
+
+- Texte dans `src/legal.mjs` (FR et EN), pages générées par `build.mjs` : `/legal/` et `/fr/mentions-legales/`.
+  Site édité à titre non professionnel (LCEN art. 1-1, II) : nom de l'éditeur, hébergeur complet, contact LinkedIn.
+- À mettre à jour dès qu'une donnée nouvelle est collectée ou stockée (liste « stockage dans ton navigateur »),
+  et la date `LEGAL_UPDATED`. Le résumé court de la fiche est `legal` dans `i18n.js`.
+- `assets/legal.js` : bouton « ne pas compter mes visites » (clé `fox-nostats`, respectée par `boot.js`).
+
+## Présentation du renard (première visite)
+
+`presentation.js` : si rien n'est encore gardé dans le navigateur, quand le jeu est prêt, la caméra descend face au
+renard qui se présente en trois bulles (textes `presHi`, `presMischief`, `presJoin` dans `i18n.js`), puis la carte
+d'accueil revient : 4,8 s, sur l'horloge réelle à partir de la première image. Un clic, une touche ou « Jouer » la
+passent ; jamais avec « réduire les animations » ni dans les tests qui posent `window.__foxNoCine`. Pendant ce temps,
+la vue est raccourcie et les régions voisines attendent pour se construire. `F.dev.present()` la rejoue.
 
 ## Premier chargement
 

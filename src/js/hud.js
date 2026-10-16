@@ -209,6 +209,7 @@ $('#menuBtn').addEventListener('click', () => { const tr = $('#topRight'); const
 export function applyLang(textures = true) {
   document.documentElement.lang = S.lang;
   document.querySelectorAll('[data-t]').forEach(el => { const v = t()[el.dataset.t]; if (typeof v === 'string') el.textContent = v; });
+  const ll = $('#legalLink'); if (ll) ll.href = S.lang === 'fr' ? '/fr/mentions-legales/' : '/legal/';   // mentions légales dans la langue choisie
   document.querySelectorAll('[data-a]').forEach(el => { const v = t()[el.dataset.a]; if (typeof v === 'string') el.setAttribute('aria-label', v); });
   $('#help').innerHTML = t().help; $('#introH1').innerHTML = t().introH1;
   $('#introKeys').innerHTML = t().keys.map(([k, v]) => `<kbd>${k}</kbd><span>${v}</span>`).join('');

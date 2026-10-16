@@ -43,6 +43,7 @@ html:has(#intro:not([hidden])) :is(#notebook,#topRight,#touch,#help){visibility:
 #nogameNote{font-family:var(--font-hand);font-size:17px;color:var(--tan);margin:0 0 6px}
 .legal{margin-top:34px;padding-top:14px;border-top:1px dashed rgba(240,199,158,.3);font-size:12.5px;line-height:1.5;color:#bfae97;max-width:70ch}
 .legal b{color:#d9c7ae;font-weight:700}
+.legal a{color:#ffcf9e}
 
 /* ---------- Carnet ---------- */
 #notebook{box-sizing:border-box;position:fixed;top:calc(14px + env(safe-area-inset-top,0px));left:14px;width:min(330px,calc(100vw - 28px));background:var(--paper);
@@ -413,3 +414,33 @@ html.mg #game{cursor:crosshair;touch-action:none}
   .acorn-icon{font-size:30px!important}
   .big{font-size:17px;padding:8px 18px}
 }
+
+/* Bas de la carte d'accueil : « Qui est le renard ? » et le lien des mentions légales */
+.card .intro-foot{display:flex;flex-wrap:wrap;align-items:baseline;gap:4px 16px;margin:12px 0 0}
+.card .intro-foot .who-link{display:inline;margin:0}
+.card .legal-link{font-size:13.5px;color:var(--ink-soft)}
+@media (max-width:700px),(max-height:500px){.card .intro-foot{margin-top:6px}}
+
+/* Présentation du renard (première visite) : la carte d'accueil s'efface le temps qu'il se présente */
+#intro{transition:opacity .35s ease}
+html.presenting #intro{opacity:0;pointer-events:none}
+.bubble.talk{font-size:24px;padding:6px 16px;border-radius:16px;max-width:min(82vw,440px);white-space:normal;text-align:center}
+
+/* Pages de texte (mentions légales) : on fait défiler et on peut sélectionner le texte */
+html.doc,html.doc body{height:auto;overflow:auto;touch-action:auto;user-select:text;-webkit-user-select:text}
+.doc main{max-width:780px;margin:0 auto;padding:22px 16px 56px;box-sizing:border-box}
+.doc-nav{display:flex;flex-wrap:wrap;justify-content:space-between;gap:8px 16px;margin:0 0 14px;font-weight:700}
+.doc a{color:#0a58a8}
+.doc .sheet{background:var(--paper);border-radius:18px;padding:26px 28px 20px;box-shadow:0 10px 30px rgba(40,50,30,.14)}
+.doc h1{font:800 clamp(28px,5vw,40px)/1.1 var(--font-ui);margin:0 0 4px}
+.doc h1 em{font-style:normal;color:var(--fox-text)}
+.doc h2{font:800 20px/1.25 var(--font-ui);margin:26px 0 6px}
+.doc p,.doc li{font-size:16px;line-height:1.55}
+.doc ul{padding-left:22px;margin:6px 0 10px}
+.doc .muted{color:var(--ink-soft);font-size:14.5px}
+.doc .opt{display:flex;flex-wrap:wrap;align-items:center;gap:6px 14px;margin:10px 0;padding:10px 14px;border-radius:12px;background:#f1e9d2}
+.doc .opt p{margin:0}
+.doc .opt button{border:0;border-radius:999px;padding:8px 16px;font:700 15px var(--font-ui);background:var(--fox-deep);color:#fff}
+@media (max-width:540px){.doc .sheet{padding:20px 16px 14px}}
+.p404 .doc-foot{margin:14px 0 0;font-size:13.5px;color:var(--ink-soft)}
+.p404 .doc-foot a{color:var(--ink-soft)}
