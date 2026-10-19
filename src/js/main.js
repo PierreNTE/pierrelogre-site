@@ -355,7 +355,7 @@ if (OG) {
 }
 window.__fox = { scene, camera, THREE: { Vector3: THREE.Vector3 }, pseudoOk,   // seulement Vector3 : exposer tout THREE empêcherait d'alléger Three.js au build (−38 Ko compressés)
  
-  renderer, findPath, NAV, los, cam, setZoom, fox, items, npcs, props, acorns, completeGoal, yap, grabOrDrop, dropHeld,
+  renderer, findPath, NAV, los, cam, setZoom, fox, items, npcs, props, acorns, completeGoal, yap, grabOrDrop, dropHeld, destinationFor,
   run, saved, S, Q, startPrint, openBurrow, start, canSee, gardener, sales,
   REGIONS, RG, unlockRegion, fauna: HERDS, DAY, WALK, blockedAt, endMinigameNow, balloonDebug, GOALS, interacts, travelTo, teleport, ensureBuilt, startMinigame, MG, checkAch, grant, ACHIEVEMENTS, openJournal, closeJournal,
   dev: { KIT, setBuild, resolve, pace, PACE, TUTO, skipTuto, stick, nearestTarget, lb: { top: lbTop, submit: lbSubmit }, gaitStep, openDialogs, presenting, presentInfo, present: () => maybePresent(true) },   // galerie d'objets, collisions, cadence, visite guidée (tests)

@@ -15,6 +15,19 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 75   # la suite de tests tourne en rendu logiciel : 20 à 40 min
     steps:
+      # Secrets pas encore remplis (créés avec la valeur A_REMPLIR) : on s'arrête tout de suite, sans 30 min de tests pour rien
+      - name: Secrets OVH remplis ?
+        env:
+          HOST: ${{ secrets.OVH_FTP_HOST }}
+          USER: ${{ secrets.OVH_FTP_USER }}
+          PASS: ${{ secrets.OVH_FTP_PASSWORD }}
+        run: |
+          for v in "$HOST" "$USER" "$PASS"; do
+            if [ -z "$v" ] || [ "$v" = "A_REMPLIR" ]; then
+              echo "::error::Remplis les 3 secrets OVH (Settings > Secrets and variables > Actions), puis relance : onglet Actions > Déploiement pierrelogre.com > Run workflow."
+              exit 1
+            fi
+          done
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:

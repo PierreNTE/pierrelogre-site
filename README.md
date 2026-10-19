@@ -86,7 +86,8 @@ src/
 supabase/leaderboard.sql   table + règles de sécurité du classement
 supabase/stats.sql         mesure d'audience sans cookie (table events, vues stats_*, effacement à 13 mois)
 supabase/daily.sql         classement du défi du jour (table daily_times, vue daily_leaderboard, effacement à 30 jours)
-tests/            run_all.py (tests), og.py (image d'aperçu), csp_server.py (serveur local avec la CSP)
+tests/            run_all.py (tests), audit_rings.js (toutes les bêtises atteignables, anneaux de dépôt fidèles),
+                  og.py (image d'aperçu), csp_server.py (serveur local avec la CSP)
 .github/workflows/deploy.yml   build + tests + envoi FTPS sur OVH à chaque push sur main
 ```
 
@@ -151,6 +152,9 @@ sur les scores du navigateur, et le carnet de voyage le signale.
    Autre région : l'ajouter dans `goals` et `i18n` de la région.
 3. Appeler `completeGoal('mon-id')` au bon moment (souvent dans `actions.js`).
 4. Compléter la partie scriptée dans `tests/run_all.py`.
+5. Objet à déposer quelque part : l'anneau (`W.dest`) et la règle qui valide (`W.place`) doivent couvrir la même
+   zone, quel que soit le sens du renard (objet tombé dans l'anneau, ou renard dans l'anneau). `test_rings` le vérifie,
+   ainsi que chaque zone, glapissement, ramassage, action et carte postale atteignables à pied.
 
 ## Mesure d'audience sans cookie (Supabase)
 

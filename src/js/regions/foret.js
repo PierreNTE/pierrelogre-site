@@ -214,12 +214,20 @@ defineRegion({
     W.pickups('champignons', [[-35, -30], [-8, -50], [27, -58], [-38, -60], [6, -77], [16, -34], [-24, -70]], mush, { y: .12, spin: false, r: .75 });
     W.postcard(-40, -77.5);
     // --- Destinations des objets ---
+    // L'étang est une ellipse (1,2 fois plus large que haute) bordée de rochers : la hache compte dès la berge, ponton compris,
+    // ou si le renard a les pattes au bord de l'eau (même tourné vers la forêt). Elle coule toujours dans l'eau, pas sur la berge.
+    const inPond = (p, m) => ((p.x - POND.x) / (POND.r * 1.2 + m)) ** 2 + ((p.z - POND.z) / (POND.r + m)) ** 2 < 1;
+    const AXE = { x: POND.x + POND.r * 1.2 + .5, z: POND.z + .6 };   // anneau au bout du ponton, là où le renard peut se tenir
+    const axeIn = it => inPond(it.pos, 1.3) || (!fox.held && flat2(it.pos, fox.pos) < 1.3 && (inPond(fox.pos, 1.9) || flat2(fox.pos, AXE) < 1.3));
     W.place(it => {
-      if (it.kind === 'hache' && flat2(it.pos, POND) < POND.r + 1.2) { it.gone = true; it.sinking = 1; it.pos.y = .6; W.SFX.splash(); W.emit(new THREE.Vector3(it.pos.x, .5, it.pos.z), '#bfe3f0', { n: 20, spd: 2.2, up: 5 }); W.complete('hache'); giveUp(it); return true; }
+      if (it.kind === 'hache' && axeIn(it)) {
+        const nx = (it.pos.x - POND.x) / 1.2, nz = it.pos.z - POND.z, nd = Math.hypot(nx, nz), k = nd > 4.4 ? 4.4 / nd : 1;
+        it.pos.x = POND.x + nx * 1.2 * k; it.pos.z = POND.z + nz * k;
+        it.gone = true; it.sinking = 1; it.pos.y = .6; W.SFX.splash(); W.emit(new THREE.Vector3(it.pos.x, .5, it.pos.z), '#bfe3f0', { n: 20, spd: 2.2, up: 5 }); W.complete('hache'); giveUp(it); return true; }
       if (it.kind === 'sandwich' && flat2(it.pos, { x: LOG.x + 2.4, z: LOG.z }) < 1.6) { it.gone = true; it.mesh.visible = false; W.SFX.grab(); W.complete('sandwich'); giveUp(it); return true; }
       return false;
     });
-    W.dest(it => it.kind === 'hache' && !W.done('hache') ? { key: 'etang', pos: new THREE.Vector3(POND.x + POND.r, 0, POND.z), r: 1.2 }
+    W.dest(it => it.kind === 'hache' && !W.done('hache') ? { key: 'etang', pos: new THREE.Vector3(AXE.x, 0, AXE.z), r: 1.2 }
       : it.kind === 'sandwich' && !W.done('sandwich') ? { key: 'tronc', pos: new THREE.Vector3(LOG.x + 2.6, 0, LOG.z), r: .9 } : null);
     // --- Barrière : un gros tronc tombé en travers du chemin ---
     const trunk = new THREE.Group(); const tk = cyl(.55, .6, 6, '#8a5a3b', 0, 0, 0, 9, trunk); tk.rotation.z = Math.PI / 2; [-1.5, .8, 2].forEach(x => sph(.45, '#6f9e4f', x, .5, rnd(-.3, .3), trunk, 1, false));

@@ -137,16 +137,23 @@ defineRegion({
     // Objets lâchés au bord de l'eau
     const floats = [];
     const sendFloat = (it, keep) => { floats.push({ it, keep }); it.gone = true; it.held = false; W.SFX.splashSmall(); giveUp(it); };
+    // Ce qui compte comme « dans l'eau » suit l'anneau qui guide le renard : objet lâché dans le courant, renard au bord
+    // de l'eau avec la chaussette ou la bouteille (même tourné vers la berge), ou n'importe quoi lâché du haut du pont
+    // (avant, lâché au milieu du pont, l'objet restait sur le pont).
+    const DAM_RING = { x: DAM.x, z: DAM.z - 1.2 };
     W.place(it => {
-      const inWater = it.pos.z > RIVER.z0 - .7 && it.pos.x > -33 && it.pos.x < 32 && Math.abs(it.pos.x - 10) > 1.6;
-      if (it.kind === 'baton' && flat2(it.pos, DAM) < 2.2) { it.gone = true; it.mesh.visible = false; W.progress('castor', it.id); W.say({ anchor: new THREE.Vector3(DAM.x + 1.6, 1.4, DAM.z - 1.1) }, t().castorThanks, 'note', 1.6, 0, 'castor'); beaver.userData.happy = 1.5; return true; }
+      const dropped = !fox.held && flat2(it.pos, fox.pos) < 1.3;
+      const onBridge = dropped && Math.abs(fox.pos.x - 10) < 1.6 && fox.pos.z > RIVER.z0 && fox.pos.z < RIVER.z1;
+      const fromBank = dropped && (it.kind === 'chaussette' || it.kind === 'bouteille') && fox.pos.z > RIVER.z0 - 1 && fox.pos.x > -33 && fox.pos.x < 32 && Math.abs(fox.pos.x - 10) > 1.6;
+      const inWater = onBridge || fromBank || (it.pos.z > RIVER.z0 - .7 && it.pos.x > -33 && it.pos.x < 32 && Math.abs(it.pos.x - 10) > 1.6);
+      if (it.kind === 'baton' && (flat2(it.pos, DAM) < 2.2 || flat2(it.pos, DAM_RING) < 1.3 || (dropped && flat2(fox.pos, DAM_RING) < 1.3))) { it.gone = true; it.mesh.visible = false; W.progress('castor', it.id); W.say({ anchor: new THREE.Vector3(DAM.x + 1.6, 1.4, DAM.z - 1.1) }, t().castorThanks, 'note', 1.6, 0, 'castor'); beaver.userData.happy = 1.5; return true; }
       if (!inWater) return false;
       if (it.kind === 'chaussette') { sendFloat(it, true); W.say({ anchor: new THREE.Vector3(it.pos.x, 1.6, RIVER.z0 + .6) }, t().sockAway, 'note', 1.8, 0, 'sock'); W.complete('chaussette'); return true; }
       if (it.kind === 'bouteille') { sendFloat(it, true); W.say({ anchor: new THREE.Vector3(it.pos.x, 1.6, RIVER.z0 + .6) }, t().bottle, 'note', 2.4, 0, 'bottle'); W.complete('bouteille'); return true; }
       // Tout autre objet part au fil de l'eau… puis réapparaît à sa place (le courant le ramène)
       sendFloat(it, false); return true;
     });
-    W.dest(it => it.kind === 'baton' && !W.done('castor') ? { key: 'barrage', pos: new THREE.Vector3(DAM.x, 0, DAM.z - 1.2), r: 1.2 }
+    W.dest(it => it.kind === 'baton' && !W.done('castor') ? { key: 'barrage', pos: new THREE.Vector3(DAM_RING.x, 0, DAM_RING.z), r: 1.2 }
       : (it.kind === 'chaussette' && !W.done('chaussette')) || (it.kind === 'bouteille' && !W.done('bouteille')) ? { key: 'riviere', pos: new THREE.Vector3(fox.pos.x, 0, RIVER.z0), r: 1 } : null);
     // Portillon de la clôture
     const gate = new THREE.Group(); const leaf = new THREE.Group(); leaf.position.x = -1.2; gate.add(leaf);

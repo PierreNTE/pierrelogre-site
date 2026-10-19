@@ -208,6 +208,57 @@ async def test_stealth_and_drop(browser):
     check('aucune erreur console (discrétion, sauvegarde)', not errs, '; '.join(errs[:3]))
     await ctx.close()
 
+async def test_beach_towel(browser):
+    """Serviette à la mer : compte dès qu'on la lâche dans l'anneau (écume, renard qui longe l'eau ou s'est retourné),
+    jamais sur le sable sec. Bug signalé : lâchée sur l'écume ou en se retournant, elle restait sur le sable."""
+    setup = """F.start('libre', false); await wait(500); F.dev.skipTuto(); const R=F.RG.plage; F.unlockRegion(R,false); F.teleport(R.spawn.x,R.spawn.z,0);
+               for(let i=0;i<80&&!item('serviette');i++) await wait(100); await wait(1500);"""
+    drop = """const t=item('serviette'); if(!f.held){ go(t.pos.x,t.pos.z-.9,0); await wait(500); F.grabOrDrop(); await wait(300); } const held=!!f.held&&f.held.kind;
+              go(10,%s,%s); await wait(800); F.grabOrDrop(); await wait(600);
+              return {held, z:+t.pos.z.toFixed(2), gone:t.gone, done:!!F.run.done.serviette};"""
+    ctx, pg, errs = await page(browser, 480, 320, acorns_done=True); await ready(pg)
+    await js(pg, setup)
+    dry = await js(pg, drop % (86, 1.5708))      # sable sec, en longeant la plage : rien
+    foam = await js(pg, drop % (88.4, 1.5708))   # sur l'écume, en longeant l'eau : à la mer
+    check('serviette : sable sec → reste posée ; écume en longeant l\'eau → à la mer, bêtise comptée',
+          dry['held'] == 'serviette' and not dry['gone'] and not dry['done'] and foam['done'] and foam['gone'] and foam['z'] >= 89.3, json.dumps({'sec': dry, 'ecume': foam}))
+    check('aucune erreur console (serviette)', not errs, '; '.join(errs[:3]))
+    await ctx.close()
+    ctx, pg, errs = await page(browser, 480, 320, acorns_done=True); await ready(pg)
+    await js(pg, setup)
+    back = await js(pg, drop % (88.6, 3.1416))   # pattes dans l'eau, tourné vers la plage : l'objet tomberait sur le sable mouillé
+    check('serviette : renard dans l\'eau tourné vers la plage → elle part dans les vagues', back['done'] and back['gone'] and back['z'] >= 89.3, json.dumps(back))
+    await ctx.close()
+
+async def test_rings(browser):
+    """Toutes les bêtises : déclencheurs atteignables à pied, anneaux de dépôt fidèles à ce qui compte
+    (étang au ponton, but, chaussette et bouteille depuis la berge ou le pont, bâtons du castor, serviette, baguette)."""
+    ctx, pg, errs = await page(browser, 480, 320, acorns_done=True); await ready(pg)
+    r = await pg.evaluate(open(os.path.join(os.path.dirname(__file__), 'audit_rings.js'), encoding='utf-8').read())
+    check('toutes les bêtises : chaque déclencheur et chaque carte postale est atteignable à pied', not r['bad'], json.dumps(r['bad'], ensure_ascii=False)[:500])
+    # Objets dont la bêtise se fait en les lâchant (la baguette du village, elle, s'apporte DANS le terrier ; le drapeau s'agite en glapissant ;
+    # le badge ouvre la porte dès qu'on l'approche ; mug, chapeau, carotte et clé : anneau sur l'obstacle, couverts par d'autres tests)
+    ring = {d['kind']: d for d in r['drops']}
+    want = ['serviette', 'hache', 'sandwich', 'ballon', 'chaussette', 'bouteille', 'baton']
+    bad = {k: {x: ring[k][x] for x in ('n', 'landInRingFail', 'faceFail', 'faceN', 'ex')} for k in want if k not in ring or ring[k]['n'] == 0 or ring[k]['landInRingFail'] or ring[k]['faceFail']}
+    paris = [d for d in r['drops'] if d['region'] == 'paris']
+    check('anneaux de dépôt : objet tombé dans l\'anneau = bêtise comptée ; lâché face au centre depuis l\'anneau aussi',
+          not bad and paris and not paris[0]['landInRingFail'] and not paris[0]['faceFail'],
+          json.dumps(bad, ensure_ascii=False)[:500] if bad else ' · '.join(f"{k} {ring[k]['n'] - ring[k]['fail']}/{ring[k]['n']}" for k in want))
+    check('aucune erreur console (anneaux)', not errs and not r.get('pageerrors'), '; '.join(errs[:3]))
+    await ctx.close()
+    # Tour du terrain : dans un sens comme dans l'autre (avant : un seul sens comptait, sans rien dire). Page neuve : le contrôle
+    # ci-dessus a validé et effacé des dizaines de bêtises (une carte « chapitre terminé » peut attendre un clic).
+    ctx, pg, errs = await page(browser, 480, 320, acorns_done=True); await ready(pg)
+    lap = await js(pg, """F.start('libre', false); await wait(400); F.dev.skipTuto(); F.unlockRegion(F.RG.sport, false);
+        F.teleport(F.RG.sport.spawn.x, F.RG.sport.spawn.z, 0); for(let i=0;i<80&&F.paused;i++) await wait(100); await wait(600);
+        const CP=[[40,-10],[84,-10],[84,14],[40,14]], frame=()=>new Promise(r=>requestAnimationFrame(()=>r()));
+        const tour=async o=>{ delete F.run.done.tourTerrain; for(const k of [...o,o[0]]){ go(CP[k][0],CP[k][1]); for(let i=0;i<3;i++) await frame(); } return !!F.run.done.tourTerrain; };
+        const a=await tour([0,1,2,3]); go(62,2); for(let i=0;i<3;i++) await frame(); const b=await tour([2,1,0,3]); return {sens1:a, sens2:b};""")
+    check('tour du terrain : compte dans les deux sens', lap['sens1'] and lap['sens2'], json.dumps(lap))
+    check('aucune erreur console (tour du terrain)', not errs, '; '.join(errs[:3]))
+    await ctx.close()
+
 async def test_daily(browser):
     ctx, pg, errs = await page(browser, 480, 320); await ready(pg)
     await js(pg, "document.querySelector('#dailyBtn').click(); await wait(500);")
@@ -889,7 +940,7 @@ async def main():
         launch = lambda args: p.chromium.launch(args=args)
         b = await launch(GL)
         only = [x for x in os.environ.get('TESTS', '').split(',') if x]
-        for t in (test_playthrough, test_stealth_and_drop, test_daily, test_daily_end, test_mobile_and_perf, test_world, test_first_minute, test_touch_feel, test_reactions, test_leaderboard_online, test_languages, test_stats, test_accessibility, test_lazy_regions, test_presentation, test_legal):
+        for t in (test_playthrough, test_stealth_and_drop, test_beach_towel, test_rings, test_daily, test_daily_end, test_mobile_and_perf, test_world, test_first_minute, test_touch_feel, test_reactions, test_leaderboard_online, test_languages, test_stats, test_accessibility, test_lazy_regions, test_presentation, test_legal):
             if only and t.__name__ not in only: continue
             try: await t(b)
             except Exception as e:

@@ -213,9 +213,14 @@ defineRegion({
     boat(-30, SEA - 4, 1.2, '#5d8fb0', false); boat(-18, SEA + 6, .4, '#f6efe0'); boat(30, SEA + 10, -.3, '#d9705a');
     // Sol qui crisse : sable / bois
     surfaceHooks.push(p => inRect(p, B) && p.z > 33 ? (Math.abs(p.z - 46.5) < 1.7 ? 'wood' : 'sand') : null);
-    // Objets dans la mer
+    // Objets dans la mer. Ça compte dès l'écume, là où commence l'anneau qui guide le renard (SEA + .4, rayon 1,2) :
+    // objet lâché à partir de là, ou renard qui a les pattes dans l'eau, même s'il longe la plage ou s'est retourné.
+    const WET = SEA - .8;
     W.place(it => {
-      if (it.pos.z < SEA - .2 || !inRect(it.pos, B)) return false;
+      if (!inRect(it.pos, B)) return false;
+      const byFox = !fox.held && flat2(it.pos, fox.pos) < 1.3 && fox.pos.z >= WET;
+      if (it.pos.z < WET && !byFox) return false;
+      it.pos.z = Math.max(it.pos.z, SEA + .3);   // il part des vagues, pas du sable mouillé
       it.gone = true; it.held = false; W.SFX.splashSmall(); W.emit(new THREE.Vector3(it.pos.x, .3, it.pos.z), '#ffffff', { n: 12, spd: 1.6, up: 3 });
       if (it === towel) W.complete('serviette');
       giveUp(it); drift.push({ it, keep: it === towel }); return true;

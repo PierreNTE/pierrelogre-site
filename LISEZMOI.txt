@@ -16,8 +16,21 @@ Version 5.11 : mentions légales complètes, présentation du renard, renard plu
 - Défi du jour réussi : bouton « Continuer l'aventure » (on passe à la partie libre, en reprenant la
   partie en cours s'il y en a une) et classement du jour (meilleur temps de chaque pseudo, au dixième de
   seconde), aussi visible dans le carnet de voyage (onglet Classement). « Rejouer » relance le défi.
+- Vérification de toutes les bêtises (111) et correctifs :
+  · plage : la serviette lâchée sur l'écume, en longeant l'eau ou en se retournant vers la plage restait
+    sur le sable. Elle part maintenant à la mer dès qu'on la lâche dans l'anneau orange ;
+  · forêt : la hache ne coulait pas depuis le ponton, là où l'anneau envoyait le renard (l'étang est plus
+    large que la zone qui comptait). L'anneau est au bout du ponton et la hache compte depuis toute la berge ;
+  · rivière : chaussette et bouteille comptent depuis la berge même renard retourné, et depuis le pont
+    (avant, un objet lâché au milieu du pont restait sur le pont, sans tomber à l'eau) ; bâtons du castor : tout l'anneau compte ;
+  · terrain de hand : le ballon compte partout dans l'anneau devant le but ; le tour du terrain compte dans
+    les deux sens (avant, un seul sens, sans rien dire) et repart proprement si un coin a été touché en passant ;
+  · la carte postale du terrain de hand était hors d'atteinte (le succès « Collectionneur » était impossible) :
+    elle est maintenant au bord du terrain.
+- Nouveau test : chaque déclencheur de bêtise est atteignable à pied et chaque anneau de dépôt correspond
+  à ce qui compte vraiment (tests/audit_rings.js).
 
-À FAIRE UNE FOIS : créer le classement du défi du jour dans Supabase
+À FAIRE UNE FOIS : créer le classement du défi du jour dans Supabase (fait : table vérifiée le 19 octobre 2026)
 ---------------------------------------------------------------------
 supabase.com > projet « pierrelogre-classement » > SQL Editor > New query : colle tout le contenu du
 fichier supabase/daily.sql (dans foxsite-source.zip, ou le fichier daily.sql livré à part), puis Run.

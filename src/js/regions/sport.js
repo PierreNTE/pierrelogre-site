@@ -39,7 +39,7 @@ defineRegion({
       hints: { ballon: "Approche-toi du ballon et attrape-le (E). Les joueurs ne vont pas aimer.", butRenard: "Avec le ballon dans la gueule, fonce dans un des deux buts.",
         sifflet: "Le sifflet est sur la table de marque, au bord du terrain. Une fois dans la gueule : glapis !", ola: "Glapis devant les tribunes, tout près des supporters.",
         glaciere: "La glacière est près du banc des remplaçants. À pleine vitesse…", tir5: "Le but d'entraînement est au sud-est. Appuie sur E devant le point de penalty.",
-        tir1500: "Vise les lucarnes (150 points) et enchaîne les buts pour le combo.", tourTerrain: "Pars d'un coin du terrain, cours (Maj) autour des quatre coins dans l'ordre et reviens au départ." },
+        tir1500: "Vise les lucarnes (150 points) et enchaîne les buts pour le combo.", tourTerrain: "Pars d'un coin du terrain, cours (Maj) par les quatre coins, dans un sens ou dans l'autre, et reviens au départ." },
       L: { arbitre: { chase: ["Mon sifflet !", "Carton rouge, le renard !", "Rends ça !"], idle: ["Main !", "Marcher !", "Jeu passif…", "Pas de contact !"] },
         coach: { chase: ["Hé !"], idle: ["Défense ! DÉFENSE !", "On remonte vite !", "Lève la tête !", "Ailier, ouvre !"] } },
       search: { sifflet: "Où est passé mon sifflet ?" },
@@ -58,7 +58,7 @@ defineRegion({
       hints: { ballon: "Get close to the ball and grab it (E). The players won't like it.", butRenard: "With the ball in your mouth, run into one of the goals.",
         sifflet: "The whistle is on the scorers' table by the court. Once you have it: yap!", ola: "Yap in front of the stands, close to the fans.",
         glaciere: "The cooler is next to the substitutes' bench. At full speed…", tir5: "The practice goal is to the south-east. Press E in front of the penalty spot.",
-        tir1500: "Aim for the top corners (150 points) and chain goals for the combo.", tourTerrain: "Start at a corner of the court, run (Shift) around all four corners in order and back to the start." },
+        tir1500: "Aim for the top corners (150 points) and chain goals for the combo.", tourTerrain: "Start at a corner of the court, run (Shift) past all four corners, either way round, and back to the start." },
       L: { arbitre: { chase: ["My whistle!", "Red card, fox!", "Give it back!"], idle: ["Handball!", "Travelling!", "Passive play…", "No contact!"] },
         coach: { chase: ["Hey!"], idle: ["Defence! DEFENCE!", "Fast break!", "Heads up!", "Wing, open up!"] } },
       search: { sifflet: "Where did my whistle go?" },
@@ -134,7 +134,7 @@ defineRegion({
       solidBox(PR.gx - 1.5, PR.gz - .45, .2, 1, 2); solidBox(PR.gx + 1.5, PR.gz - .45, .2, 1, 2); solidBox(PR.gx, PR.gz - .9, 3, .2, 2); }
     W.sign(PR.gx - 3.4, PR.gz + 9, 'tir', .4, 2.2); W.egg('minigame', PR.gx - 2.2, PR.gz + 8, 2.8, 1.5);
     lamp(PR.gx - 4.5, PR.gz + 8); lamp(PR.gx + 4.5, PR.gz + 8);
-    W.postcard(91.5, 27.5);
+    W.postcard(91.5, 24.8);   // au bord de la rivière, côté terrain (à 27.5 elle était hors d'atteinte)
 
     /* ---------- Personnages : joueurs, gardiens, supporters (une seule foule) ---------- */
     const crowd = W.crowd(44);
@@ -181,7 +181,9 @@ defineRegion({
     ball.onGrab = () => { M.phase = 'stolen'; M.fly = null; M.holder = null; W.complete('ballon'); W.SFX.whistle(); W.say(ref, '!', 'excl', .8, 3.1, 'ref!'); for (const p of all) if (!p.keeper) p.chase = true; };
     W.place(it => {
       if (it !== ball) return false;
-      const gi = GX.findIndex(gx => Math.abs(it.pos.x - gx) < 1.3 && Math.abs(it.pos.z - C.z) < 1.6);
+      // But : près d'une ligne de but, ou n'importe où dans l'anneau devant le but (ballon lâché dedans, ou renard dedans)
+      const ring = { x: GX[1] - .6, z: C.z }, inRing = flat2(it.pos, ring) < 1.3 || (!fox.held && flat2(it.pos, fox.pos) < 1.3 && flat2(fox.pos, ring) < 1.3);
+      const gi = inRing ? 1 : GX.findIndex(gx => Math.abs(it.pos.x - gx) < 1.3 && Math.abs(it.pos.z - C.z) < 1.6);
       if (gi >= 0) { W.complete('butRenard'); goal(0, true); W.say(fox, '⚽', 'note', 1.2, 2); }
       else M.phase = 'loose';
       for (const p of all) p.chase = false;
@@ -204,7 +206,7 @@ defineRegion({
     }), () => !fox.held);
     // Tour du terrain (4 coins dans l'ordre, à partir de n'importe lequel)
     const CP = [[40, -10], [84, -10], [84, 14], [40, 14]].map(([x, z]) => new THREE.Vector3(x, 0, z));
-    const tour = { start: -1, n: 0, t: 0 };
+    const tour = { start: -1, n: 0, t: 0, last: -1, dir: 0 };
     // Gardiens d'entraînement
     // Barrière « Route barrée »
     const bar = new THREE.Group(); [-2, 2].forEach(dz => { box(.15, 1.1, .15, '#5d6670', 0, .55, dz, bar); });
@@ -276,9 +278,11 @@ defineRegion({
       // Tour du terrain chronométré
       const ci = CP.findIndex(p => flat2(fox.pos, p) < 2.6);
       if (tour.start >= 0) tour.t += dt;
-      if (ci >= 0) {
-        if (tour.start < 0) { tour.start = ci; tour.n = 0; tour.t = 0; tour.last = ci; W.toast(t().tourGo); }
-        else if (ci === (tour.last + 1) % 4) { tour.last = ci; tour.n++; if (tour.n >= 4) { if (tour.t < 20) W.complete('tourTerrain'); else W.toast(t().tourFail); tour.start = -1; } else W.toast(t().tourStep(tour.n)); }
+      // Dans un sens ou dans l'autre ; un tour commencé il y a plus de 20 s (coin touché en passant) repart du coin atteint
+      if (ci >= 0 && ci !== tour.last) {
+        const fwd = ci === (tour.last + 1) % 4, back = ci === (tour.last + 3) % 4, ok = tour.start >= 0 && tour.t < 20 && (tour.dir > 0 ? fwd : tour.dir < 0 ? back : fwd || back);
+        if (!ok) { if (tour.start >= 0 && tour.n > 0 && tour.t >= 20) W.toast(t().tourFail); tour.start = ci; tour.n = 0; tour.t = 0; tour.last = ci; tour.dir = 0; W.toast(t().tourGo); }
+        else { tour.dir = tour.dir || (fwd ? 1 : -1); tour.last = ci; tour.n++; if (tour.n >= 4) { W.complete('tourTerrain'); tour.start = -1; tour.last = -1; } else W.toast(t().tourStep(tour.n)); }
       }
       if (tour.start >= 0 && tour.t > 30) tour.start = -1;
     });
