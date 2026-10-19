@@ -12,7 +12,7 @@ on:
 concurrency: deploy
 jobs:
   build-test-deploy:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04   # version figée : ubuntu-latest passe à Ubuntu 26 à partir du 19 octobre 2026 (Playwright, lftp)
     timeout-minutes: 75   # la suite de tests tourne en rendu logiciel : 20 à 40 min
     steps:
       # Secrets pas encore remplis (créés avec la valeur A_REMPLIR) : on s'arrête tout de suite, sans 30 min de tests pour rien
