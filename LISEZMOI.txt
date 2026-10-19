@@ -1,0 +1,193 @@
+pierrelogre.com · le renard fait des bêtises (version 5 : le monde s'agrandit)
+============================================================================
+
+Version 5.11 : mentions légales complètes, présentation du renard, renard plus mignon
+--------------------------------------------------------------------------------------
+- Page « Mentions légales et confidentialité » en français (pierrelogre.com/fr/mentions-legales/) et
+  en anglais (pierrelogre.com/legal/), lisible sans JavaScript, liée depuis la carte d'accueil, la fiche
+  « Qui est le renard ? » et la page 404 : éditeur, hébergeur, cookies (aucun), ce qui est gardé dans le
+  navigateur, mesure d'audience, classement, droits RGPD et CNIL, accessibilité, crédits.
+- Bouton « Ne pas compter mes visites sur ce navigateur » sur cette page (la mesure d'audience le respecte).
+- Première visite : le renard se présente en moins de 5 secondes (gros plan, il regarde le visiteur et
+  lui parle en trois bulles), puis la carte d'accueil revient. Une seule fois. Un clic ou un toucher passe à la
+  bulle suivante ; Échap ou « Jouer » arrêtent tout ; jamais si l'appareil demande de réduire les animations.
+- Renard redessiné : tête un peu plus grosse, grands yeux brillants, museau plus court, joues plus
+  discrètes, pattes fines noires jusqu'au coude comme un vrai renard roux, queue plus touffue.
+- Défi du jour réussi : bouton « Continuer l'aventure » (on passe à la partie libre, en reprenant la
+  partie en cours s'il y en a une) et classement du jour (meilleur temps de chaque pseudo, au dixième de
+  seconde), aussi visible dans le carnet de voyage (onglet Classement). « Rejouer » relance le défi.
+- Vérification de toutes les bêtises (111) et correctifs :
+  · plage : la serviette lâchée sur l'écume, en longeant l'eau ou en se retournant vers la plage restait
+    sur le sable. Elle part maintenant à la mer dès qu'on la lâche dans l'anneau orange ;
+  · forêt : la hache ne coulait pas depuis le ponton, là où l'anneau envoyait le renard (l'étang est plus
+    large que la zone qui comptait). L'anneau est au bout du ponton et la hache compte depuis toute la berge ;
+  · rivière : chaussette et bouteille comptent depuis la berge même renard retourné, et depuis le pont
+    (avant, un objet lâché au milieu du pont restait sur le pont, sans tomber à l'eau) ; bâtons du castor : tout l'anneau compte ;
+  · terrain de hand : le ballon compte partout dans l'anneau devant le but ; le tour du terrain compte dans
+    les deux sens (avant, un seul sens, sans rien dire) et repart proprement si un coin a été touché en passant ;
+  · la carte postale du terrain de hand était hors d'atteinte (le succès « Collectionneur » était impossible) :
+    elle est maintenant au bord du terrain.
+- Nouveau test : chaque déclencheur de bêtise est atteignable à pied et chaque anneau de dépôt correspond
+  à ce qui compte vraiment (tests/audit_rings.js).
+
+À FAIRE UNE FOIS : créer le classement du défi du jour dans Supabase (fait : table vérifiée le 19 octobre 2026)
+---------------------------------------------------------------------
+supabase.com > projet « pierrelogre-classement » > SQL Editor > New query : colle tout le contenu du
+fichier supabase/daily.sql (dans foxsite-source.zip, ou le fichier daily.sql livré à part), puis Run.
+Tant que ce n'est pas fait, le classement du jour reste celui du navigateur du joueur.
+
+Version 5.10 : mesure d'audience, téléphones, chargement, accessibilité
+-----------------------------------------------------------------------
+- Mesure d'audience sans cookie (Supabase, même projet que le classement) : visites, parties,
+  visite guidée finie, terrier trouvé, fiche ouverte, clics LinkedIn, temps de chargement et fluidité
+  par type d'appareil, provenance. Aucun cookie, aucune adresse IP, aucun identifiant gardé : pas de
+  bandeau de consentement à afficher. Respecte « Do Not Track ». Effacé au bout de 13 mois.
+  Lire les chiffres : supabase.com > projet > Table Editor > vues stats_jour, stats_entonnoir,
+  stats_appareils, stats_sources (voir plus bas).
+- Vrais téléphones : le test pierrelogre.com/#bench envoie maintenant ses mesures tout seul (plus
+  besoin de copier-coller). Fais-le sur 2 ou 3 téléphones d'amis : les résultats arrivent dans Supabase.
+- Premier chargement plus léger : les dix régions lointaines arrivent dans un second fichier, juste
+  après l'affichage du village. Au démarrage : 254 Ko compressés au lieu de 321 (−21 %). Le total
+  téléchargé ne change pas ; une partie neuve démarre sans attendre, « Reprendre » attend la fin.
+- Accessibilité : tout se fait au clavier (Tab parcourt le menu et les bêtises, Entrée ouvre un indice,
+  flèches dans les onglets du carnet, Échap ferme les fenêtres, le focus revient où il était) ; les
+  fenêtres sont annoncées correctement aux lecteurs d'écran ; contrastes des textes orange renforcés
+  (norme WCAG AA, vérifiée automatiquement à chaque test). N replie le carnet (Tab ne le fait plus).
+
+Lire la mesure d'audience (Supabase)
+------------------------------------
+supabase.com > projet « pierrelogre-classement » > Table Editor (colonne de gauche, rubrique Views) :
+- stats_jour : par jour, visites, parties, visite guidée finie, terrier trouvé, fiche ouverte,
+  clics LinkedIn, durée moyenne.
+- stats_entonnoir : sur 30 jours, combien de visites atteignent chaque étape, de la visite au clic LinkedIn.
+- stats_appareils : téléphone / tablette / ordinateur : temps de chargement, qualité graphique, fluidité.
+- stats_sources : d'où viennent les visites. Astuce : dans un post LinkedIn, mets le lien
+  https://pierrelogre.com/?utm_source=linkedin pour voir ces visites à part.
+- Mesures des téléphones (#bench) : SQL Editor >
+    select at, device, props from events where name = 'Bench' order by at desc;
+Rien n'est lisible avec la clé publique du site : seulement depuis ton compte Supabase.
+
+Version 5.9 : anglais par défaut, classement partagé, renard plus naturel
+-------------------------------------------------------------------------
+- Le site s'ouvre en anglais pour tout le monde (pierrelogre.com) ; la version française est à
+  pierrelogre.com/fr/ (bouton FR / EN en jeu, le choix est retenu).
+- Référencement en anglais : titre, description, aperçu LinkedIn en anglais, données structurées
+  (profil, personne, jeu), fichier llms.txt pour les assistants IA (ChatGPT, Claude, Perplexity…),
+  plan du site bilingue.
+- Classement du mini-jeu commun à tous les visiteurs (Supabase), meilleur score par pseudo.
+- Renard : nouvelle démarche (les pattes posées ne glissent plus, le corps descend sur ses appuis,
+  vrai bond au galop, s'accroupit en se faufilant, queue basse) ; les habitants ne « patinent » plus.
+- Échap ferme les cartes de fin de partie et du mini-jeu.
+
+Finitions avant mise en ligne (5.8)
+-----------------------------------
+- Mise à jour sans accroc : un visiteur déjà venu reçoit tout de suite la nouvelle version (adresses des
+  fichiers versionnées). Avant, il pouvait garder jusqu'à 7 jours l'ancien jeu en cache avec la nouvelle page.
+- Le son se coupe quand on quitte l'onglet (par exemple pour aller sur LinkedIn) et revient au retour.
+- Les messages (« Bêtise accomplie », succès) ne passent plus sur les boutons du haut ni sur le carnet
+  (écrans d'ordinateur de 1 280 à 1 700 px) ; barre et aide du mini-jeu lisibles, y compris au téléphone.
+- Carte d'accueil seule à l'écran (l'interface attend derrière) ; elle tient en entier sur un téléphone
+  à l'horizontale, comme les autres cartes. Panneaux du décor toujours dans la police du site.
+- Carnet de voyage stable d'un onglet à l'autre, noms lisibles sur la carte ; même total de bêtises
+  partout (x / 111). Fin du mini-jeu : « Aucun score » sur une ligne, bouton « Envoyer » grisé à 0 point.
+- Page 404 avec une ligne en anglais ; mentions légales : téléphone de l'hébergeur (obligatoire) et
+  liste exacte de ce qui est gardé dans le navigateur.
+
+Nouveautés (5.7 : la première minute et le téléphone)
+------------------------------------------------------
+- La carte d'accueil s'affiche tout de suite, dans la langue du visiteur, pendant que le jeu se charge
+  derrière ; un clic sur « Jouer » pendant le chargement lance la partie dès qu'elle est prête.
+- Première visite : trois bêtises guidées en douceur (faire sursauter le jardinier, voler son chapeau,
+  le jeter dans la fontaine), un post-it à la place du carnet, une flèche et un chevron vers la cible,
+  une petite fête à la fin. « Passer » à tout moment ; vue une fois, elle ne revient plus.
+- Au téléphone : joystick flottant (le pouce peut se poser n'importe où en bas à gauche), boutons en arc
+  sous le pouce droit, « Attraper » qui s'allume quand un objet est à portée et devient « Poser »,
+  portée un peu plus large au doigt. Partout : le renard glisse le long des murs au lieu de s'y coller.
+- Écrans à 120 Hz : 60 images par seconde régulières (moins de chauffe et de batterie).
+- Le jeu est plus léger à télécharger : 313 Ko compressés au lieu de 352.
+- Les habitants réagissent davantage : surpris, puis agacés (poing levé), puis ils chassent le renard
+  en agitant les bras ; celui qui rapporte un objet le lâche de surprise. Trois glapissements différents.
+- Rythme : « Doublé ! » quand deux bêtises s'enchaînent ; si l'on tourne en rond, un indice arrive plus tôt
+  (45 s) et, au village, une flèche montre où aller.
+
+Nouveautés (5.1 : direction artistique)
+---------------------------------------
+- Monde beaucoup plus vivant : herbes et fleurs qui ondulent et se couchent au passage du renard,
+  forêt dense avec sous-bois, ombres de nuages, papillons, lapins, hérisson, fumée des cheminées,
+  montgolfière (rare), lumière et ambiance propres à chaque zone.
+- Les zones encore fermées « dorment » (couleurs éteintes) ; à l'ouverture, une vague de couleur
+  les réveille. Des fleurs poussent là où le renard fait ses bêtises : le monde grandit avec lui.
+- Menu : qualité graphique Auto / Haute / Basse.
+
+Nouveautés (5.0)
+----------------
+- Le village n'est plus que le début : 10 nouvelles zones s'ouvrent au fil des bêtises
+  (forêt, complexe sportif avec un vrai match de handball, motocross, rivière, plage de Vendée,
+  gare et train, Nantes et son éléphant, Paris et la tour Eiffel, montagne et datacenter souverain,
+  île secrète). 104 bêtises dont 18 secrètes, 11 cartes postales, 22 succès.
+- Carnet de voyage (touche M ou bouton « Carte ») : carte du monde, succès, classement,
+  voyage rapide « par les terriers » vers les zones déjà visitées.
+- Mini-jeu « Tir au renard » (complexe sportif) : tirs au but, combo, lucarnes, cibles bonus,
+  record, classement. Jouable à la souris, au clavier et au doigt.
+- La partie se sauvegarde (zones ouvertes, position, objets) ; les anciennes sauvegardes sont reprises.
+
+Mise en ligne (manuelle, par FileZilla)
+---------------------------------------
+1. Télécharge une sauvegarde de l'ancien contenu de www/, puis VIDE complètement www/.
+2. Dépose tout le contenu du dossier www/ de ce zip, y compris les fichiers cachés
+   .htaccess et .well-known/ (FileZilla : Serveur > Forcer l'affichage des fichiers cachés).
+   HTTPS : le .htaccess envoie tout le monde vers https://pierrelogre.com et active HSTS. Il faut donc que
+   le certificat SSL de l'hébergement soit actif. Le certificat Let's Encrypt gratuit inclus avec
+   l'hébergement OVH suffit (espace client OVH, rubrique de l'hébergement, « Certificat SSL ») :
+   les certificats payants ne sont pas utiles, pas plus que l'option « Visibilité Pro » (gestion payante
+   de présence en ligne) : le site n'en dépend pas.
+3. Ouvre https://pierrelogre.com en navigation privée (en anglais), https://pierrelogre.com/fr/ (en français),
+   puis https://pierrelogre.com/nimporte-quoi (la page 404 du renard doit s'afficher) et
+   https://pierrelogre.com/fr/mentions-legales/ (les mentions légales).
+4. Retire pierrelogre.com du projet Vercel « pierre-logre » (Settings > Domains) si ce n'est pas fait.
+
+Classement partagé (Supabase)
+-----------------------------
+Le classement du mini-jeu est maintenant commun à tous les visiteurs. Il est déjà en place : projet
+Supabase gratuit « pierrelogre-classement » (Paris) dans ton organisation PierreNTE. Rien à faire.
+- Seule la clé publique (« publishable ») est dans le site. NE METS JAMAIS la clé secrète dans le site.
+- Supabase met en pause un projet gratuit inactif 7 jours (tu reçois un e-mail avant). Pour l'éviter :
+  une partie de temps en temps suffit, ou le workflow GitHub « anti-pause » si tu actives GitHub (plus bas).
+  Si le projet est en pause, le jeu continue avec le classement du navigateur.
+- Retirer un pseudo : supabase.com > projet > SQL Editor > delete from public.scores where pseudo = 'xxx';
+
+Mise en ligne automatique (recommandée)
+--------------------------------------
+Le dossier source contient le workflow GitHub Actions .github/workflows/deploy.yml : à chaque mise à jour
+de la branche main, GitHub construit le site, lance tous les tests, et seulement s'ils passent, envoie le
+site sur OVH en FTPS (miroir exact du dossier www/). Ce qu'il faut faire une fois :
+1. Sur github.com, crée un dépôt PRIVÉ vide (sans README), par exemple « pierrelogre-site ».
+2. Dans ce dépôt : Settings > Secrets and variables > Actions > New repository secret, crée :
+     OVH_FTP_HOST      ftp.cluster121.hosting.ovh.net
+     OVH_FTP_USER      ton identifiant FTP (espace client OVH > Hébergement > FTP-SSH)
+     OVH_FTP_PASSWORD  ton mot de passe FTP
+   Ces identifiants ne doivent jamais apparaître ailleurs (ni dans le code, ni dans un message).
+3. Donne le nom du dépôt à Claude : il y envoie le code ; le premier déploiement part tout seul.
+Ensuite, chaque modification arrive sous forme de « pull request » : un clic sur « Merge » la met en ligne.
+Suivi : onglet Actions du dépôt (vert = en ligne, rouge = rien n'a été envoyé, le site reste tel quel).
+
+Ajouter un monde plus tard
+--------------------------
+Chaque zone est un fichier dans src/js/regions/ (chargé après le démarrage : regions/lazy.js). Le README (dossier source) explique comment
+en ajouter une (par exemple un monde spatial) : décor, personnages, bêtises, secrets, ambiance.
+
+Sécurité du compte et du domaine (à faire une fois)
+---------------------------------------------------
+- Active la double authentification sur ton compte OVH (et sur Supabase si tu l'utilises).
+- Mot de passe FTP long et unique ; supprime les accès FTP inutiles.
+- Active DNSSEC sur le domaine.
+- Garde le SPF OVH existant (v=spf1 include:mx.ovh.com -all) et ajoute :
+    TXT  _dmarc.pierrelogre.com  "v=DMARC1; p=quarantine"
+- Ajoute un enregistrement CAA : pierrelogre.com CAA 0 issue "letsencrypt.org"
+
+Aperçu LinkedIn et Google
+-------------------------
+Après la mise en ligne, colle l'URL dans https://www.linkedin.com/post-inspector/
+pour que LinkedIn rafraîchisse l'aperçu (il sera en anglais).
+Google : ajoute le site dans https://search.google.com/search-console (propriété « pierrelogre.com »,
+validation par enregistrement DNS chez OVH), puis envoie le plan du site : https://pierrelogre.com/sitemap.xml

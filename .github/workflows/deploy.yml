@@ -1,0 +1,61 @@
+# Build, tests, puis déploiement sur l'hébergement OVH à chaque push sur main (rien n'est envoyé si un test échoue).
+# Le miroir supprime sur OVH les fichiers qui ne sont plus dans le site (sauf .ovhconfig).
+# Secrets à créer dans GitHub (Settings > Secrets and variables > Actions) :
+#   OVH_FTP_HOST      ex. ftp.cluster121.hosting.ovh.net
+#   OVH_FTP_USER      identifiant FTP de l'hébergement (espace client OVH > Hébergement > FTP-SSH)
+#   OVH_FTP_PASSWORD  mot de passe FTP
+name: Déploiement pierrelogre.com
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+concurrency: deploy
+jobs:
+  build-test-deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 75   # la suite de tests tourne en rendu logiciel : 20 à 40 min
+    steps:
+      # Secrets pas encore remplis (créés avec la valeur A_REMPLIR) : on s'arrête tout de suite, sans 30 min de tests pour rien
+      - name: Secrets OVH remplis ?
+        env:
+          HOST: ${{ secrets.OVH_FTP_HOST }}
+          USER: ${{ secrets.OVH_FTP_USER }}
+          PASS: ${{ secrets.OVH_FTP_PASSWORD }}
+        run: |
+          for v in "$HOST" "$USER" "$PASS"; do
+            if [ -z "$v" ] || [ "$v" = "A_REMPLIR" ]; then
+              echo "::error::Remplis les 3 secrets OVH (Settings > Secrets and variables > Actions), puis relance : onglet Actions > Déploiement pierrelogre.com > Run workflow."
+              exit 1
+            fi
+          done
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run lint
+      - run: node build.mjs
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Tests (Chromium headless)
+        run: |
+          pip install playwright pillow
+          python -m playwright install --with-deps chromium
+          TEST_OUT=test-output python tests/run_all.py
+      - name: Captures des tests
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: captures
+          path: test-output
+      - name: Envoi sur OVH (FTPS, miroir de site/www vers www/)
+        if: github.ref == 'refs/heads/main'
+        env:
+          HOST: ${{ secrets.OVH_FTP_HOST }}
+          USER: ${{ secrets.OVH_FTP_USER }}
+          PASS: ${{ secrets.OVH_FTP_PASSWORD }}
+        run: |
+          sudo apt-get install -y lftp
+          lftp -u "$USER,$PASS" "$HOST" -e "set ftp:ssl-force true; set ftp:ssl-protect-data true; set ftp:list-options -a; mirror --reverse --delete --verbose --exclude-glob .ovhconfig site/www/ www/; quit"

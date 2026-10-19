@@ -1,0 +1,26 @@
+{
+  "name": "pierrelogre-site",
+  "version": "1.0.0",
+  "description": "Le renard fait des bêtises · pierrelogre.com",
+  "scripts": {
+    "build": "node build.mjs",
+    "test": "node build.mjs && python3 tests/run_all.py",
+    "lint": "eslint src/js"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "@fontsource/baloo-2": "^5.3.0",
+    "@fontsource/patrick-hand": "^5.3.0",
+    "three": "^0.170.0"
+  },
+  "devDependencies": {
+    "axe-core": "^4.10.3",
+    "esbuild": "^0.28.2",
+    "eslint": "^9.39.5",
+    "globals": "^17.13.0"
+  },
+  "type": "module",
+  "private": true
+}
