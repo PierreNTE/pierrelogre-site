@@ -1,0 +1,8 @@
+node_modules/
+dist/
+site/
+test-output/
+*.zip
+*.pdf
+.DS_Store
+__pycache__/

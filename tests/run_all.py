@@ -1,0 +1,959 @@
+#!/usr/bin/env python3
+"""
+Tests du site pierrelogre.com : `npm test` (build + ce script).
+
+Lance un serveur local qui reproduit la CSP stricte d'OVH (.htaccess), puis vérifie dans Chromium :
+  1. partie complète (13 bêtises + la secrète), écran de fin, succès
+  2. discrétion : vol vu → alerte ; vol discret hors de vue → pas d'alerte
+  3. objet lâché contre un meuble → reposé hors de l'obstacle
+  4. gland doré → carte d'anecdote + sauvegarde
+  5. sauvegarde de partie → « Reprendre (n/13) » après rechargement
+  6. défi du jour → 5 bêtises
+  7. versions de secours : sans WebGL, sans JavaScript, page 404
+  8. mobile 375×667 : aucun chevauchement d'interface pendant un message
+  9. budget de performance : < 150 appels de dessin (village), < 160 par région
+ 10. monde ouvert : ouverture des régions, voyages, mini-jeu, classement, carnet, sauvegarde v2
+ 11. première minute : carte d'accueil avant le jeu (bonne langue, clic retenu), visite guidée en 3 bêtises, vue une fois
+ 12. sensations au doigt : joystick flottant (vrais touchers), zone morte, bouton Attraper/Poser, portée, glissade
+     le long d'un mur, « Passer », plafond 60 i/s des écrans 120 Hz, téléphone à l'horizontale sans chevauchement
+ 13. réactions : habitant surpris → agacé → il chasse le renard (sans l'attraper) ; objet lâché de surprise ;
+     « Doublé ! » ; indice qui montre l'endroit
+ 14. classement partagé : faux serveur Supabase (aucune écriture dans le vrai classement), requêtes conformes, repli local
+ 16. mesure d'audience sans cookie : événements anonymes, aucun stockage, coupée par GPC / DNT et hors de pierrelogre.com
+ 15. langues : anglais par défaut à « / », français à « /fr/ », choix retenu ; référencement (hreflang, Open Graph, schema.org, llms.txt)
+ 17. accessibilité : audit axe-core (WCAG 2.1 AA) de l'accueil, du jeu, du carnet de voyage, de la fiche et de la page 404 ;
+     tout au clavier : focus dans les fenêtres, Tab qui y reste, Échap, retour du focus, indices et onglets au clavier
+ 18. premier chargement allégé : régions lointaines dans un fichier à part (retenu exprès) ; jeu jouable sans lui, partie
+     reprise qui l'attend sans rien perdre
+ 19. première visite : le renard se présente (5 s au plus), une seule fois, passée d'une touche, jamais si animations réduites
+ 20. mentions légales : pages FR / EN complètes, liées partout, lisibles sans JavaScript ; « ne pas compter mes visites »
+ 21. défi du jour réussi : classement du jour (faux Supabase), « Continuer l'aventure » vers la partie libre
+Aucune erreur console n'est tolérée.
+"""
+import asyncio, json, os, re, subprocess, sys, time, functools, http.server, threading
+from playwright.async_api import async_playwright
+
+ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+WWW = os.environ.get('WWW') or os.path.join(ROOT, 'site', 'www')   # WWW=… : tester un dossier livré (zip décompressé)
+PORT = 8767
+OUT = os.environ.get('TEST_OUT', '/tmp/claude-0/tests')
+os.makedirs(OUT, exist_ok=True)
+GL = ["--use-gl=angle", "--use-angle=swiftshader", "--enable-unsafe-swiftshader"]
+results = []
+
+def serve():
+    csp = re.search(r'Content-Security-Policy "([^"]+)"', open(os.path.join(WWW, '.htaccess')).read()).group(1).replace(' upgrade-insecure-requests', '')
+    class H(http.server.SimpleHTTPRequestHandler):
+        extensions_map = {**http.server.SimpleHTTPRequestHandler.extensions_map, '.js': 'text/javascript', '.woff2': 'font/woff2', '.svg': 'image/svg+xml', '.txt': 'text/plain; charset=utf-8'}
+        def end_headers(self):
+            self.send_header('Content-Security-Policy', csp); self.send_header('X-Content-Type-Options', 'nosniff'); super().end_headers()
+        def send_error(self, code, message=None, explain=None):
+            if code == 404 and os.path.exists(os.path.join(WWW, '404.html')):
+                body = open(os.path.join(WWW, '404.html'), 'rb').read()
+                self.send_response(404); self.send_header('Content-Type', 'text/html; charset=utf-8'); self.send_header('Content-Length', str(len(body))); self.end_headers(); self.wfile.write(body); return
+            super().send_error(code, message, explain)
+        def log_message(self, *a): pass
+    srv = http.server.ThreadingHTTPServer(('127.0.0.1', PORT), functools.partial(H, directory=WWW))
+    threading.Thread(target=srv.serve_forever, daemon=True).start()
+    return srv
+
+URL = f'http://127.0.0.1:{PORT}/'
+JS_HELPERS = """
+  const F=window.__fox, f=F.fox, wait=ms=>new Promise(r=>setTimeout(r,ms));
+  const go=(x,z,yaw=0)=>{ f.pos.set(x,0,z); f.yaw=yaw; f.vel.set(0,0,0); };
+  const item=k=>F.items.find(i=>i.kind===k);
+  const npc=id=>F.npcs.find(n=>n.id===id);
+"""
+def check(name, ok, detail=''):
+    results.append((name, bool(ok), detail)); print(('✓ ' if ok else '✗ ') + name + (f'  [{detail}]' if detail else ''), flush=True)
+
+SUPABASE = re.compile(r'^https://[^/]+\.supabase\.co/')
+async def offline_lb(ctx, rows=None, seen=None, down=False):
+    """Les tests n'écrivent jamais dans le vrai classement : un faux serveur Supabase (PostgREST) répond à sa place.
+    down=True : serveur en panne (503), pour vérifier le repli local."""
+    rows = [] if rows is None else rows
+    daily = seen.setdefault('daily_rows', []) if seen is not None else []
+    async def fake(route):
+        req = route.request; h = req.headers
+        if '/rest/v1/daily' in req.url:    # classement du défi du jour : à part (table daily_times, vue daily_leaderboard)
+            if req.method == 'POST':
+                d = json.loads(req.post_data or '{}'); daily.append(d)
+                if seen is not None: seen.setdefault('daily_post', []).append({'url': req.url, 'body': d, 'prefer': h.get('prefer'), 'apikey': h.get('apikey')})
+                await route.fulfill(status=201, body=''); return
+            if seen is not None: seen.setdefault('daily_get', []).append(req.url)
+            day = (re.search(r'day=eq\.([0-9-]+)', req.url) or [None, ''])[1]; best = {}
+            for d in daily:
+                if d.get('day') == day: best[d['pseudo']] = min(best.get(d['pseudo'], 1e9), d['secs'])
+            await route.fulfill(status=200, content_type='application/json', body=json.dumps(sorted([{'pseudo': k, 'secs': v} for k, v in best.items()], key=lambda x: x['secs'])[:10])); return
+        if '/rest/v1/events' in req.url:   # mesure d'audience : notée à part, jamais mêlée au classement
+            if seen is not None and req.method == 'POST': seen.setdefault('events', []).extend(json.loads(req.post_data or '[]')); seen.setdefault('ev_headers', []).append({k: h.get(k) for k in ('apikey', 'authorization', 'prefer', 'cookie')})
+            await route.fulfill(status=201, body=''); return
+        if seen is not None: seen.setdefault('headers', []).append({k: h.get(k) for k in ('apikey', 'authorization', 'prefer')})
+        if down: await route.fulfill(status=503, content_type='application/json', body='{"message":"indisponible"}'); return
+        if req.method == 'GET':
+            if seen is not None: seen.setdefault('get', []).append(req.url)
+            best = {}
+            for r in rows: best[r['pseudo']] = max(best.get(r['pseudo'], 0), r['score'])
+            body = sorted([{'pseudo': p, 'score': v} for p, v in best.items()], key=lambda x: -x['score'])[:10]
+            await route.fulfill(status=200, content_type='application/json', body=json.dumps(body))
+        elif req.method == 'POST':
+            d = json.loads(req.post_data or '{}')
+            if seen is not None: seen.setdefault('post', []).append({'url': req.url, 'body': d, 'prefer': h.get('prefer')})
+            rows.append({'pseudo': d.get('pseudo'), 'score': d.get('score', 0)}); await route.fulfill(status=201, body='')
+        else: await route.fulfill(status=204, body='')
+    await ctx.unroute(SUPABASE); await ctx.route(SUPABASE, fake)
+
+async def page(browser, w=1280, h=760, acorns_done=False, **kw):
+    cine = kw.pop('cine', False)
+    ctx = await browser.new_context(viewport={'width': w, 'height': h}, **kw)
+    await offline_lb(ctx)
+    if not cine: await ctx.add_init_script("window.__foxNoCine=true")
+    if acorns_done:  # glands déjà trouvés : aucune carte ne vient interrompre la partie scriptée
+        await ctx.add_init_script("try{localStorage.setItem('fox-betises-v2', JSON.stringify({acorns:[0,1,2,3,4]}))}catch(e){}")
+    pg = await ctx.new_page(); errs = []
+    pg.on('pageerror', lambda e: errs.append('pageerror: ' + str(e)))
+    pg.on('console', lambda m: errs.append(f'{m.type}: {m.text}') if m.type in ('error', 'warning') and 'preloaded using link preload' not in m.text else None)
+    await pg.goto(URL, timeout=120000)
+    return ctx, pg, errs
+
+async def ready(pg):
+    # Jeu prêt (première image) ET régions lointaines arrivées (fichier à part, chargé juste après) : la plupart des tests
+    # parcourent tout le monde. Le démarrage sans elles a son propre test (test_lazy_regions).
+    await pg.wait_for_function('()=>window.__foxReady===true && window.__foxWorld===true', timeout=120000)   # forme fonction : la CSP (sans unsafe-eval) refuse une chaîne
+
+async def js(pg, body):
+    return await pg.evaluate('async()=>{' + JS_HELPERS + body + '}')
+
+async def test_playthrough(browser):
+    ctx, pg, errs = await page(browser, 480, 320, acorns_done=True); await ready(pg)
+    await js(pg, "F.start('libre', false);")
+    # Carottes : arracher les 3, en garder une pour la machine à café
+    await js(pg, """for(const c of F.items.filter(i=>i.kind==='carotte')){ go(c.pos.x,c.pos.z+1.2,Math.PI); await wait(400); F.grabOrDrop(); await wait(300); go(c.pos.x,-8.2,0); F.dropHeld(); await wait(300); }""")
+    await js(pg, """const c=F.items.find(i=>i.kind==='carotte'&&!i.planted&&!i.carrier&&!i.gone); go(c.pos.x,c.pos.z-1,0); await wait(400); F.grabOrDrop(); await wait(300); go(7.6,-11.9,Math.PI); await wait(400); F.dropHeld(); await wait(400);""")
+    # Jardinier, chapeau, chapeau à l'eau
+    # (le jardinier court récupérer son chapeau : comme un joueur, on retente si on arrive trop tard)
+    await js(pg, """const h=item('chapeau');
+                    for(let k=0;k<4&&!F.run.done.chapeau;k++){ const g=npc('gardener'); go(g.pos.x+2,g.pos.z+1.6,-2.3); await wait(400); F.yap(); for(let i=0;i<800&&h.vel;i++) await wait(50);   /* attendre qu'il retombe (rendu logiciel : 1 à 2 images/s, le vol dure plus de 10 s) */
+                      if(!h.worn&&!h.carrier){ go(h.pos.x,h.pos.z-.9,0); F.grabOrDrop(); } await wait(300); if(!F.run.done.chapeau) await wait(2500); }
+                    if(f.held&&f.held.kind==='chapeau'){ go(-4,3.3,Math.PI); await wait(400); F.dropHeld(); await wait(400); }""")
+    # Mug dans la fontaine
+    await js(pg, """const m=item('mug'); go(m.pos.x,m.pos.z+1,Math.PI); await wait(400); F.grabOrDrop(); await wait(300); go(-4,3.2,Math.PI); await wait(400); F.dropHeld(); await wait(400);""")
+    # Boue : le commercial au téléphone près de la flaque
+    await js(pg, """const s=npc('sales'); s.state='idle'; s.routeI=3; s.wait=8; s.pos.set(-9.7,0,4.3); await wait(300); go(-8.3,3.4,-1); await wait(300); F.yap(); await wait(600);""")
+    # Imprimante → l'informaticien s'éloigne → serveur débranché discrètement (diversion + serveur)
+    await js(pg, """go(7.6,8.2,-Math.PI/2); await wait(400); F.grabOrDrop(); for(let i=0;i<60&&!npc('it').diverted;i++) await wait(100);
+                    F.S.sneakToggle=true; const p=item('prise'); go(p.pos.x,p.pos.z+1,Math.PI); await wait(500); F.grabOrDrop(); await wait(300); F.dropHeld(); F.S.sneakToggle=false; await wait(300);""")
+    # Réunion
+    await js(pg, "go(22.5,5,0); await wait(400); F.yap(); await wait(300);")
+    # Pots : foncer dedans
+    # (on garde les touches enfoncées jusqu'au choc : le rendu logiciel des tests tourne à 1-3 images/s)
+    for i, (px, pz) in enumerate([(.2, 4.4), (-8.2, -4.2), (-9.4, -12.1)]):
+        await js(pg, f"go({px-2.6},{pz},Math.PI/2); await wait(300);")
+        await pg.keyboard.down('Shift'); await pg.keyboard.down('KeyD')
+        for _ in range(36):
+            await pg.wait_for_timeout(250)
+            if await js(pg, f"return F.props.filter(p=>p.kind==='pot')[{i}].knocked;"): break
+        await pg.keyboard.up('KeyD'); await pg.keyboard.up('Shift'); await pg.wait_for_timeout(300)
+    # Baguette au terrier : le renard descend dans la salle souterraine (regions/terrier.js)
+    await js(pg, """const b=item('baguette'); go(b.pos.x,6.6,0); await wait(400); F.grabOrDrop(); await wait(300); go(-8,0,13.5); go(-8,13.5,0); await wait(300); f.pos.set(-8,0,15);
+                    for(let i=0;i<60&&F.S.region!=='terrier';i++) await wait(250);""")
+    r = await js(pg, "return {done:Object.keys(F.run.done).sort(), goals:F.run.goals.length, ach:F.saved.ach, region:F.S.region, loot:F.run.loot, alerts:F.run.alerts};")
+    missing = sorted(set(['carottes','jardinier','chapeau','chapeauEau','baguette','pots','mug','cafe','boue','serveur','imprimante','diversion','reunion','terrier']) - set(r['done']))
+    check('partie complète : 13 bêtises + la secrète', not missing, 'manque ' + ','.join(missing) if missing else '')
+    check('le terrier s’ouvre : le renard entre dans la salle souterraine', r['region'] == 'terrier' and r['loot'], f"{r['region']} · butin {r['loot']}")
+    end = await js(pg, "for(let i=0;i<40&&document.querySelector('#endCard').hidden;i++) await wait(250); const c=document.querySelector('#endCard'); return {visible:!c.hidden, stats:c.querySelectorAll('#endStats dt').length, li:document.querySelector('#endLi').href, share:!!document.querySelector('#shareBtn,#shareText,#copyNote')||document.documentElement.innerHTML.includes('share-offsite'), fleau:!!F.saved.ach.fleau};")
+    check('écran de fin : carte de progression + lien profil, sans bouton de partage', end['visible'] and end['stats'] >= 4 and 'linkedin.com/in/' in end['li'] and not end['share'], f"stats {end['stats']} · partage {end['share']}")
+    check('succès « Fléau » débloqué', end['fleau'])
+    await pg.screenshot(path=f'{OUT}/end_card.png', timeout=120000)
+    # Dans le terrier : une plaque raconte chaque souvenir du parcours, le tableau de liège ouvre la fiche complète
+    r = await js(pg, """document.querySelector('#contBtn').click(); await wait(400); go(2, 262-3.15, Math.PI); await wait(1200);
+                        const pl=document.querySelector('.den-plaque'); const plaque=pl&&!pl.hidden?pl.innerText:'';
+                        const ia=F.interacts.find(i=>i.den==='board'); ia.action(ia); await wait(300);
+                        return {plaque, burrow:!document.querySelector('#burrow').hidden, li:document.querySelector('#liBtn').href};""")
+    check('terrier : plaque du parcours + fiche complète (LinkedIn) depuis le tableau', 'Sopra Steria' in r['plaque'] and r['burrow'] and 'linkedin.com/in/' in r['li'], r['plaque'][:60])
+    await js(pg, "document.querySelector('#outBtn').click(); await wait(300);")
+    check('aucune erreur console (partie complète)', not errs, '; '.join(errs[:3]))
+    await ctx.close()
+
+async def test_stealth_and_drop(browser):
+    ctx, pg, errs = await page(browser, 480, 320); await ready(pg)
+    await js(pg, "F.start('libre', false);")
+    # Vol sous les yeux du boulanger → alerte
+    r1 = await js(pg, """const b=npc('baker'), bg=item('baguette'); b.state='idle'; b.routeI=0; b.wait=20; b.pos.set(-20.6,0,9.5); b.yaw=Math.PI; await wait(300);
+                         go(bg.pos.x,6.6,0); await wait(400); const before=F.run.alerts; F.grabOrDrop(); await wait(300); return {before, after:F.run.alerts, state:b.state, noticed:bg.noticed};""")
+    check('vol vu → alerte « ! »', r1['after'] == r1['before'] + 1 and r1['noticed'], json.dumps(r1))
+    # Objet lâché contre l'étal → posé hors de l'obstacle
+    r2 = await js(pg, """go(-19,6.45,0); await wait(300); F.dropHeld(); await wait(200); const bg=item('baguette'); const S={x:-19,z:8,w:4.4,d:1.5};
+                         const inside=Math.abs(bg.pos.x-S.x)<S.w/2&&Math.abs(bg.pos.z-S.z)<S.d/2; return {x:bg.pos.x,z:bg.pos.z,inside};""")
+    check('objet lâché contre un meuble → posé à côté', not r2['inside'], json.dumps(r2))
+    # Vol discret du mug quand le commercial est dehors → pas d'alerte
+    r3 = await js(pg, """const s=npc('sales'); s.state='idle'; s.routeI=3; s.wait=30; s.pos.set(-9.7,0,4.3); await wait(300);
+                         F.S.sneakToggle=true; const m=item('mug'); go(m.pos.x,m.pos.z+1,Math.PI); await wait(500); const before=F.run.alerts; F.grabOrDrop(); await wait(600);
+                         const r={before, after:F.run.alerts, noticed:m.noticed, missAt:m.missAt!=null}; F.S.sneakToggle=false; return r;""")
+    check('vol discret hors de vue → pas d’alerte', r3['after'] == r3['before'] and not r3['noticed'] and r3['missAt'], json.dumps(r3))
+    # Gland doré
+    r4 = await js(pg, """const a=F.acorns[0]; go(a.pos.x,a.pos.z,0); await wait(1200); const card=!document.querySelector('#factCard').hidden; const txt=document.querySelector('#factText').textContent;
+                         document.querySelector('#factClose').click(); await wait(200); return {card, txt, saved:F.saved.acorns.length, paused:F.paused};""")
+    check('gland doré → carte d’anecdote sauvegardée', r4['card'] and r4['saved'] >= 1 and not r4['paused'], r4['txt'][:50])
+    await pg.screenshot(path=f'{OUT}/stealth.png', timeout=120000)
+    # Sauvegarde : 2 bêtises puis rechargement
+    await js(pg, "F.dropHeld(); go(22.5,5,0); await wait(300); F.yap(); await wait(300); go(7.6,8.2,-Math.PI/2); await wait(300); F.grabOrDrop(); await wait(600);")
+    await pg.reload(timeout=120000); await ready(pg)
+    r5 = await js(pg, "return {btn:document.querySelector('#startBtn').textContent, newVisible:!document.querySelector('#newBtn').hidden};")
+    ok5 = re.search(r'\((\d+)/\d+\)', r5['btn'])
+    check('reprise de partie proposée après rechargement', ok5 and int(ok5.group(1)) >= 2 and r5['newVisible'], r5['btn'])
+    await js(pg, "document.querySelector('#startBtn').click(); await wait(500);")
+    r6 = await js(pg, "return {done:Object.keys(F.run.done), mug:item('mug').gone};")
+    check('progression restaurée', 'reunion' in r6['done'] and 'imprimante' in r6['done'], ','.join(r6['done']))
+    check('aucune erreur console (discrétion, sauvegarde)', not errs, '; '.join(errs[:3]))
+    await ctx.close()
+
+async def test_beach_towel(browser):
+    """Serviette à la mer : compte dès qu'on la lâche dans l'anneau (écume, renard qui longe l'eau ou s'est retourné),
+    jamais sur le sable sec. Bug signalé : lâchée sur l'écume ou en se retournant, elle restait sur le sable."""
+    setup = """F.start('libre', false); await wait(500); F.dev.skipTuto(); const R=F.RG.plage; F.unlockRegion(R,false); F.teleport(R.spawn.x,R.spawn.z,0);
+               for(let i=0;i<80&&!item('serviette');i++) await wait(100); await wait(1500);"""
+    drop = """const t=item('serviette'); if(!f.held){ go(t.pos.x,t.pos.z-.9,0); await wait(500); F.grabOrDrop(); await wait(300); } const held=!!f.held&&f.held.kind;
+              go(10,%s,%s); await wait(800); F.grabOrDrop(); await wait(600);
+              return {held, z:+t.pos.z.toFixed(2), gone:t.gone, done:!!F.run.done.serviette};"""
+    ctx, pg, errs = await page(browser, 480, 320, acorns_done=True); await ready(pg)
+    await js(pg, setup)
+    dry = await js(pg, drop % (86, 1.5708))      # sable sec, en longeant la plage : rien
+    foam = await js(pg, drop % (88.4, 1.5708))   # sur l'écume, en longeant l'eau : à la mer
+    check('serviette : sable sec → reste posée ; écume en longeant l\'eau → à la mer, bêtise comptée',
+          dry['held'] == 'serviette' and not dry['gone'] and not dry['done'] and foam['done'] and foam['gone'] and foam['z'] >= 89.3, json.dumps({'sec': dry, 'ecume': foam}))
+    check('aucune erreur console (serviette)', not errs, '; '.join(errs[:3]))
+    await ctx.close()
+    ctx, pg, errs = await page(browser, 480, 320, acorns_done=True); await ready(pg)
+    await js(pg, setup)
+    back = await js(pg, drop % (88.6, 3.1416))   # pattes dans l'eau, tourné vers la plage : l'objet tomberait sur le sable mouillé
+    check('serviette : renard dans l\'eau tourné vers la plage → elle part dans les vagues', back['done'] and back['gone'] and back['z'] >= 89.3, json.dumps(back))
+    await ctx.close()
+
+async def test_rings(browser):
+    """Toutes les bêtises : déclencheurs atteignables à pied, anneaux de dépôt fidèles à ce qui compte
+    (étang au ponton, but, chaussette et bouteille depuis la berge ou le pont, bâtons du castor, serviette, baguette)."""
+    ctx, pg, errs = await page(browser, 480, 320, acorns_done=True); await ready(pg)
+    r = await pg.evaluate(open(os.path.join(os.path.dirname(__file__), 'audit_rings.js'), encoding='utf-8').read())
+    check('toutes les bêtises : chaque déclencheur et chaque carte postale est atteignable à pied', not r['bad'], json.dumps(r['bad'], ensure_ascii=False)[:500])
+    # Objets dont la bêtise se fait en les lâchant (la baguette du village, elle, s'apporte DANS le terrier ; le drapeau s'agite en glapissant ;
+    # le badge ouvre la porte dès qu'on l'approche ; mug, chapeau, carotte et clé : anneau sur l'obstacle, couverts par d'autres tests)
+    ring = {d['kind']: d for d in r['drops']}
+    want = ['serviette', 'hache', 'sandwich', 'ballon', 'chaussette', 'bouteille', 'baton']
+    bad = {k: {x: ring[k][x] for x in ('n', 'landInRingFail', 'faceFail', 'faceN', 'ex')} for k in want if k not in ring or ring[k]['n'] == 0 or ring[k]['landInRingFail'] or ring[k]['faceFail']}
+    paris = [d for d in r['drops'] if d['region'] == 'paris']
+    check('anneaux de dépôt : objet tombé dans l\'anneau = bêtise comptée ; lâché face au centre depuis l\'anneau aussi',
+          not bad and paris and not paris[0]['landInRingFail'] and not paris[0]['faceFail'],
+          json.dumps(bad, ensure_ascii=False)[:500] if bad else ' · '.join(f"{k} {ring[k]['n'] - ring[k]['fail']}/{ring[k]['n']}" for k in want))
+    check('aucune erreur console (anneaux)', not errs and not r.get('pageerrors'), '; '.join(errs[:3]))
+    await ctx.close()
+    # Tour du terrain : dans un sens comme dans l'autre (avant : un seul sens comptait, sans rien dire). Page neuve : le contrôle
+    # ci-dessus a validé et effacé des dizaines de bêtises (une carte « chapitre terminé » peut attendre un clic).
+    ctx, pg, errs = await page(browser, 480, 320, acorns_done=True); await ready(pg)
+    lap = await js(pg, """F.start('libre', false); await wait(400); F.dev.skipTuto(); F.unlockRegion(F.RG.sport, false);
+        F.teleport(F.RG.sport.spawn.x, F.RG.sport.spawn.z, 0); for(let i=0;i<80&&F.paused;i++) await wait(100); await wait(600);
+        const CP=[[40,-10],[84,-10],[84,14],[40,14]], frame=()=>new Promise(r=>requestAnimationFrame(()=>r()));
+        const tour=async o=>{ delete F.run.done.tourTerrain; for(const k of [...o,o[0]]){ go(CP[k][0],CP[k][1]); for(let i=0;i<3;i++) await frame(); } return !!F.run.done.tourTerrain; };
+        const a=await tour([0,1,2,3]); go(62,2); for(let i=0;i<3;i++) await frame(); const b=await tour([2,1,0,3]); return {sens1:a, sens2:b};""")
+    check('tour du terrain : compte dans les deux sens', lap['sens1'] and lap['sens2'], json.dumps(lap))
+    check('aucune erreur console (tour du terrain)', not errs, '; '.join(errs[:3]))
+    await ctx.close()
+
+async def test_daily(browser):
+    ctx, pg, errs = await page(browser, 480, 320); await ready(pg)
+    await js(pg, "document.querySelector('#dailyBtn').click(); await wait(500);")
+    r = await js(pg, "return {mode:F.run.mode, n:F.run.goals.length, li:document.querySelectorAll('#goals li').length, label:document.querySelector('#nbMode').textContent};")
+    check('défi du jour : 5 bêtises', r['mode'] == 'defi' and r['n'] == 5 and r['li'] == 5, json.dumps(r))
+    await ctx.close()
+
+async def test_daily_end(browser):
+    """Défi du jour réussi : classement du jour (temps envoyé, meilleur temps par pseudo), « Continuer l'aventure »
+    qui passe à la partie libre, « Rejouer » ; le carnet de voyage montre aussi le top du jour."""
+    seen = {'daily_rows': [{'day': '', 'pseudo': 'Renarde', 'secs': 61.2}]}
+    ctx = await browser.new_context(viewport={'width': 1024, 'height': 700}); await offline_lb(ctx, [], seen)
+    await ctx.add_init_script("window.__foxNoCine=true; try{ if(!sessionStorage.getItem('seed')){ sessionStorage.setItem('seed','1'); localStorage.setItem('fox-betises-v2', JSON.stringify({tuto:1, acorns:[0,1,2,3,4]})); } }catch(e){}")
+    pg = await ctx.new_page(); errs = []
+    pg.on('pageerror', lambda e: errs.append('pageerror: ' + str(e)))
+    pg.on('console', lambda m: errs.append(f'{m.type}: {m.text}') if m.type in ('error', 'warning') and 'preloaded using link preload' not in m.text else None)
+    await pg.goto(URL, timeout=120000); await ready(pg)
+    day = await pg.evaluate("()=>window.__fox.run.day || (()=>{ const d=new Date(); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`; })()")
+    seen['daily_rows'][0]['day'] = day
+    r = await js(pg, """F.start('defi'); await wait(400); F.run.elapsed=83.44; for(const g of [...F.run.goals]) F.completeGoal(g);
+        for(let i=0;i<60&&document.querySelector('#endCard').hidden;i++) await wait(100); for(let i=0;i<60&&!document.querySelector('#dlTop .empty, #dlTop li span');i++) await wait(100); await wait(400);
+        const q=s=>document.querySelector(s);
+        return {card:!q('#endCard').hidden, lb:!q('#endLb').hidden, cont:!q('#contBtn').hidden&&q('#contBtn').textContent, replay:!q('#replayBtn').hidden, focus:document.activeElement.id,
+                top:[...document.querySelectorAll('#dlTop li')].map(li=>li.textContent), online:q('#dlOnline').textContent, day:F.run.day};""")
+    await pg.fill('#dlPseudo', 'Pierre'); await pg.click('#dlSend'); await pg.wait_for_timeout(1200)
+    r2 = await pg.evaluate("()=>({sent:document.querySelector('#dlSent').textContent, top:[...document.querySelectorAll('#dlTop li')].map(li=>li.textContent), me:!!document.querySelector('#dlTop li.me')})")
+    post = (seen.get('daily_post') or [{}])[0]
+    check('défi du jour réussi : classement du jour (temps au dixième), « Continuer l’aventure » et « Rejouer »', r['card'] and r['lb'] and r['cont'] in ("Continue the adventure", "Continuer l'aventure")
+          and r['replay'] and r['focus'] == 'contBtn' and r['top'] and 'Renarde' in r['top'][0] and '1:01.2' in r['top'][0] and r['day'] == day, json.dumps(r, ensure_ascii=False))
+    check('défi du jour : temps envoyé (jour, pseudo, secondes), meilleur temps par pseudo, mon rang surligné', post.get('body') == {'day': day, 'pseudo': 'Pierre', 'secs': 83.4}
+          and 'daily_times' in post.get('url', '') and post.get('prefer') == 'return=minimal' and r2['me'] and any('Pierre' in x and '1:23.4' in x for x in r2['top'])
+          and any(f'day=eq.{day}' in u and 'order=secs.asc' in u for u in seen.get('daily_get', [])), json.dumps({'post': post, **r2}, ensure_ascii=False))
+    # « Continuer l'aventure » : la page se recharge en partie libre
+    async with pg.expect_navigation(timeout=120000): await pg.click('#contBtn')
+    await ready(pg)
+    await pg.wait_for_function('()=>window.__fox.S.started===true', timeout=60000)
+    c = await pg.evaluate("()=>({mode:window.__fox.run.mode, started:window.__fox.S.started, goals:window.__fox.run.goals.length, intro:document.querySelector('#intro').hidden})")
+    j = await js(pg, "F.dev.skipTuto(); F.openJournal('lb'); for(let i=0;i<60&&!document.querySelector('#jDaily li span');i++) await wait(100); return [...document.querySelectorAll('#jDaily li')].map(li=>li.textContent);")
+    check('« Continuer l’aventure » : passe à la partie libre ; le carnet de voyage montre le top du jour', c['mode'] == 'libre' and c['started'] and c['goals'] >= 13 and c['intro']
+          and j and 'Renarde' in j[0] and any('Pierre' in x for x in j), json.dumps({**c, 'carnet': j}, ensure_ascii=False))
+    check('aucune erreur console (défi du jour réussi)', not errs, '; '.join(errs[:3]))
+    await ctx.close()
+
+async def test_fallbacks(browser_factory):
+    b = await browser_factory(["--disable-webgl", "--disable-3d-apis", "--disable-gpu"])
+    ctx = await b.new_context(viewport={'width': 390, 'height': 800}); pg = await ctx.new_page(); await pg.goto(URL); await pg.wait_for_timeout(2500)
+    r = await pg.evaluate("({nogame:document.documentElement.classList.contains('nogame'), burrow:!document.querySelector('#burrow').hidden})")
+    check('sans WebGL → profil affiché', r['nogame'] and r['burrow'])
+    await b.close()
+    b = await browser_factory(GL)
+    ctx = await b.new_context(java_script_enabled=False, viewport={'width': 1280, 'height': 760}); pg = await ctx.new_page(); await pg.goto(URL); await pg.wait_for_timeout(800)
+    txt = await pg.inner_text('#burrow')
+    check('sans JavaScript → profil lisible', 'Pierre Logre' in txt and 'Sopra Steria' in txt)
+    resp = await pg.goto(URL + 'nimporte-quoi'); txt = await pg.inner_text('body')
+    check('page 404 du renard', resp.status == 404 and 'renard' in txt.lower(), str(resp.status))
+    await b.close()
+
+async def test_mobile_and_perf(browser):
+    ctx, pg, errs = await page(browser, 375, 667, is_mobile=True, has_touch=True, device_scale_factor=2); await ready(pg)
+    r = await pg.evaluate("()=>{ const c=document.querySelector('#intro .card').getBoundingClientRect(); return {l:Math.round(c.left), r:Math.round(c.right), w:innerWidth}; }")
+    check('mobile : la carte d’accueil tient dans l’écran', r['l'] >= 0 and r['r'] <= r['w'], json.dumps(r))
+    await js(pg, "F.start('libre', false); await wait(400);")
+    await js(pg, "document.querySelector('#toasts').insertAdjacentHTML('beforeend','<div class=\"toast\">Bêtise accomplie : test de chevauchement assez long</div>'); await wait(200);")
+    r = await pg.evaluate("""()=>{ const R=s=>{const e=document.querySelector(s); if(!e||e.hidden) return null; const r=e.getBoundingClientRect(); return r.width&&r.height?r:null;};
+       const ids=['#notebook','#tuto','#topRight','#stick','#tbtns','.toast']; const out=[]; for(let i=0;i<ids.length;i++) for(let j=i+1;j<ids.length;j++){ const a=R(ids[i]), b=R(ids[j]); if(a&&b&&a.left<b.right&&b.left<a.right&&a.top<b.bottom&&b.top<a.bottom) out.push(ids[i]+'∩'+ids[j]); }
+       const tr=R('#topRight'); return {overlaps:out, topRightW:tr&&Math.round(tr.width), scrollW:document.documentElement.scrollWidth}; }""")
+    check('mobile 375×667 : aucun chevauchement', not r['overlaps'], ', '.join(r['overlaps']))
+    check('mobile : pas de défilement horizontal', r['scrollW'] <= 375, str(r['scrollW']))
+    # Qualité auto : un téléphone fluide au palier 1 retrouve la pleine résolution (essai, gardé s'il reste fluide)
+    r = await js(pg, "F.Q.done=false; F.Q.tier=1; F.renderer.setPixelRatio(1); F.Q.decide(60); const a=F.renderer.getPixelRatio(); F.Q.decide(60); const b=F.renderer.getPixelRatio(); F.Q.decide(59); return {a, b, c:F.renderer.getPixelRatio(), done:F.Q.done};")
+    check('qualité auto : retour à la pleine résolution si le téléphone reste fluide', r['a'] == 1 and r['b'] > 1 and r['c'] == r['b'] and r['done'], json.dumps(r))
+    await pg.screenshot(path=f'{OUT}/mobile.png', timeout=120000)
+    await ctx.close()
+    ctx, pg, errs = await page(browser, 1280, 760); await ready(pg)
+    await js(pg, "F.start('libre', false); await wait(1500);")
+    calls = []
+    for spot in [(-4, 5.5), (-20, -5), (15, 0), (-8, 12)]:
+        c = await js(pg, f"go({spot[0]},{spot[1]},Math.PI); await wait(2500); return F.renderer.info.render.calls;")
+        calls.append(c)
+    check('budget village : < 180 appels de dessin', max(calls) < 180, ' / '.join(map(str, calls)))
+    await js(pg, "go(-8,13.6,0); await wait(2500);")
+    await pg.screenshot(path=f'{OUT}/occlusion_burrow.png', timeout=120000)
+    check('aucune erreur console (mobile, perf)', not errs, '; '.join(errs[:3]))
+    await ctx.close()
+
+async def test_world(browser):
+    """Monde ouvert : régions, ouverture, voyages, mini-jeu, classement, carnet, sauvegarde v2."""
+    ctx, pg, errs = await page(browser, 1280, 760, acorns_done=True); await ready(pg)
+    await js(pg, "localStorage.removeItem('fox-leaderboard'); F.start('libre', false); await wait(1500);")
+    r = await js(pg, """return {regions:F.REGIONS.length, goals:F.GOALS.length, secrets:F.GOALS.filter(g=>g.secret).length, ach:F.ACHIEVEMENTS.length,
+                        built:F.REGIONS.filter(R=>R.built).map(R=>R.id)};""")
+    check('monde : ≥ 10 régions, ≥ 80 bêtises dont ≥ 15 secrètes, ≥ 20 succès', r['regions'] >= 10 and r['goals'] >= 80 and r['secrets'] >= 15 and r['ach'] >= 20, f"{r['regions']} régions · {r['goals']} bêtises · {r['secrets']} secrètes · {r['ach']} succès")
+    # Avant 4 bêtises : la forêt est fermée (on ne peut pas passer)
+    # (un pas par image : en rendu logiciel lent, on laisse le jeu résoudre les collisions à chaque pas)
+    r = await js(pg, """const frame=()=>new Promise(r=>requestAnimationFrame(()=>r()));
+                        go(-18.5,-19,Math.PI); for(let i=0;i<40;i++){ f.pos.z-=.3; F.fox.vel.set(0,0,0); await frame(); } await wait(1800); const blocked=f.pos.z>-21.2;
+                        for(const id of ['jardinier','reunion','imprimante','mug']) F.completeGoal(id); await wait(600);
+                        go(-18.5,-19,Math.PI); for(let i=0;i<60;i++){ f.pos.z-=.3; F.fox.vel.set(0,0,0); await frame(); } await wait(1500);
+                        for(let i=0;i<40&&F.S.region!=='foret';i++) await wait(250);   // rendu logiciel lent : on attend la mise à jour de la région
+                        return {blocked, unlocked:F.run.unlocked.slice(), z:f.pos.z, region:F.S.region};""")
+    check('forêt fermée puis ouverte après 4 bêtises', r['blocked'] and 'foret' in r['unlocked'] and r['region'] == 'foret', json.dumps(r))
+    # Toutes les régions : visite, aucune erreur, budget de dessin
+    calls = {}
+    for rid in ['foret', 'sport', 'moto', 'riviere', 'plage', 'gare', 'nantes', 'paris', 'montagne', 'ile']:
+        c = await js(pg, f"""const R=F.RG['{rid}']; F.unlockRegion(R,false); F.teleport(R.spawn.x,R.spawn.z,0); await wait(3200); return [F.S.region, F.renderer.info.render.calls];""")
+        calls[rid] = c
+        await pg.screenshot(path=f'{OUT}/region_{rid}.png', timeout=120000)
+    bad = {k: v for k, v in calls.items() if v[0] != k}
+    check('voyage dans chaque région (terriers)', not bad, json.dumps(bad) if bad else f"{len(calls)} régions")
+    worst = max(v[1] for v in calls.values())
+    check('budget par région : < 180 appels de dessin', worst < 180, ' · '.join(f"{k} {v[1]}" for k, v in calls.items()))
+    # Mini-jeu : quelques tirs, fin, record, classement local (sans Supabase configuré)
+    r = await js(pg, """const R=F.RG.sport; F.teleport(89,18,Math.PI); await wait(1200); const ia=F.interacts.find(i=>i.kind==='act'&&Math.abs(i.pos.x-89)<.1&&Math.abs(i.pos.z-18)<.1); ia.action(ia); await wait(300);
+                        const active=F.MG.active; const key=c=>{ dispatchEvent(new KeyboardEvent('keydown',{code:c})); dispatchEvent(new KeyboardEvent('keyup',{code:c})); };
+                        const hold=async(c,ms)=>{ dispatchEvent(new KeyboardEvent('keydown',{code:c})); await wait(ms); dispatchEvent(new KeyboardEvent('keyup',{code:c})); };
+                        const cv=document.querySelector('#game'), aim=(x,y)=>{ const v=new F.THREE.Vector3(89+x,y,11).project(F.camera); cv.dispatchEvent(new PointerEvent('pointermove',{clientX:(v.x+1)/2*innerWidth, clientY:(1-v.y)/2*innerHeight, pointerType:'mouse', bubbles:true})); };
+                        // on vise les lucarnes à la souris puis on tire ; on attend la fin de chaque tir (rendu logiciel lent)
+                        for(let i=0;i<8&&!(F.MG.score>0&&i>=2);i++){ for(let k=0;k<120&&!F.MG.ready;k++) await wait(250); aim(i%2?-1.25:1.25,1.7); await wait(400); key('Space'); await wait(300); for(let k=0;k<120&&F.MG.busy;k++) await wait(250); }
+                        F.endMinigameNow(); await wait(800); for(let i=0;i<30&&document.querySelector('#mgEnd').hidden;i++) await wait(250);
+                        const end=!document.querySelector('#mgEnd').hidden; document.querySelector('#mgPseudo').value='Renard<script>'; document.querySelector('#mgSend').click(); await wait(800);
+                        const lb=JSON.parse(localStorage.getItem('fox-leaderboard')||'{}'); const top=document.querySelector('#mgTop').textContent;
+                        return {active, end, best:F.saved.mgBest, lb:(lb.list||[]).map(x=>x.pseudo), top, note:document.querySelector('#mgSent').textContent};""")
+    check('mini-jeu « Tir au renard » : partie, score, fin', r['active'] and r['end'], f"record {r['best']}")
+    check('classement + pseudo nettoyé (Renard<script> → Renardscript)', r['lb'] and r['lb'][0] == 'Renardscript' and 'Renardscript' in r['top'], json.dumps(r['lb']))
+    pz = await js(pg, "return {bad:['C0nnard','s@lope','F.u.c.k'].map(F.pseudoOk), good:['Monique','Véronique','Pierre L.','Renard'].map(F.pseudoOk)};")
+    check('pseudos abusifs refusés, prénoms courants acceptés', not any(pz['bad']) and all(pz['good']), json.dumps(pz))
+    await pg.screenshot(path=f'{OUT}/minigame_end.png', timeout=120000)
+    await js(pg, "document.querySelector('#mgQuit').click(); await wait(400);")
+    # Carnet de voyage : carte, succès, classement
+    r = await js(pg, """F.openJournal('map'); await wait(400); const map=!document.querySelector('#journal').hidden, li=document.querySelectorAll('#jRegions li').length;
+                        document.querySelector('[data-tab=ach]').click(); await wait(200); const ach=document.querySelectorAll('.ach').length;
+                        document.querySelector('[data-tab=lb]').click(); await wait(600); const lb=document.querySelectorAll('#j-lb .lb li').length; F.closeJournal(); return {map, li, ach, lb};""")
+    check('carnet de voyage : carte, succès, classement', r['map'] and r['li'] >= 10 and r['ach'] >= 20 and r['lb'] >= 1, json.dumps(r))
+    await pg.screenshot(path=f'{OUT}/journal.png', timeout=120000)
+    # Une bêtise de région + sauvegarde v2 (régions ouvertes, position) après rechargement
+    dbg = await js(pg, "F.completeGoal('ola'); F.teleport(-290,10,0); await wait(1500); return {paused:F.paused, x:f.pos.x};")
+    await pg.reload(timeout=120000); await ready(pg)
+    r = await js(pg, "document.querySelector('#startBtn').click(); await wait(2500); return {unlocked:F.run.unlocked.length, ola:!!F.run.done.ola, region:F.S.region, x:Math.round(f.pos.x)};")
+    check('sauvegarde v2 : régions, bêtises et position restaurées', r['unlocked'] >= 10 and r['ola'] and r['region'] == 'paris', json.dumps(r) + ' ' + json.dumps(dbg))
+    # Fil rouge : un souvenir ramassé au complexe sportif (il rejoindra l'étagère du terrier)
+    r = await js(pg, """F.teleport(40.6, 23.6, Math.PI); await wait(1800); for(let i=0;i<24;i++){ go(40.6, 23.6-i*.1, Math.PI); await new Promise(r=>requestAnimationFrame(()=>r())); } await wait(400);
+                        return {souv:F.run.flags.souv||[], toast:[...document.querySelectorAll('.toast')].map(t=>t.textContent).join(' | ')};""")
+    check('fil rouge : souvenir ramassé (ballon de hand)', 'sport' in r['souv'], json.dumps(r))
+    check('aucune erreur console (monde ouvert)', not errs, '; '.join(errs[:3]))
+    await ctx.close()
+    # Plan de caméra à l'ouverture d'une région + défi du jour sans ouverture
+    ctx, pg, errs = await page(browser, 800, 600, acorns_done=True, cine=True); await ready(pg)
+    # Le plan est noté au moment où le jeu le lance et le termine (en rendu logiciel, la première image de la forêt
+    # compile ses shaders et bloque la page plus longtemps que le plan lui-même : un simple sondage le manquerait)
+    r = await js(pg, """F.start('libre', false); await wait(500);
+                        let cine=F.S.cine, seen=false, ended=false; Object.defineProperty(F.S,'cine',{configurable:true, get(){ return cine; }, set(x){ if(x) seen=true; else if(cine) ended=true; cine=x; }});
+                        for(const id of ['jardinier','reunion','imprimante','mug']) F.completeGoal(id);
+                        for(let i=0;i<600&&!ended;i++) await wait(100); await wait(500);
+                        return {seen, ended, after:!!F.S.cine, paused:F.paused, banner:document.querySelector('#regionBanner b').textContent};""")
+    check('ouverture : plan de caméra puis retour au jeu', r['seen'] and r['ended'] and not r['after'] and not r['paused'], json.dumps(r))
+    await ctx.close()
+    ctx, pg, errs = await page(browser, 375, 667, is_mobile=True, has_touch=True, acorns_done=True); await ready(pg)
+    r = await js(pg, """F.start('defi'); await wait(300); for(const g of F.run.goals.slice(0,4)) F.completeGoal(g); await wait(300); const u=F.run.unlocked.length;
+                        F.S.paused=false; return {u};""")
+    check('défi du jour : aucune région ne s’ouvre', r['u'] == 0, json.dumps(r))
+    await js(pg, "F.start && 0; localStorage.removeItem('fox-run-libre'); location.reload();")
+    await ready(pg)
+    r = await js(pg, """F.start('libre', false); await wait(300); F.openJournal('ach'); await wait(400); const j=document.querySelector('#journal .card').getBoundingClientRect();
+                        return {w:Math.round(j.width), right:Math.round(j.right), scrollW:document.documentElement.scrollWidth};""")
+    check('mobile : carnet de voyage lisible, sans débordement', r['right'] <= 375 and r['scrollW'] <= 375, json.dumps(r))
+    await pg.screenshot(path=f'{OUT}/journal_mobile.png', timeout=120000)
+    check('aucune erreur console (plans, mobile)', not errs, '; '.join(errs[:3]))
+    await ctx.close()
+
+OVERLAP_JS = """()=>{ const R=s=>{const e=document.querySelector(s); if(!e||e.hidden||getComputedStyle(e).display==='none') return null; const r=e.getBoundingClientRect(); return r.width&&r.height?r:null;};
+   const ids=['#notebook','#tuto','#topRight','#stick','#tbtns','.toast']; const out=[]; for(let i=0;i<ids.length;i++) for(let j=i+1;j<ids.length;j++){ const a=R(ids[i]), b=R(ids[j]); if(a&&b&&a.left<b.right&&b.left<a.right&&a.top<b.bottom&&b.top<a.bottom) out.push(ids[i]+'∩'+ids[j]); }
+   const off=ids.filter(s=>{ const r=R(s); return r&&(r.left<0||r.right>innerWidth+1||r.top<0||r.bottom>innerHeight+1); }).map(s=>{ const r=R(s); return s+' '+[r.left,r.top,r.right,r.bottom].map(Math.round).join(','); });
+   return {overlaps:out, off, scrollW:document.documentElement.scrollWidth}; }"""
+
+async def test_first_minute(browser):
+    # Carte d'accueil affichée avant que le jeu soit prêt (game.js retardé de 3 s), dans la langue du visiteur
+    ctx = await browser.new_context(viewport={'width': 1280, 'height': 760}, locale='en-US')
+    await offline_lb(ctx)
+    await ctx.add_init_script("window.__foxNoCine=true")
+    pg = await ctx.new_page(); errs = []
+    pg.on('pageerror', lambda e: errs.append('pageerror: ' + str(e)))
+    pg.on('console', lambda m: errs.append(f'{m.type}: {m.text}') if m.type in ('error', 'warning') and 'preloaded using link preload' not in m.text else None)
+    async def slow(route):
+        await asyncio.sleep(3); await route.continue_()
+    await pg.route('**/assets/game.js*', slow)   # l'adresse porte la version (?v=…)
+    await pg.goto(URL, wait_until='commit', timeout=120000); await pg.wait_for_selector('#startBtn', state='attached'); await pg.wait_for_timeout(300)
+    r = await pg.evaluate("""()=>({intro:!document.querySelector('#intro').hidden, busy:document.querySelector('#startBtn').getAttribute('aria-busy'), lang:document.documentElement.lang,
+        h1:document.querySelector('#introH1').textContent, btn:document.querySelector('#startBtn').textContent, ready:!!window.__foxReady, hud:getComputedStyle(document.querySelector('#notebook')).visibility})""")
+    check('accueil : carte affichée avant le jeu, en anglais pour un visiteur anglophone, bouton qui tourne', r['intro'] and r['busy'] == 'true' and r['lang'] == 'en' and 'fox' in r['h1'] and r['btn'] == 'Cause mischief' and not r['ready'] and r['hud'] == 'hidden', json.dumps(r))
+    await pg.screenshot(path=f'{OUT}/intro_loading.png', timeout=120000)
+    await pg.click('#startBtn', timeout=120000)   # page très occupée pendant le chargement en rendu logiciel
+    await pg.wait_for_function('()=>window.__foxReady===true', timeout=120000)
+    r = await js(pg, """for(let i=0;i<60&&!F.S.started;i++) await wait(100); return {started:F.S.started, tuto:F.dev.TUTO.on, step:F.dev.TUTO.step, busy:document.querySelector('#startBtn').hasAttribute('aria-busy'),
+                        nb:getComputedStyle(document.querySelector('#notebook')).display, post:document.querySelector('#tuto').innerText};""")
+    check('accueil : clic pendant le chargement retenu → partie lancée dès que le jeu est prêt, visite guidée', r['started'] and r['tuto'] and r['step'] == 'yap' and not r['busy'] and r['nb'] == 'none' and 'gardener' in r['post'], json.dumps(r))
+    await pg.screenshot(path=f'{OUT}/tuto_step1.png', timeout=120000)
+    # Les trois bêtises guidées, avec les vraies règles du jeu (le jardinier réagit plus lentement pendant la visite)
+    r = await js(pg, """const g=npc('gardener'), h=item('chapeau'), steps=[]; const until=async(fn,n=300)=>{ for(let i=0;i<n&&!fn();i++) await wait(50); };
+        go(g.pos.x+2,g.pos.z+1.6,-2.3); await wait(300); F.yap(); const cool=+g.cool.toFixed(2);
+        await until(()=>F.dev.TUTO.step!=='yap'); steps.push(F.dev.TUTO.step); const ease=g.easeK, chev=!document.querySelector('#tutoChev').hidden||null;
+        for(let k=0;k<4&&!F.run.done.chapeau;k++){ for(let i=0;i<800&&h.vel;i++) await wait(50);
+          if(h.worn){ go(g.pos.x+2,g.pos.z+1.6,-2.3); await wait(300); F.yap(); continue; } go(h.pos.x,h.pos.z-.9,0); F.grabOrDrop(); await wait(300); }
+        await until(()=>F.dev.TUTO.step==='fountain'); steps.push(F.dev.TUTO.step);
+        go(-4,3.3,Math.PI); await wait(300); F.dropHeld(); await until(()=>F.dev.TUTO.step==='done'); steps.push(F.dev.TUTO.step);
+        const win=document.querySelector('#tuto').classList.contains('win');
+        // « la suite est ici » : l'étiquette apparaît avec le carnet puis s'efface après 8 s ; on la guette pendant l'attente
+        let more=false; await until(()=>{ more=more||!!document.querySelector('#notebook .nb-more'); return !F.dev.TUTO.on; },400); await wait(400); const nb=document.querySelector('#notebook'); more=more||!!nb.querySelector('.nb-more');
+        return {cool, ease, steps, win, on:F.dev.TUTO.on, saved:F.saved.tuto, nb:getComputedStyle(nb).display, more, easeAfter:g.easeK,
+                done:['jardinier','chapeau','chapeauEau'].every(i=>F.run.done[i])};""")
+    check('visite guidée : glapir → chapeau → fontaine, puis le carnet revient (« la suite est ici »)', r['steps'] == ['grab', 'fountain', 'done'] and r['win'] and not r['on'] and r['saved'] == 1 and r['nb'] == 'block' and r['more'] and r['done'], json.dumps(r))
+    check('visite guidée : le jardinier réagit plus lentement (2,6 s, ×0,8), puis redevient normal', r['cool'] >= 2.4 and r['ease'] == .8 and r['easeAfter'] == 1, json.dumps(r))
+    await pg.screenshot(path=f'{OUT}/tuto_done.png', timeout=120000)
+    await js(pg, "localStorage.removeItem('fox-run-libre'); location.reload();")
+    await pg.wait_for_function('()=>window.__foxReady===true', timeout=120000)
+    r = await js(pg, "F.start('libre', false); await wait(500); return {on:F.dev.TUTO.on, nb:getComputedStyle(document.querySelector('#notebook')).display};")
+    check('visite guidée : vue une fois, elle ne revient pas', not r['on'] and r['nb'] == 'block', json.dumps(r))
+    check('aucune erreur console (première minute)', not errs, '; '.join(errs[:3]))
+    await ctx.close()
+
+async def test_touch_feel(browser):
+    ctx, pg, errs = await page(browser, 390, 844, is_mobile=True, has_touch=True, device_scale_factor=2); await ready(pg)
+    await js(pg, "F.start('libre', false); await wait(500); document.querySelector('#toasts').insertAdjacentHTML('beforeend','<div class=\"toast\">Bêtise accomplie : test de chevauchement assez long</div>'); await wait(200);")
+    r = await pg.evaluate(OVERLAP_JS)
+    check('téléphone 390×844 : post-it de la visite, boutons et carnet sans chevauchement', not r['overlaps'] and not r['off'] and r['scrollW'] <= 390, json.dumps(r))
+    await pg.screenshot(path=f'{OUT}/touch_tuto.png', timeout=120000)
+    r = await js(pg, "document.querySelector('#tutoSkip').click(); await wait(700); const nb=document.querySelector('#notebook'); return {on:F.dev.TUTO.on, saved:F.saved.tuto, disp:getComputedStyle(nb).display, collapsed:nb.classList.contains('collapsed'), more:!!nb.querySelector('.nb-more')};")
+    check('visite guidée : « Passer » rend la main ; au téléphone le carnet reste replié mais signalé', not r['on'] and r['saved'] == 1 and r['disp'] == 'block' and r['collapsed'] and r['more'], json.dumps(r))
+    # Joystick flottant : vrais touchers (CDP)
+    cdp = await ctx.new_cdp_session(pg)
+    async def touch(kind, x=0, y=0):
+        await cdp.send('Input.dispatchTouchEvent', {'type': kind, 'touchPoints': [] if kind == 'touchEnd' else [{'x': x, 'y': y, 'id': 1}]})
+    center = "const b=document.querySelector('#stick').getBoundingClientRect(); return [Math.round(b.left+b.width/2), Math.round(b.top+b.height/2)];"
+    rest = await js(pg, center)
+    z0 = await js(pg, "return f.pos.z;")
+    await touch('touchStart', 140, 560); await touch('touchMove', 140, 500)
+    r = await js(pg, center + "")
+    s1 = await js(pg, "const s=F.dev.stick; return [+s.x.toFixed(2), +s.y.toFixed(2)];")
+    await js(pg, "for(let i=0;i<6;i++) await new Promise(r=>requestAnimationFrame(()=>r()));")
+    z1 = await js(pg, "return f.pos.z;")
+    await touch('touchEnd')
+    back = await js(pg, center); s2 = await js(pg, "const s=F.dev.stick; return [s.x, s.y];")
+    ok = abs(r[0] - 140) <= 2 and abs(r[1] - 560) <= 2 and abs(s1[0]) < .05 and s1[1] <= -.95 and z1 < z0 - .05 and back == rest and s2 == [0, 0]
+    check('joystick flottant : le cercle vient sous le pouce, course à fond, le renard avance, retour au repos', ok, json.dumps({'rest': rest, 'moved': r, 'stick': s1, 'z': [round(z0, 2), round(z1, 2)], 'back': back}))
+    await touch('touchStart', rest[0], rest[1]); await touch('touchMove', rest[0] + 4, rest[1] - 3)
+    dz = await js(pg, center + "")
+    sd = await js(pg, "const s=F.dev.stick; return [s.x, s.y];")
+    await touch('touchEnd')
+    check('joystick : pouce posé dans le cercle → il ne bouge pas ; petite zone morte au centre', dz == rest and sd == [0, 0], json.dumps({'c': dz, 'stick': sd}))
+    # Bouton Attraper : s'allume à portée (portée plus large au doigt), devient « Poser »
+    r = await js(pg, """const bg=item('baguette'), b=npc('baker'); b.state='idle'; b.routeI=0; b.wait=30; b.pos.set(-23,0,9.5);
+        go(bg.pos.x, bg.pos.z-2.6, 0); await wait(400); const far=F.dev.nearestTarget(); const btn=document.querySelector('#tGrab');
+        for(let i=0;i<20&&!btn.classList.contains('ready');i++) await wait(100); const ready=btn.classList.contains('ready');
+        go(bg.pos.x, 6.6, 0); await wait(300); F.grabOrDrop(); for(let i=0;i<20&&!btn.classList.contains('holding');i++) await wait(100);
+        const hold={c:btn.classList.contains('holding'), t:btn.textContent}; F.dropHeld(); for(let i=0;i<20&&btn.classList.contains('holding');i++) await wait(100);
+        return {far:far&&far.kind, ready, hold, after:btn.textContent};""")
+    check('bouton Attraper : s’allume à portée (2,1 m de la gueule), devient « Poser », puis revient', r['far'] == 'baguette' and r['ready'] and r['hold']['c'] and r['hold']['t'] in ('Poser', 'Drop') and r['after'] in ('Attraper', 'Grab'), json.dumps(r))
+    # Glissade le long d'un mur (étal du boulanger) : il garde la vitesse qui longe le mur ; de face, il ne court pas sur place
+    async def push(keys, frames=8):
+        await js(pg, "go(-19,6.7,0); f.vel.set(0,0,0); await wait(100);")
+        for k in keys: await pg.keyboard.down(k)
+        r = await js(pg, f"for(let i=0;i<{frames};i++) await new Promise(r=>requestAnimationFrame(()=>r())); return {{x:+f.pos.x.toFixed(2), z:+f.pos.z.toFixed(2), vx:+f.vel.x.toFixed(2), vz:+f.vel.z.toFixed(2)}};")
+        for k in keys: await pg.keyboard.up(k)
+        return r
+    a = await push(['KeyS', 'KeyD']); b = await push(['KeyS'])
+    check('contre un mur : glisse le long (vitesse le long du mur gardée), ne court pas sur place de face', a['x'] > -18.95 and a['z'] < 6.8 and abs(a['vz']) < 1 and a['vx'] > 1.5 and abs(b['vz']) < 1 and abs(b['vx']) < .5, json.dumps({'biais': a, 'face': b}))
+    # Plafond 60 i/s : 120 Hz simulé → 60 images dessinées par seconde ; 60 Hz inchangé ; test #bench sans plafond
+    r = await js(pg, """const {pace,PACE}=F.dev; const save={...PACE, ivs:[...PACE.ivs]}; Object.assign(PACE,{fast:0,cap:false,last:0,lastDraw:-1e9,ivs:[]});
+        let t=1000, n120=0, n60=0, nb=0; for(let i=0;i<120;i++){ t+=1000/120; pace(t,false); } for(let i=0;i<120;i++){ t+=1000/120; if(pace(t,false)) n120++; }
+        const cap=PACE.cap; for(let i=0;i<120;i++){ t+=1000/120; if(pace(t,true)) nb++; } for(let i=0;i<60;i++){ t+=1000/60; pace(t,false); } for(let i=0;i<60;i++){ t+=1000/60; if(pace(t,false)) n60++; }
+        const cap60=PACE.cap; Object.assign(PACE,save); return {cap, n120, nb, n60, cap60};""")
+    check('écran 120 Hz : 60 images par seconde dessinées (une sur deux), 60 Hz inchangé, #bench sans plafond', r['cap'] and r['n120'] == 60 and r['nb'] == 120 and r['n60'] == 60 and not r['cap60'], json.dumps(r))
+    check('aucune erreur console (sensations au doigt)', not errs, '; '.join(errs[:3]))
+    await ctx.close()
+    # Téléphone à l'horizontale : post-it, carnet, boutons et message sans chevauchement
+    ctx, pg, errs = await page(browser, 844, 390, is_mobile=True, has_touch=True, device_scale_factor=2); await ready(pg)
+    await js(pg, "F.start('libre', false); await wait(500); document.querySelector('#toasts').insertAdjacentHTML('beforeend','<div class=\"toast\">Bêtise accomplie : test de chevauchement assez long</div>'); await wait(200);")
+    r1 = await pg.evaluate(OVERLAP_JS)
+    await pg.screenshot(path=f'{OUT}/touch_landscape_tuto.png', timeout=120000)
+    # fin de l'entrée du carnet : on attend qu'elle commence (classe nb-new), puis que son animation soit finie
+    await js(pg, "F.dev.skipTuto(); const nb=document.querySelector('#notebook'); for(let i=0;i<60&&!nb.classList.contains('nb-new');i++) await wait(100); await wait(200); for(let i=0;i<60&&nb.getAnimations().some(a=>a.animationName==='nbIn');i++) await wait(100); await wait(100);")
+    r2 = await pg.evaluate(OVERLAP_JS)
+    check('téléphone à l’horizontale (844×390) : rien ne se chevauche, ni pendant ni après la visite', not r1['overlaps'] and not r1['off'] and not r2['overlaps'] and not r2['off'], json.dumps({'pendant': r1, 'après': r2}))
+    await pg.screenshot(path=f'{OUT}/touch_landscape.png', timeout=120000)
+    check('aucune erreur console (téléphone à l’horizontale)', not errs, '; '.join(errs[:3]))
+    await ctx.close()
+
+async def test_reactions(browser):
+    ctx, pg, errs = await page(browser, 900, 600, acorns_done=True); await ready(pg)
+    await js(pg, "F.start('libre', false); await wait(300); F.dev.skipTuto(); await wait(300);")
+    # Le boulanger glapi trois fois de suite : surpris, agacé (poing levé), puis il chasse le renard
+    r = await js(pg, """const b=npc('baker'); b.state='idle'; b.routeI=0; b.wait=30; b.cool=0; b.pos.set(-20.6,0,9.5); go(-20.6,12,Math.PI); await wait(300);
+        const caught=F.run.caught, st=[]; F.yap(); st.push({a:b.annoy, flail:b.flailT>0}); await wait(250);
+        F.yap(); st.push({a:b.annoy, shake:b.shakeT>0, freeze:b.freezeT>0}); for(let i=0;i<60&&b.freezeT>0;i++) await wait(50);
+        go(-20.6,12,Math.PI); F.yap(); st.push({state:b.state});
+        let pushed=false; const z0=f.pos.z; for(let i=0;i<200&&b.state==='shoo';i++){ await new Promise(r=>requestAnimationFrame(()=>r())); }
+        return {st, after:b.state, caught:F.run.caught-caught, dz:+(f.pos.z-z0).toFixed(2), bubbles:[...document.querySelectorAll('.bubble')].map(e=>e.textContent)};""")
+    ok = r['st'][0]['a'] == 1 and r['st'][0]['flail'] and r['st'][1]['a'] == 2 and r['st'][1]['shake'] and r['st'][2]['state'] == 'shoo' and r['after'] in ('return', 'tired') and r['caught'] == 0
+    check('habitant glapi trois fois : surpris, agacé (poing levé), puis il chasse le renard sans l’attraper', ok, json.dumps(r, ensure_ascii=False))
+    # Le jardinier rapporte une carotte : glapi, il la lâche de surprise, puis revient la chercher
+    r = await js(pg, """const g=npc('gardener'), c=F.items.find(i=>i.kind==='carotte'); c.planted=false; c.noticed=true; c.carrier=g; g.carry=c; g.state='bring'; g.stateT=0; g.pos.set(-22,0,-4); await wait(200);
+        go(-22,-1.5,Math.PI); await wait(200); F.yap(); const d={carry:!!g.carry, carrier:!!c.carrier, y:+c.pos.y.toFixed(2), freeze:g.freezeT>0, state:g.state};
+        for(let i=0;i<300&&!(g.carry===c);i++) await new Promise(r=>requestAnimationFrame(()=>r()));
+        return {d, back:g.carry===c, state:g.state};""")
+    check('il rapportait une carotte : glapi, il la lâche de surprise, puis revient la chercher', not r['d']['carry'] and not r['d']['carrier'] and r['d']['y'] < .2 and r['d']['freeze'] and r['back'], json.dumps(r))
+    # Deux bêtises en moins de 12 s : « Doublé ! »
+    r = await js(pg, "F.completeGoal('imprimante'); await wait(100); F.completeGoal('reunion'); await wait(1200); return [...document.querySelectorAll('.toast')].map(t=>t.textContent);")
+    check('deux bêtises enchaînées : « Doublé ! »', any(('Double' in x) or ('Doublé' in x) for x in r), ' | '.join(r))
+    # Indice automatique après 45 s sans progrès : il montre l'endroit (anneau + flèche « Indice »)
+    r = await js(pg, """F.S.hintN=0; go(-4,5.5,Math.PI); F.run.lastProgress=F.run.elapsed-50; for(let i=0;i<40&&!F.S.hintDest;i++) await wait(100);
+        const h=F.S.hintDest; await wait(300); return {id:h&&h.id, toast:[...document.querySelectorAll('.toast')].map(t=>t.textContent).join(' | '), arrow:document.querySelector('#destArrow').innerText};""")
+    check('indice automatique : il propose la bêtise la plus proche et montre l’endroit', bool(r['id']) and '💡' in r['toast'], json.dumps(r, ensure_ascii=False))
+    check('aucune erreur console (réactions)', not errs, '; '.join(errs[:3]))
+    await ctx.close()
+
+async def slow_game(route):
+    await asyncio.sleep(2); await route.continue_()
+
+async def test_languages(browser):
+    """Anglais par défaut (même pour un navigateur français), français à /fr/, choix du visiteur retenu ;
+    référencement : titres, canonique, hreflang, Open Graph, données structurées, llms.txt, sitemap bilingue."""
+    import urllib.request
+    out = {}
+    for loc, path in [('fr-FR', ''), ('en-US', 'fr/')]:
+        ctx = await browser.new_context(viewport={'width': 1024, 'height': 700}, locale=loc); await offline_lb(ctx)
+        await ctx.route('**/assets/game.js*', slow_game)   # la carte d'accueil est lue avant que le jeu prenne la main
+        pg = await ctx.new_page(); errs = []
+        pg.on('pageerror', lambda e: errs.append(str(e)))
+        await pg.goto(URL + path, wait_until='commit', timeout=120000); await pg.wait_for_selector('#startBtn', state='attached'); await pg.wait_for_timeout(200)
+        early = await pg.evaluate("()=>({lang:document.documentElement.lang, h1:document.querySelector('#introH1').textContent, btn:document.querySelector('#startBtn').textContent.trim()})")
+        await pg.wait_for_function('()=>window.__foxReady===true', timeout=120000)
+        late = await js(pg, "F.start('libre', false); await wait(300); return {lang:F.S.lang, nb:document.querySelector('#notebook h2').textContent, aria:document.querySelector('#game').getAttribute('aria-label')};")
+        out[path or '/'] = (early, late, errs)
+        await ctx.close()
+    e, l, errs = out['/']
+    check('« / » en anglais par défaut, même pour un navigateur réglé en français', e['lang'] == 'en' and 'fox' in e['h1'] and e['btn'] == 'Cause mischief' and l['lang'] == 'en' and 'mischief' in l['nb'] and l['aria'].startswith('Game world') and not errs, json.dumps({'avant': e, 'jeu': l}, ensure_ascii=False))
+    e, l, errs = out['fr/']
+    check('« /fr/ » en français (carte d’accueil, jeu, libellés)', e['lang'] == 'fr' and 'renard' in e['h1'] and e['btn'] == 'Faire des bêtises' and l['lang'] == 'fr' and 'Bêtises' in l['nb'] and l['aria'].startswith('Monde du jeu') and not errs, json.dumps({'avant': e, 'jeu': l}, ensure_ascii=False))
+    # choix du visiteur (bouton FR) retenu sur « / », dès la carte d'accueil
+    ctx = await browser.new_context(viewport={'width': 1024, 'height': 700}); await offline_lb(ctx)
+    await ctx.route('**/assets/game.js*', slow_game)
+    await ctx.add_init_script("try{ if(!sessionStorage.getItem('once')){ sessionStorage.setItem('once','1'); localStorage.setItem('fox-betises-v2', JSON.stringify({lang:'fr'})); } }catch(e){}")
+    pg = await ctx.new_page()
+    await pg.goto(URL, wait_until='commit', timeout=120000); await pg.wait_for_selector('#startBtn', state='attached'); await pg.wait_for_timeout(200)
+    e = await pg.evaluate("()=>({lang:document.documentElement.lang, btn:document.querySelector('#startBtn').textContent.trim(), sw:document.querySelector('#langBtn2').textContent})")
+    await pg.wait_for_function('()=>window.__foxReady===true', timeout=120000)
+    r = await js(pg, "document.querySelector('#langBtn2').click(); await wait(200); return {lang:F.S.lang, saved:F.saved.lang, h1:document.querySelector('#introH1').textContent, sw:document.querySelector('#langBtn2').textContent};")
+    check('choix de langue du visiteur retenu (FR sur « / »), puis bouton EN', e['lang'] == 'fr' and e['btn'] == 'Faire des bêtises' and e['sw'] == 'EN' and r['lang'] == 'en' and r['saved'] == 'en' and 'fox' in r['h1'] and r['sw'] == 'FR', json.dumps({'avant': e, 'après': r}, ensure_ascii=False))
+    await ctx.close()
+    # sans JavaScript : la fiche dans la langue de la page
+    ctx = await browser.new_context(java_script_enabled=False, viewport={'width': 1024, 'height': 700}); pg = await ctx.new_page()
+    await pg.goto(URL); en = await pg.inner_text('#burrow'); await pg.goto(URL + 'fr/'); fr = await pg.inner_text('#burrow')
+    check('sans JavaScript : fiche en anglais à « / », en français à « /fr/ »', "THE FOX'S TRAIL" in en.upper() and 'Follow me on LinkedIn' in en and 'LE PARCOURS DU RENARD' in fr.upper() and 'Me suivre sur LinkedIn' in fr)
+    await ctx.close()
+    # référencement
+    def get(u):
+        with urllib.request.urlopen(URL + u) as r: return r.status, r.headers.get('Content-Type', ''), r.read().decode('utf-8')
+    seo = {}
+    for u in ['', 'fr/']:
+        st, ct, html = get(u)
+        head = html.split('</head>')[0]
+        ld = json.loads(re.search(r'<script type="application/ld\+json">(.+?)</script>', head).group(1))
+        types = [x['@type'] for x in ld['@graph']]
+        seo[u or '/'] = {'title': re.search(r'<title>(.+?)</title>', head).group(1), 'canon': re.search(r'rel="canonical" href="([^"]+)"', head).group(1),
+                         'hreflang': sorted(re.findall(r'hreflang="([^"]+)"', head)), 'locale': re.search(r'og:locale" content="([^"]+)"', head).group(1),
+                         'ogimg': re.search(r'og:image" content="([^"]+)"', head).group(1), 'types': types, 'desc_len': len(re.search(r'name="description" content="([^"]+)"', head).group(1))}
+    st, ct, llms = get('llms.txt'); _, _, smap = get('sitemap.xml')
+    ok = (seo['/']['canon'].endswith('.com/') and seo['fr/']['canon'].endswith('/fr/') and all(v['hreflang'] == ['en', 'fr', 'x-default'] for v in seo.values())
+          and seo['/']['locale'] == 'en_US' and seo['fr/']['locale'] == 'fr_FR' and seo['/']['ogimg'].endswith('og-image-en.jpg') and 'Account Executive' in seo['/']['title']
+          and all({'ProfilePage', 'Person', 'WebSite', 'VideoGame'} <= set(v['types']) for v in seo.values()) and all(v['desc_len'] <= 165 for v in seo.values())
+          and st == 200 and ct.startswith('text/plain') and '# Pierre Logre' in llms and 'Sopra Steria' in llms and smap.count('hreflang="fr"') == 2)
+    check('référencement : titres, canonique, hreflang, Open Graph, données structurées, llms.txt, sitemap bilingue', ok, json.dumps(seo, ensure_ascii=False))
+
+async def test_stats(browser):
+    """Mesure d'audience sans cookie : événements bien formés (numéro de visite au hasard, langue, page, appareil),
+    aucun cookie ni stockage, rien en test ordinaire ni hors de pierrelogre.com, rien si le navigateur demande GPC / DNT."""
+    seen = {}
+    ctx = await browser.new_context(viewport={'width': 1024, 'height': 700}, locale='fr-FR')
+    await offline_lb(ctx, [], seen)
+    await ctx.add_init_script("window.__foxNoCine=true; window.__foxStatsTest=true")
+    pg = await ctx.new_page(); errs = []
+    pg.on('pageerror', lambda e: errs.append('pageerror: ' + str(e)))
+    await pg.goto(URL + 'fr/?utm_source=linkedin', timeout=120000); await ready(pg)
+    r = await js(pg, """F.start('libre', false); await wait(400); F.dev.skipTuto(); F.completeGoal('reunion'); document.querySelector('#whoBtn').click(); await wait(200);
+        document.querySelector('#liBtn').addEventListener('click', e => e.preventDefault(), { once: true }); document.querySelector('#liBtn').click(); await wait(100);
+        window.__foxStats.flush(); await wait(600);
+        return {cookie: document.cookie, keys: Object.keys(localStorage), on: window.__foxStats.on};""")
+    ev = seen.get('events', []); names = [e['name'] for e in ev]
+    visits = {e['visit'] for e in ev}
+    shape = all(re.fullmatch(r'[a-z0-9]{8,16}', e['visit']) and e['lang'] in ('en', 'fr') and e['page'] in ('/', '/fr/') and e['device'] in ('phone', 'tablet', 'desktop') and isinstance(e['props'], dict) for e in ev)
+    v = next((e for e in ev if e['name'] == 'Visite'), {})
+    ok = (r['on'] and {'Visite', 'Jeu prêt', 'Partie lancée', 'Tutoriel passé', 'Terrier ouvert', 'Clic LinkedIn'} <= set(names) and len(visits) == 1 and shape
+          and v.get('page') == '/fr/' and v.get('lang') == 'fr' and v.get('props', {}).get('utm') == 'linkedin' and r['cookie'] == ''
+          and not [k for k in r['keys'] if 'stat' in k.lower() or 'visit' in k.lower()] and not any(h.get('cookie') for h in seen.get('ev_headers', [])))
+    check('mesure d’audience : événements anonymes bien formés, un seul numéro de visite, ni cookie ni stockage', ok,
+          json.dumps({'événements': names, 'visite': v, 'stockage': r['keys']}, ensure_ascii=False)[:400])
+    await pg.reload(timeout=120000); await ready(pg)
+    await js(pg, "window.__foxStats.send('Partie lancée', {}); window.__foxStats.flush(); await wait(400);")
+    check('nouveau chargement → nouveau numéro de visite (aucun suivi d’une visite à l’autre)', len({e['visit'] for e in seen.get('events', [])}) == 2)
+    check('aucune erreur console (mesure d’audience)', not errs, '; '.join(errs[:3]))
+    await ctx.close()
+    # Navigateur qui demande de ne pas être suivi (GPC) : rien n'est envoyé ; et sans le drapeau de test (adresse ≠ pierrelogre.com) non plus
+    for label, init in [('GPC', "window.__foxStatsTest=true; Object.defineProperty(Navigator.prototype,'globalPrivacyControl',{get:()=>true})"), ('hors du site', '')]:
+        seen2 = {}
+        ctx = await browser.new_context(viewport={'width': 800, 'height': 600}); await offline_lb(ctx, [], seen2)
+        await ctx.add_init_script("window.__foxNoCine=true;" + init)
+        pg = await ctx.new_page(); await pg.goto(URL, timeout=120000); await ready(pg)
+        r = await js(pg, "F.start('libre', false); await wait(300); window.__foxStats.flush(); await wait(400); return window.__foxStats.on;")
+        check(f'mesure d’audience coupée ({label})', r is False and not seen2.get('events'), json.dumps(seen2.get('events', [])[:2], ensure_ascii=False))
+        await ctx.close()
+
+async def test_leaderboard_online(browser):
+    """Classement partagé : requêtes conformes (clé publique seule, vue « leaderboard », ajout minimal), meilleur score
+    par pseudo, pseudos abusifs filtrés, repli local si le serveur refuse. Faux serveur : rien n'est écrit dans le vrai."""
+    cfg = json.load(open(os.path.join(ROOT, 'src', 'site.config.json'))).get('leaderboard', {})
+    key = cfg.get('publishableKey') or cfg.get('anonKey')
+    if not (cfg.get('supabaseUrl') and key):
+        check('classement en ligne : non configuré (repli local seulement)', True); return
+    rows = [{'pseudo': 'Monique', 'score': 900}, {'pseudo': 'Monique', 'score': 400}, {'pseudo': 'C0nnard', 'score': 5000}, {'pseudo': 'Renard', 'score': 700}]
+    seen = {}
+    ctx = await browser.new_context(viewport={'width': 900, 'height': 600})
+    await offline_lb(ctx, rows, seen)
+    await ctx.add_init_script("window.__foxNoCine=true")
+    pg = await ctx.new_page(); errs = []; phase = {'down': False}
+    pg.on('pageerror', lambda e: errs.append('pageerror: ' + str(e)))
+    # pendant la panne simulée, Chrome signale le 503 du faux serveur dans la console : seul ce message-là est attendu
+    pg.on('console', lambda m: errs.append(f'{m.type}: {m.text}') if m.type in ('error', 'warning') and 'preloaded using link preload' not in m.text
+          and not (phase['down'] and SUPABASE.match((m.location or {}).get('url', '')) and '503' in m.text) else None)
+    await pg.goto(URL, timeout=120000); await ready(pg)
+    r = await js(pg, """F.start('libre', false); await wait(300); F.dev.skipTuto(); const L=F.dev.lb;
+        const before=await L.top(); const sent=await L.submit('Véro', 1234); const after=await L.top();
+        F.openJournal('lb'); for(let i=0;i<40&&!document.querySelector('#j-lb .lb li');i++) await wait(100);
+        const pane=document.querySelector('#j-lb').innerText; F.closeJournal();
+        return {before, sent, after, pane};""")
+    names = [x['pseudo'] for x in r['after']['list']]
+    bad = [h for h in seen.get('headers', []) if h['apikey'] != key or (h['authorization'] and key.startswith('sb_publishable_'))]
+    post = seen.get('post', [])
+    ok = (r['before']['online'] and r['sent'] and r['after']['online'] and names[:3] == ['Véro', 'Monique', 'Renard'] and 'C0nnard' not in names
+          and names.count('Monique') == 1 and not bad and all('/rest/v1/leaderboard?' in u for u in seen.get('get', []))
+          and post and post[0]['url'].endswith('/rest/v1/scores') and post[0]['prefer'] == 'return=minimal'
+          and post[0]['body'] == {'pseudo': 'Véro', 'score': 1234, 'game': 'handball'} and ('Shared online leaderboard' in r['pane'] or 'Classement partagé en ligne' in r['pane']))
+    check('classement en ligne : clé publique seule, meilleur score par pseudo, pseudo abusif filtré, envoi conforme', ok,
+          json.dumps({'noms': names, 'entêtes refusés': len(bad), 'envoi': post[:1], 'carnet': r['pane'][:80]}, ensure_ascii=False))
+    # serveur en panne : le score reste dans ce navigateur, le carnet le dit, sans erreur du jeu
+    phase['down'] = True; await offline_lb(ctx, rows, seen, down=True)
+    r = await js(pg, """await new Promise(r=>setTimeout(r,21000)); const L=F.dev.lb; const sent=await L.submit('Véro', 2000); const t=await L.top();
+        F.openJournal('lb'); for(let i=0;i<40&&!document.querySelector('#j-lb .lb li');i++) await wait(100); const pane=document.querySelector('#j-lb').innerText; F.closeJournal();
+        return {sent, online:t.online, top:t.list[0], pane};""")
+    check('classement injoignable : score gardé dans le navigateur, le carnet le signale', r['sent'] is False and r['online'] is False and r['top'] and r['top']['score'] == 2000
+          and ('unreachable' in r['pane'] or 'injoignable' in r['pane']), json.dumps(r, ensure_ascii=False))
+    check('aucune erreur console (classement en ligne)', not errs, '; '.join(errs[:3]))
+    await ctx.close()
+
+async def test_lazy_regions(browser):
+    """Premier chargement plus léger : les dix régions lointaines arrivent dans un fichier à part (lazy-….js), après la
+    première image. Fichier retenu exprès : le jeu démarre et se joue au village sans lui ; une partie reprise l'attend,
+    sans rien perdre ; aucun succès « tout le monde » n'est donné trop tôt."""
+    gate = asyncio.Event(); asked = []
+    async def held(route):
+        asked.append(route.request.url); await gate.wait(); await route.continue_()
+    ctx = await browser.new_context(viewport={'width': 1280, 'height': 760}); await offline_lb(ctx)
+    await ctx.add_init_script("window.__foxNoCine=true; try{ if(!sessionStorage.getItem('seed')){ sessionStorage.setItem('seed','1'); localStorage.setItem('fox-betises-v2', JSON.stringify({tuto:1, acorns:[0,1,2,3,4]})); } }catch(e){}")
+    await ctx.route('**/assets/lazy-*.js', held)
+    pg = await ctx.new_page(); errs = []
+    pg.on('pageerror', lambda e: errs.append('pageerror: ' + str(e)))
+    pg.on('console', lambda m: errs.append(f'{m.type}: {m.text}') if m.type in ('error', 'warning') and 'preloaded using link preload' not in m.text else None)
+    await pg.goto(URL, timeout=120000); await pg.wait_for_function('()=>window.__foxReady===true', timeout=120000)
+    r = await js(pg, """F.start('libre', false); await wait(400); F.dev.skipTuto(); F.completeGoal('jardinier'); F.openJournal('map'); await wait(300); F.closeJournal(); await wait(200);
+        return {world: !!window.__foxWorld, regions: F.REGIONS.map(R=>R.id), started: F.S.started, done: !!F.run.done.jardinier, score: document.querySelector('#nbScore').textContent,
+                explorateur: !!F.saved.ach.explorateur, centPourCent: !!F.saved.ach.centPourCent, collectionneur: !!F.saved.ach.collectionneur};""")
+    check('régions lointaines retenues : le jeu démarre et se joue au village sans elles (fichier demandé après la 1re image)',
+          len(asked) == 1 and not r['world'] and sorted(r['regions']) == ['terrier', 'village'] and r['started'] and r['done']
+          and not (r['explorateur'] or r['centPourCent'] or r['collectionneur']), json.dumps({**r, 'asked': [a.rsplit('/', 1)[-1] for a in asked]}))
+    gate.set(); await pg.wait_for_function('()=>window.__foxWorld===true', timeout=120000)
+    r2 = await js(pg, """await wait(300); return {regions: F.REGIONS.map(R=>R.id), goals: F.GOALS.length, score: document.querySelector('#nbScore').textContent, sport: !!F.RG.sport,
+        explorateur: !!F.saved.ach.explorateur};""")
+    order = ['village', 'foret', 'sport', 'moto', 'riviere', 'plage', 'gare', 'nantes', 'paris', 'montagne', 'ile', 'terrier']
+    check('régions arrivées : rangées dans l’ordre de la carte, totaux du carnet mis à jour', r2['regions'] == order and r2['goals'] >= 80
+          and r2['score'] == f"1 / {r2['goals']}" and r['score'] == '1 / …' and r2['sport'] and not r2['explorateur'], json.dumps({'avant': r['score'], **r2}))
+    # Partie avancée (une bêtise de région, région ouverte, renard au complexe sportif), puis rechargement avec le fichier retenu
+    await js(pg, "F.unlockRegion(F.RG.sport, false); F.teleport(60, 10, 0); await wait(1500); F.run.foxPos=[60,10]; F.completeGoal('ballon'); await wait(200);")
+    gate.clear(); asked.clear()
+    await pg.reload(timeout=120000); await pg.wait_for_function('()=>window.__foxReady===true', timeout=120000)
+    b = await pg.evaluate("()=>({busy: document.querySelector('#startBtn').getAttribute('aria-busy'), txt: document.querySelector('#startBtn').textContent.trim()})")
+    await pg.click('#startBtn'); await pg.wait_for_timeout(800)
+    waiting = await pg.evaluate("()=>({started: window.__fox.S.started, intro: !document.querySelector('#intro').hidden})")
+    gate.set(); await pg.wait_for_function('()=>window.__fox.S.started===true', timeout=120000)
+    r3 = await js(pg, """await wait(500); const s=JSON.parse(localStorage.getItem('fox-run-libre')||'{}');
+        return {ballon: !!F.run.done.ballon, jardinier: !!F.run.done.jardinier, saved: !!(s.done&&s.done.ballon), x: +F.fox.pos.x.toFixed(1), z: +F.fox.pos.z.toFixed(1),
+                region: F.S.region, open: F.run.unlocked.includes('sport')};""")
+    check('partie reprise : « Reprendre » attend les régions (bouton qui tourne), puis repart au complexe sportif sans rien perdre',
+          b['busy'] == 'true' and b['txt'] in ('Resume', 'Reprendre') and not waiting['started'] and waiting['intro']
+          and r3['ballon'] and r3['jardinier'] and r3['saved'] and r3['open'] and 36 <= r3['x'] <= 95 and r3['region'] == 'sport', json.dumps({**b, **waiting, **r3}))
+    check('aucune erreur console (régions chargées après le démarrage)', not errs, '; '.join(errs[:3]))
+    await ctx.close()
+
+async def test_presentation(browser):
+    """Première visite : le renard se présente (5 s au plus) face au visiteur, puis la carte d'accueil revient ; une seule fois ;
+    un clic ou un toucher passe à la bulle suivante, Échap ou « Jouer » arrêtent tout ; jamais avec « réduire les animations ».
+    En rendu logiciel, les premières images prennent plusieurs secondes : on vérifie d'abord que la présentation a bien eu lieu
+    à la première visite, puis on la rejoue (F.dev.present) une fois le jeu fluide pour en contrôler le déroulé."""
+    ctx = await browser.new_context(viewport={'width': 1280, 'height': 760}); await offline_lb(ctx)
+    pg = await ctx.new_page(); errs = []
+    pg.on('pageerror', lambda e: errs.append('pageerror: ' + str(e)))
+    pg.on('console', lambda m: errs.append(f'{m.type}: {m.text}') if m.type in ('error', 'warning') and 'preloaded using link preload' not in m.text else None)
+    await pg.goto(URL, timeout=120000); await ready(pg)
+    await pg.wait_for_function('()=>!window.__fox.dev.presenting()', timeout=120000)
+    r0 = await pg.evaluate("()=>({...window.__fox.dev.presentInfo, saved:JSON.parse(localStorage.getItem('fox-betises-v2')||'{}').presented, card:!document.documentElement.classList.contains('presenting')})")
+    check('première visite : la présentation du renard se lance d’elle-même, puis est notée comme vue', r0['ran'] == 1 and r0['frames'] >= 1 and r0['saved'] == 1 and r0['card'], json.dumps(r0))
+    await pg.wait_for_timeout(3000)   # régions voisines construites : images plus rapides
+    r = await pg.evaluate("""async()=>{ const F=window.__fox; const fogFar=F.scene.fog.far; F.dev.present(); const t0=performance.now(), on0=F.dev.presenting(), cls=document.documentElement.classList.contains('presenting');
+        while(F.dev.presenting() && performance.now()-t0<30000) await new Promise(r=>setTimeout(r,40));
+        for(let i=0;i<100&&getComputedStyle(document.querySelector('#intro')).opacity!=='1';i++) await new Promise(r=>setTimeout(r,50));   // fondu de retour de la carte
+        const I=F.dev.presentInfo;
+        return {on0, cls, lines:I.lines, frames:I.frames, near:I.near, end:I.end, dur:I.dur, card:!document.documentElement.classList.contains('presenting'),
+                op:getComputedStyle(document.querySelector('#intro')).opacity, camY:+F.camera.position.y.toFixed(1), fog:F.scene.fog.far===fogFar}; }""")
+    # Rendu logiciel : quelques images seulement en 4,8 s (une bulle peut être sautée) ; sur un vrai appareil, les trois s'affichent
+    check('présentation : gros plan face au renard qui parle, finie à l’horloge (4,8 s), puis carte d’accueil et vue habituelle',
+          r['on0'] and r['cls'] and r['near'] < 7 and r['lines'] and r['lines'][0] == "Hi! I'm the fox." and r['end'] == 'temps' and r['dur'] <= 5
+          and r['card'] and r['op'] == '1' and r['camY'] > 10 and r['fog'], json.dumps(r))
+    await pg.screenshot(path=f'{OUT}/presentation_after.png', timeout=120000)
+    await pg.reload(timeout=120000); await ready(pg); await pg.wait_for_timeout(500)
+    again = await pg.evaluate("()=>window.__fox.dev.presentInfo.ran")
+    check('présentation vue une fois : elle ne revient pas au chargement suivant', again == 0, f'lancée {again} fois')
+    await ctx.close()
+    # Passée d'une touche ; arrêtée par « Jouer » (téléphone)
+    ctx = await browser.new_context(viewport={'width': 390, 'height': 844}, is_mobile=True, has_touch=True); await offline_lb(ctx)
+    await ctx.add_init_script("window.__foxNoCine=true")
+    pg = await ctx.new_page(); pg.on('pageerror', lambda e: errs.append('pageerror: ' + str(e)))
+    await pg.goto(URL, timeout=120000); await ready(pg)
+    k = await pg.evaluate("""()=>{ const F=window.__fox; F.dev.present(); const on=F.dev.presenting(), hidden=document.hidden;
+        dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+        return {on, hidden, end:F.dev.presentInfo.end, after:F.dev.presenting(), card:!document.documentElement.classList.contains('presenting'), saved:JSON.parse(localStorage.getItem('fox-betises-v2')||'{}').presented}; }""")
+    on = k['on'] and k['end'] == 'keydown' and not k['after']
+    # Un toucher passe à la bulle suivante (pas tout) ; après la dernière, la caméra remonte ; encore un : fin
+    tap = await js(pg, """F.dev.present(); const I=F.dev.presentInfo, out=[], hint=document.querySelector('.pres-hint')?.textContent;
+        const tap=()=>dispatchEvent(new PointerEvent('pointerdown', { bubbles: true }));
+        const until=async(fn)=>{ for(let i=0;i<300&&!fn();i++) await wait(50); };
+        await until(()=>I.frames>0); tap(); await until(()=>I.lines.length>=1); out.push([F.dev.presenting(), I.lines.length]);
+        tap(); await until(()=>I.lines.length>=2); out.push([F.dev.presenting(), I.lines.length]);
+        tap(); await until(()=>I.lines.length>=3); out.push([F.dev.presenting(), I.lines.length]);
+        tap(); await wait(100); out.push([F.dev.presenting(), I.lines.length]);
+        tap(); await wait(100); return {out, end:I.end, steps:I.steps, on:F.dev.presenting(), hint, hintGone:!document.querySelector('.pres-hint')};""")
+    check('présentation : chaque toucher passe à la bulle suivante (pas tout), puis la caméra remonte ; consigne affichée',
+          # rendu logiciel lent : une image peut couvrir deux bulles ; l'essentiel : un toucher ne coupe pas tout
+          tap['out'][0] == [True, 1] and tap['out'][1][0] and tap['out'][1][1] >= 2 and tap['out'][2][1] == 3
+          and not tap['on'] and tap['end'] == 'pointerdown' and 3 <= tap['steps'] <= 4
+          and tap['hint'] == "Tap for what's next" and tap['hintGone'], json.dumps(tap))
+    s = await js(pg, "F.dev.present(); const on=F.dev.presenting(); F.start('libre', false); await wait(300); return {on, after:F.dev.presenting(), started:F.S.started, cls:document.documentElement.classList.contains('presenting')};")
+    check('présentation arrêtée par Échap, et par « Jouer » (téléphone)', on and k['card'] and k['saved'] == 1 and s['on'] and not s['after'] and s['started'] and not s['cls'], json.dumps({'on': on, **k, 'jouer': s}))
+    await ctx.close()
+    ctx = await browser.new_context(viewport={'width': 1024, 'height': 700}, reduced_motion='reduce'); await offline_lb(ctx)
+    pg = await ctx.new_page(); await pg.goto(URL, timeout=120000); await ready(pg); await pg.wait_for_timeout(500)
+    rm = await pg.evaluate("()=>window.__fox.dev.presentInfo.ran")
+    check('« réduire les animations » : pas de présentation', rm == 0, f'lancée {rm} fois')
+    check('aucune erreur console (présentation)', not errs, '; '.join(errs[:3]))
+    await ctx.close()
+
+async def test_legal(browser):
+    """Mentions légales : une page par langue, lisible sans JavaScript, liée depuis l'accueil, la fiche et la page 404 ;
+    éditeur, hébergeur, cookies (aucun), mesure d'audience, droits, CNIL ; aucune donnée privée ; « ne pas compter mes visites »."""
+    import urllib.request
+    got = {}
+    for path in ('legal/', 'fr/mentions-legales/', 'nimporte-quoi'):
+        try: html = urllib.request.urlopen(URL + path).read().decode()
+        except urllib.error.HTTPError as e: html = e.read().decode()
+        got[path] = html
+    en, fr, p404 = (got[k].replace('\u00a0', ' ') for k in ('legal/', 'fr/mentions-legales/', 'nimporte-quoi'))   # espaces insécables lus comme des espaces
+    need = ['OVH SAS', '2 rue Kellermann', '59100 Roubaix', '424 761 419', 'Supabase', '13', 'CNIL', 'linkedin.com/in/', 'Three.js', 'Open Font License']
+    private = re.compile(r'siret|879 121|@gmail|pierre\.logre1|cv-pierre-logre', re.I)
+    check('mentions légales : page anglaise et française complètes (éditeur, hébergeur, cookies, mesure, droits, CNIL, crédits)',
+          all(n in en for n in need) and all(n in fr for n in need) and '<html lang="en"' in en and '<html lang="fr"' in fr
+          and 'no cookies' in en and 'aucun cookie' in fr and 'article 1-1' in fr and not private.search(en + fr),
+          ', '.join(n for n in need if n not in en or n not in fr))
+    check('page 404 : liens vers les mentions légales', 'href="/legal/"' in p404 and 'href="/fr/mentions-legales/"' in p404)
+    ctx = await browser.new_context(viewport={'width': 1024, 'height': 700}); await offline_lb(ctx)
+    await ctx.add_init_script("window.__foxNoCine=true; window.__foxStatsTest=true")
+    pg = await ctx.new_page(); errs = []
+    pg.on('pageerror', lambda e: errs.append('pageerror: ' + str(e)))
+    pg.on('console', lambda m: errs.append(f'{m.type}: {m.text}') if m.type in ('error', 'warning') else None)
+    await pg.goto(URL, timeout=120000); await ready(pg)
+    r = await pg.evaluate("""()=>({card:document.querySelector('#legalLink').getAttribute('href'), cardTxt:document.querySelector('#legalLink').textContent,
+        fiche:[...document.querySelectorAll('#bLegal a')].map(a=>a.getAttribute('href')), stats:window.__foxStats.on})""")
+    await pg.goto(URL + 'fr/', timeout=120000); await ready(pg)
+    r2 = await pg.evaluate("()=>({card:document.querySelector('#legalLink').getAttribute('href'), fiche:[...document.querySelectorAll('#bLegal a')].map(a=>a.getAttribute('href'))})")
+    check('accueil et fiche : lien vers les mentions légales de la bonne langue', r['card'] == '/legal/' and r['cardTxt'] == 'Legal notice' and r['fiche'] == ['/legal/']
+          and r2['card'] == '/fr/mentions-legales/' and r2['fiche'] == ['/fr/mentions-legales/'], json.dumps({'en': r, 'fr': r2}))
+    # « Ne pas compter mes visites » : choix gardé dans le navigateur, respecté par la mesure d'audience, réversible
+    await pg.goto(URL + 'legal/', timeout=120000)
+    b0 = await pg.evaluate("()=>({btn:document.querySelector('#statsBtn').textContent, hidden:document.querySelector('#statsBtn').hidden, state:document.querySelector('#statsState').textContent})")
+    await pg.click('#statsBtn'); b1 = await pg.evaluate("()=>({flag:localStorage.getItem('fox-nostats'), state:document.querySelector('#statsState').textContent})")
+    await pg.goto(URL, timeout=120000); await ready(pg); off = await pg.evaluate("()=>window.__foxStats.on")
+    await pg.goto(URL + 'legal/', timeout=120000); await pg.click('#statsBtn'); b2 = await pg.evaluate("()=>localStorage.getItem('fox-nostats')")
+    await pg.goto(URL, timeout=120000); await ready(pg); back = await pg.evaluate("()=>window.__foxStats.on")
+    check('mentions légales : « ne pas compter mes visites » coupe la mesure d’audience, et se rétablit', r['stats'] and not b0['hidden'] and b1['flag'] == '1'
+          and b0['state'] != b1['state'] and off is False and b2 is None and back is True, json.dumps({'avant': b0, 'coupé': b1, 'mesure': [r['stats'], off, back]}, ensure_ascii=False))
+    await ctx.close()
+    ctx = await browser.new_context(java_script_enabled=False, viewport={'width': 390, 'height': 800}); pg = await ctx.new_page()
+    await pg.goto(URL + 'fr/mentions-legales/'); txt = await pg.inner_text('main'); sw = await pg.evaluate("()=>document.documentElement.scrollWidth")
+    check('mentions légales lisibles sans JavaScript, au téléphone (sans défilement horizontal)', 'Hébergement' in txt and 'CNIL' in txt and sw <= 390, f'largeur {sw}')
+    check('aucune erreur console (mentions légales)', not errs, '; '.join(errs[:3]))
+    await ctx.close()
+
+AXE_JS = os.path.join(ROOT, 'node_modules', 'axe-core', 'axe.min.js')
+AXE_RUN = """async(sel)=>{ const r = await axe.run(sel ? document.querySelector(sel) : document, { resultTypes: ['violations'],
+  runOnly: { type: 'tag', values: ['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'best-practice'] } });
+  return r.violations.map(v => v.id + ' (' + v.impact + ') ' + v.nodes.slice(0, 2).map(n => n.target.join(' ')).join(', ')); }"""
+async def test_accessibility(browser):
+    """Accessibilité : audit axe-core (WCAG 2.1 AA + bonnes pratiques) sur chaque écran, et parcours entièrement au clavier.
+    axe-core est injecté par le test (bypass_csp : c'est l'outil de test, pas le site, qui a besoin d'un script en ligne)."""
+    if not os.path.exists(AXE_JS):
+        check('accessibilité : axe-core installé (npm install)', False, AXE_JS); return
+    axe = open(AXE_JS).read()
+    ctx = await browser.new_context(viewport={'width': 1280, 'height': 760}, bypass_csp=True)
+    await offline_lb(ctx)
+    await ctx.add_init_script("window.__foxNoCine=true; try{localStorage.setItem('fox-betises-v2', JSON.stringify({tuto:1}))}catch(e){}")
+    pg = await ctx.new_page(); errs = []
+    pg.on('pageerror', lambda e: errs.append('pageerror: ' + str(e)))
+    pg.on('console', lambda m: errs.append(f'{m.type}: {m.text}') if m.type in ('error', 'warning') and 'preloaded using link preload' not in m.text else None)
+    found = {}
+    async def audit(name, sel=None):
+        if not await pg.evaluate("()=>!!window.axe"): await pg.add_script_tag(content=axe)
+        v = await pg.evaluate(AXE_RUN, sel)
+        if v: found[name] = v
+    act = "()=>{ const a=document.activeElement, d=a&&a.closest('[role=dialog]'); return a ? (a.id || a.tagName.toLowerCase()) + (d ? '@' + d.id : '') : null; }"
+    await pg.goto(URL, timeout=120000); await ready(pg)
+    await audit('accueil')
+    # Accueil au clavier : Tab jusqu'à « Qui est le renard ? », Entrée → fiche ; Tab y reste ; Échap → retour sur le bouton
+    for _ in range(12):
+        await pg.keyboard.press('Tab')
+        if await pg.evaluate(act) == 'introWho': break
+    await pg.keyboard.press('Enter'); await pg.wait_for_timeout(300)
+    inside = await pg.evaluate(act); seq = []
+    for _ in range(30): await pg.keyboard.press('Tab'); seq.append(await pg.evaluate(act))
+    behind = await pg.evaluate("()=>document.querySelector('#play').inert && document.querySelector('#topRight').inert")
+    await audit('fiche', '#burrow')
+    await pg.keyboard.press('Escape'); await pg.wait_for_timeout(300)
+    back = await pg.evaluate(act)
+    check('clavier : fiche ouverte au clavier → focus dedans, Tab y reste, le reste de la page inerte, Échap → retour au bouton',
+          inside.endswith('@burrow') and all(x.endswith('@burrow') for x in seq) and behind and back == 'introWho', f'{inside} · {set(seq)} · {back}')
+    # Partie au clavier : Tab parcourt les boutons (Tab ne replie plus le carnet), chaque bêtise est un bouton, Entrée ouvre l'indice
+    await pg.evaluate("()=>document.querySelector('#startBtn').focus()"); await pg.keyboard.press('Enter')
+    await pg.wait_for_function('()=>window.__fox.S.started===true', timeout=60000); await pg.wait_for_timeout(800)
+    seq = []
+    for _ in range(14): await pg.keyboard.press('Tab'); seq.append(await pg.evaluate(act))
+    r = await pg.evaluate("()=>({folded: document.querySelector('#notebook').classList.contains('collapsed'), btns: document.querySelectorAll('#goals > li > button').length, lis: document.querySelectorAll('#goals > li').length})")
+    await pg.evaluate("()=>document.querySelector('#goals li:not(.done) > button').focus()")
+    await pg.keyboard.press('Tab'); await pg.keyboard.press('Shift+Tab'); await pg.keyboard.press('Enter'); await pg.wait_for_timeout(200)
+    h = await pg.evaluate("()=>{ const b=document.activeElement; return {exp: b.getAttribute('aria-expanded'), hint: !!b.closest('li')?.querySelector('.hint-txt'), inList: !!b.closest('#goals')}; }")
+    check('clavier en jeu : Tab atteint le menu et les bêtises (boutons), Entrée ouvre l\'indice et garde le focus',
+          'whoBtn' in seq and 'mapBtn' in seq and not r['folded'] and r['btns'] == r['lis'] > 0 and h == {'exp': 'true', 'hint': True, 'inList': True}, json.dumps({**r, **h, 'seq': seq[:9]}))
+    await audit('jeu')
+    # Carnet de voyage par M : focus sur ✕, onglets aux flèches, Échap → retour au jeu
+    await pg.evaluate("()=>document.querySelector('#game').focus()"); await pg.keyboard.press('KeyM'); await pg.wait_for_timeout(400)
+    j1 = await pg.evaluate(act)
+    await pg.evaluate("()=>document.querySelector('[data-tab=map]').focus()"); await pg.keyboard.press('ArrowRight'); await pg.wait_for_timeout(300)
+    j2 = await pg.evaluate("()=>({focus: document.activeElement.dataset.tab, sel: document.querySelector('[role=tab][aria-selected=true]').dataset.tab, pane: [...document.querySelectorAll('.j-pane')].filter(p=>!p.hidden).map(p=>p.id).join()})")
+    await audit('carnet', '#journal')
+    await pg.keyboard.press('Escape'); await pg.wait_for_timeout(300)
+    j3 = await pg.evaluate(act)
+    check('clavier : carnet de voyage (M) → focus sur Fermer, flèches entre onglets, Échap → retour au jeu',
+          j1 == 'jClose@journal' and j2 == {'focus': 'ach', 'sel': 'ach', 'pane': 'j-ach'} and j3 == 'game', f'{j1} · {j2} · {j3}')
+    # Ouverte à la souris : retour au jeu (Espace fait toujours glapir, ne rouvre pas la fiche)
+    await pg.click('#whoBtn'); await pg.wait_for_timeout(300); await pg.click('#bClose'); await pg.wait_for_timeout(300)
+    m1 = await pg.evaluate(act); await pg.keyboard.press('Space'); await pg.wait_for_timeout(300)
+    m2 = await pg.evaluate("()=>document.querySelector('#burrow').hidden")
+    check('souris : fiche fermée → retour au jeu, Espace ne la rouvre pas', m1 == 'game' and m2, f'{m1} · fiche cachée {m2}')
+    await pg.goto(URL + 'legal/'); await audit('mentions_en')
+    await pg.goto(URL + 'fr/mentions-legales/'); await audit('mentions_fr')
+    pre = len(errs)
+    await pg.goto(URL + 'nimporte-quoi'); await audit('404')
+    extra = errs[pre:]   # la page 404 elle-même répond 404 (attendu, une seule ligne) ; rien d'autre n'est toléré
+    check('accessibilité : aucune erreur axe-core (WCAG 2.1 AA) sur accueil, fiche, jeu, carnet, mentions légales, 404', not found, json.dumps(found, ensure_ascii=False)[:400])
+    check('aucune erreur console (accessibilité)', not errs[:pre] and len(extra) <= 1 and all('status of 404' in e for e in extra), '; '.join(errs[:3]))
+    await ctx.close()
+
+async def main():
+    srv = serve()
+    async with async_playwright() as p:
+        launch = lambda args: p.chromium.launch(args=args)
+        b = await launch(GL)
+        only = [x for x in os.environ.get('TESTS', '').split(',') if x]
+        for t in (test_playthrough, test_stealth_and_drop, test_beach_towel, test_rings, test_daily, test_daily_end, test_mobile_and_perf, test_world, test_first_minute, test_touch_feel, test_reactions, test_leaderboard_online, test_languages, test_stats, test_accessibility, test_lazy_regions, test_presentation, test_legal):
+            if only and t.__name__ not in only: continue
+            try: await t(b)
+            except Exception as e:
+                check(t.__name__, False, 'exception : ' + str(e)[:200])
+                for c in list(b.contexts): await c.close()   # une page restée ouverte (3D en rendu logiciel) ralentirait les tests suivants
+        await b.close()
+        if not only or 'test_fallbacks' in only:
+            try: await test_fallbacks(launch)
+            except Exception as e: check('test_fallbacks', False, 'exception : ' + str(e)[:200])
+    srv.shutdown()
+    failed = [r for r in results if not r[1]]
+    print(f"\n{len(results) - len(failed)}/{len(results)} vérifications réussies. Captures : {OUT}")
+    sys.exit(1 if failed else 0)
+
+if __name__ == "__main__":
+    asyncio.run(main())

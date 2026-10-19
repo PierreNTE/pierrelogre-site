@@ -1,0 +1,162 @@
+<main id="play">
+<canvas id="game" tabindex="0" role="application" data-a="aGame" aria-label="" aria-describedby="help"></canvas>
+<div id="vignette" aria-hidden="true"></div>
+<div id="bubbles"></div>
+<div id="destArrow" hidden aria-hidden="true"><i>➜</i><span></span></div>
+
+
+
+<div id="help"></div>
+<div id="toasts" aria-live="polite"></div>
+<div id="tuto" hidden role="status" aria-live="polite"><small></small><b></b><span></span><button id="tutoSkip" type="button"></button></div>
+<div id="tutoChev" hidden aria-hidden="true"><i>▼</i></div>
+
+<div id="touch">
+  <div id="stickZone" aria-hidden="true"></div>
+  <div id="stick" aria-hidden="true"><div id="knob"></div></div>
+  <div id="tbtns">
+    <button id="tSneak" class="small" aria-pressed="false" data-t="tSneak"></button>
+    <button id="tZoom" class="small" data-t="tZoom"></button>
+    <button id="tGrab" data-t="tGrab"></button>
+    <button id="tYap" data-t="tYap"></button>
+  </div>
+</div>
+
+<div class="overlay" id="intro">
+  <div class="card">
+    <button class="chip langs" id="langBtn2" aria-label="Language / Langue">FR</button>
+    <h2 class="title" id="introH1"></h2>
+    <p id="introP" data-t="introP"></p>
+    <div class="keys" id="introKeys"></div>
+    <div class="card-actions">
+      <button class="big" id="startBtn" data-t="start" aria-busy="true"></button>
+      <button class="alt-btn" id="dailyBtn" data-t="daily" aria-busy="true"></button>
+      <button class="alt" id="newBtn" hidden data-t="newGame"></button>
+    </div>
+    <p class="daily-note"><span id="dailyNoteTxt" data-t="dailyNote"></span> <span id="dailyBest"></span></p>
+    <p class="intro-foot"><button class="alt who-link" id="introWho" data-t="introWho"></button><a class="legal-link" id="legalLink" href="/legal/" data-t="legalLink"></a></p>
+    <button class="alt who-link" id="loaderSkip" hidden data-t="skip"></button>
+  </div>
+</div>
+
+<div id="regionBanner" hidden aria-live="polite"><small></small><b></b></div>
+<div id="fade" hidden></div>
+<div id="mg" hidden>
+  <div class="mg-bar"><span>⏱ <b id="mgTime">45</b></span><span><b id="mgScore">0</b> <small data-t="mgPts"></small></span><span class="combo" id="mgCombo">×1</span><span id="mgLevel"></span><button class="chip" id="mgExit" data-t="mgExit"></button></div>
+  <p class="mg-help" data-t="mgHelp"></p>
+  <div id="mgFlash"></div>
+</div>
+</main>
+
+<header id="topRight">
+  <a class="chip li" id="liChip" target="_blank" rel="noopener"><b>in</b><span data-t="liChip"></span></a>
+  <button class="chip menu-btn" id="menuBtn" aria-expanded="false" aria-controls="topRight" aria-label="Menu">⋯</button>
+  <button class="chip opt" id="mapBtn"><span data-t="journalBtn"></span> <kbd class="k">M</kbd></button>
+  <button class="chip opt" id="whoBtn"><span class="long" data-t="who"></span><span class="short" data-t="whoShort"></span></button>
+  <button class="chip opt" id="langBtn" aria-label="Language / Langue">FR</button>
+  <button class="chip opt" id="muteBtn" aria-pressed="false"></button>
+  <button class="chip opt" id="musicBtn" aria-pressed="true" data-t="music"></button>
+  <button class="chip opt" id="qualBtn"></button>
+</header>
+
+<aside id="notebook" data-a="aGoals" aria-label="">
+  <h2><span data-t="nbTitle"></span><button id="nbToggle" aria-expanded="true"></button></h2>
+  <p class="nb-mode" id="nbMode"></p>
+  <ul id="goals"></ul>
+  <p class="nb-tip" id="nbTip"></p>
+  <div class="nb-ach" id="nbAch"></div>
+  <div class="nb-foot"><span><span class="clock" id="clock">0:00</span> · <span id="nbScore">0 / 13</span> · <span id="nbAcorns">🌰 0/5</span></span><button id="resetBtn"></button></div>
+</aside>
+
+<div class="overlay" id="endCard" hidden role="dialog" aria-modal="true" aria-labelledby="endTitle">
+  <div class="card end">
+    <h2 class="title" id="endTitle"></h2>
+    <p id="endSub"></p>
+    <dl class="end-stats" id="endStats"></dl>
+    <section class="end-lb" id="endLb" hidden aria-labelledby="dlTitle">
+      <h3 id="dlTitle" data-t="dailyLbTitle"></h3>
+      <div class="mg-form" id="dlForm"><label for="dlPseudo" data-t="dlPseudo"></label><input id="dlPseudo" maxlength="16" autocomplete="nickname" spellcheck="false"><button class="big" id="dlSend" type="button" data-t="mgSend"></button></div>
+      <p class="copy-note" id="dlSent" role="status"></p>
+      <p class="lb-note" id="dlOnline"></p>
+      <ol class="lb" id="dlTop"></ol>
+    </section>
+    <div class="end-ach" id="endAch"></div>
+    <div class="card-actions">
+      <a class="alt-btn" id="endLi" target="_blank" rel="noopener" data-t="endFollow"></a>
+    </div>
+    <div class="card-actions end-more">
+      <button class="big" id="contBtn" data-t="endContinue"></button>
+      <button class="alt" id="replayBtn" data-t="endReplay"></button>
+      <button class="alt" id="endWho" data-t="endWho"></button>
+    </div>
+  </div>
+</div>
+
+<div class="overlay soft" id="factCard" hidden role="dialog" aria-modal="true" aria-labelledby="factTitle">
+  <div class="card fact">
+    <p class="acorn-icon" id="factIcon" aria-hidden="true">🌰</p>
+    <h2 class="title" id="factTitle"></h2>
+    <p id="factText"></p>
+    <div class="card-actions">
+      <button class="big" id="factClose" data-t="acornClose"></button>
+      <a class="alt" id="factLi" target="_blank" rel="noopener" data-t="acornMore"></a>
+    </div>
+  </div>
+</div>
+
+
+
+<div class="overlay soft" id="mgEnd" hidden role="dialog" aria-modal="true" aria-labelledby="mgEndTitle">
+  <div class="card mg-end">
+    <h2 class="title" id="mgEndTitle" data-t="mgTitle"></h2>
+    <p class="mg-big"><b id="mgEndScore">0</b> <span data-t="mgPts"></span> <em id="mgNew" hidden data-t="newBadge"></em></p>
+    <p id="mgEndStats"></p>
+    <div class="mg-form" id="mgForm"><label for="mgPseudo" data-t="mgPseudo"></label><input id="mgPseudo" maxlength="16" autocomplete="nickname" spellcheck="false"><button class="big" id="mgSend" type="button" data-t="mgSend"></button></div>
+    <p class="copy-note" id="mgSent" role="status"></p>
+    <h3 data-t="lbTitle"></h3><p class="lb-note" id="mgOnline"></p>
+    <ol class="lb" id="mgTop"></ol>
+    <div class="card-actions"><button class="big" id="mgAgain" data-t="mgAgain"></button><button class="alt" id="mgQuit" data-t="mgQuit"></button></div>
+  </div>
+</div>
+
+<div class="overlay soft" id="journal" hidden role="dialog" aria-modal="true" aria-labelledby="jTitle">
+  <div class="card journal">
+    <div class="j-head"><h2 class="title" id="jTitle" data-t="journalTitle"></h2><button class="chip" id="jClose" data-a="aClose" aria-label="">✕</button></div>
+    <p class="j-sum" id="jSum"></p>
+    <div class="j-tabs" role="tablist"><button data-tab="map" role="tab" id="t-map" aria-controls="j-map" data-t="tabMap"></button><button data-tab="ach" role="tab" id="t-ach" aria-controls="j-ach" data-t="tabAch"></button><button data-tab="lb" role="tab" id="t-lb" aria-controls="j-lb" data-t="tabLb"></button></div>
+    <div class="j-pane" id="j-map" role="tabpanel" aria-labelledby="t-map"><canvas id="jMap" aria-hidden="true"></canvas><ul class="j-regions" id="jRegions"></ul></div>
+    <div class="j-pane" id="j-ach" role="tabpanel" aria-labelledby="t-ach" hidden></div>
+    <div class="j-pane" id="j-lb" role="tabpanel" aria-labelledby="t-lb" hidden></div>
+  </div>
+</div>
+
+<div class="overlay soft" id="travel" hidden role="dialog" aria-modal="true" aria-labelledby="trTitle">
+  <div class="card travel"><p class="acorn-icon" aria-hidden="true">🚆</p><h2 class="title" id="trTitle"></h2><div class="tr-list" id="trList"></div><button class="alt" id="trClose" data-t="trCancel"></button></div>
+</div>
+
+<div id="burrow" hidden role="dialog" aria-modal="true" aria-labelledby="bTitle">
+  <div class="inner">
+    <div class="b-top"><div><p id="nogameNote" hidden data-t="nogame"></p><p class="eyebrow" data-t="bEyebrow"></p></div><button id="bClose" data-a="aClose" aria-label="">✕</button></div>
+    <h1 id="bTitle">Pierre Logre</h1>
+    <p class="role" data-t="bRole"></p>
+    <p class="loc" data-t="bLoc"></p>
+    <p class="pitch" data-t="bPitch"></p>
+    <div class="cta">
+      <a class="btn-li" id="liBtn" target="_blank" rel="noopener"><b>in</b><span data-t="bLi"></span></a>
+      <a class="btn-gh" id="ghBtn" target="_blank" rel="noopener">GitHub ↗</a>
+      <a class="btn-gh" id="cvBtn" target="_blank" rel="noopener" hidden data-t="bPdf"></a>
+    </div>
+    <div class="stats" id="bStats"></div>
+    <h2 data-t="bTrail"></h2>
+    <ol class="trail" id="bTrail"></ol>
+    <div class="cols">
+      <div><h2 data-t="bCerts"></h2><div class="chips" id="bCerts"></div></div>
+      <div><h2 data-t="bSkills"></h2><div class="chips" id="bSkillsList"></div></div>
+      <div><h2 data-t="bEdu"></h2><ul class="plain" id="bEdu"></ul></div>
+      <div><h2 data-t="bOut"></h2><ul class="plain" id="bHobbies"></ul></div>
+    </div>
+    <p class="loot" id="loot"></p>
+    <div class="cta"><button class="btn-out" id="outBtn" data-t="bBack"></button></div>
+    <p class="legal" id="bLegal"></p>
+  </div>
+</div>
