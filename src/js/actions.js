@@ -80,10 +80,17 @@ export function nearestTarget() {
   for (const ia of interacts) { if (ia.when && !ia.when()) continue; const d = flat2(ia.pos, fox.pos); if (d < ia.r && d < bd + .3) { bd = d; best = ia; } }
   return best;
 }
+/** En portant un objet : le moyen de transport à portée (train, bateau), que « E » prend au lieu de poser l'objet. */
+export function carryTarget() {
+  if (!fox.held) return null;
+  let best = null, bd = Infinity;
+  for (const ia of interacts) { if (!ia.carry || (ia.when && !ia.when())) continue; const d = flat2(ia.pos, fox.pos); if (d < ia.r && d < bd) { bd = d; best = ia; } }
+  return best;
+}
 export function grabOrDrop() {
   fox.idle = 0;
   if (fox.stunT > 0) return;
-  if (fox.held) { dropHeld(); return; }
+  if (fox.held) { const ia = carryTarget(); if (ia) ia.action(ia); else dropHeld(); return; }
   const it = nearestTarget(); if (!it) return;
   if (it.kind === 'printer') { startPrint(); return; }
   if (it.action) { it.action(it); return; }
@@ -207,7 +214,9 @@ export function checkBurrow() {
   const d = flat2(fox.pos, BURROW);
   if (d < .85 && !inBurrowZone) {
     inBurrowZone = true;
-    if (fox.held && fox.held.kind === 'baguette') { const b = fox.held; fox.held = null; b.held = false; b.gone = true; b.mesh.visible = false; run.loot = true; completeGoal('baguette'); giveUp(b); }
+    // Une baguette apportée jusqu'au terrier (celle du village, ou celle de Paris : burrowGoal) est livrée en entrant
+    const bg = fox.held && (fox.held.kind === 'baguette' ? 'baguette' : fox.held.burrowGoal);
+    if (bg) { const b = fox.held; fox.held = null; b.held = false; b.gone = true; b.mesh.visible = false; run.loot = true; completeGoal(bg); giveUp(b); }
     if (!run.done.terrier) track('Terrier trouvé', { secondes: Math.round(run.elapsed) });
     completeGoal('terrier'); if (HOOKS.enterDen) HOOKS.enterDen(); else openBurrow();   // la salle souterraine (regions/terrier.js)
   } else if (d > 1.6) inBurrowZone = false;

@@ -148,7 +148,7 @@ defineRegion({
     let steam = 0;
     const whistle = () => { W.SFX.train(); steam = 2.4; W.say({ anchor: new THREE.Vector3(-57, 4.6, 10.4) }, t().trainWhistle, '', 1.8, 0, 'train'); };
     W.yap(new THREE.Vector3(-54, 0, PLAT.z + 1), 4.5, () => { whistle(); W.complete('siffler'); });
-    W.interact({ x: -59, y: 1.4, z: PLAT.z + 1.2 }, 1.8, () => { if (!isOpen('nantes')) { W.say(fox, t().noTrain, '', 1.8, 2); return; } trainMenu('gare'); });
+    W.transport({ x: -59, y: 1.4, z: PLAT.z + 1.2 }, 1.8, () => { if (!isOpen('nantes')) { W.say(fox, t().noTrain, '', 1.8, 2); return; } trainMenu('gare'); });
     // Chef de gare + casquette, voyageurs, valises
     const chef = W.npc({ id: 'chefgare', x: -52, z: PLAT.z - .2, yaw: Math.PI, shirt: '#24427a', pants: '#24427a', hair: '#8a6a4a', hat: 'kepi', hatColor: '#24427a',
       route: [{ p: new THREE.Vector3(-52, 0, PLAT.z), wait: 4, act: 'look', yaw: 0 }, { p: new THREE.Vector3(-64, 0, PLAT.z), wait: 3, act: 'point', yaw: 0 }] });

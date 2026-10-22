@@ -12,8 +12,8 @@
   --cream:#f3e6d2;
   --tan:#d9a77c;
   --li:#0a66c2;
-  --font-hand:"Patrick Hand","Comic Sans MS","Segoe Print",cursive;
-  --font-ui:"Baloo 2","Trebuchet MS",system-ui,sans-serif;
+  --font-hand:"Patrick Hand","Patrick Hand Fallback","Comic Sans MS","Segoe Print",cursive;
+  --font-ui:"Baloo 2","Baloo 2 Fallback","Trebuchet MS",system-ui,sans-serif;
   color-scheme:light;
 }
 html,body{height:100%;margin:0;overflow:hidden;background:var(--sky);color:var(--ink);font-family:var(--font-ui);-webkit-tap-highlight-color:transparent;touch-action:none;user-select:none;-webkit-user-select:none;-webkit-touch-callout:none}
@@ -33,7 +33,10 @@ button:focus-visible,a:focus-visible,input:focus-visible,textarea:focus-visible,
 /* ---------- Chargement & version sans jeu ---------- */
 /* Le jeu se charge derrière la carte d'accueil : petit rond qui tourne sur les boutons tant qu'il n'est pas prêt
    (un clic pendant ce temps est retenu : la partie démarre dès que possible) */
-#intro [aria-busy="true"]::after{content:"";display:inline-block;width:.8em;height:.8em;margin-left:.5em;vertical-align:-.08em;border-radius:50%;border:2.5px solid currentColor;border-right-color:transparent;opacity:.75;animation:spin .8s linear infinite}
+/* Jeu en chargement : petit anneau qui tourne au coin du bouton, hors du texte (sinon, sur téléphone, les deux boutons
+   passaient sur deux lignes pendant le chargement, et la carte sautait quand le jeu était prêt) */
+#intro [aria-busy="true"]{position:relative}
+#intro [aria-busy="true"]::after{content:"";position:absolute;top:-6px;right:-6px;width:12px;height:12px;border-radius:50%;border:2.5px solid var(--fox-deep);border-right-color:transparent;background:var(--paper);animation:spin .8s linear infinite}
 #intro [aria-busy="true"].queued{opacity:.85}
 @keyframes spin{to{transform:rotate(360deg)}}
 .booting #notebook,.booting #topRight,.booting #touch,.booting #help{visibility:hidden}
@@ -451,3 +454,6 @@ html.doc,html.doc body{height:auto;overflow:auto;touch-action:auto;user-select:t
 .end-lb h3{font:800 18px/1.2 var(--font-ui);margin:0 0 4px}
 .end-lb .lb{max-height:min(32vh,250px);overflow-y:auto;margin-bottom:4px}
 .end-lb .copy-note{min-height:0}
+/* « Voir le profil sans le jeu » (chargement long) : sous la carte, hors du flux, pour que la carte ne saute pas quand il
+   apparaît (8 s) puis disparaît (jeu prêt) */
+#intro .card #loaderSkip{position:absolute;top:100%;left:50%;transform:translateX(-50%);margin-top:12px;white-space:nowrap;background:var(--paper);padding:6px 14px;border-radius:999px;box-shadow:0 6px 18px rgba(40,50,30,.2)}

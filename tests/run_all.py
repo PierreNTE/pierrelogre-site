@@ -230,6 +230,35 @@ async def test_beach_towel(browser):
     check('serviette : renard dans l\'eau tourné vers la plage → elle part dans les vagues', back['done'] and back['gone'] and back['z'] >= 89.3, json.dumps(back))
     await ctx.close()
 
+async def test_train_carry(browser):
+    """Baguette de Paris : on la prend, « E » au quai ouvre le train (au lieu de la poser), elle voyage avec le renard
+    et entre au terrier du village. Un objet qui ne voyage pas reste sur le quai, avec un message."""
+    ctx, pg, errs = await page(browser, 480, 320, acorns_done=True); await ready(pg)
+    r = await js(pg, """F.start('libre', false); await wait(400); F.dev.skipTuto(); for (const R of F.REGIONS) F.unlockRegion(R, false);
+        const frame=()=>new Promise(r=>requestAnimationFrame(()=>r())), frames=async n=>{ for(let i=0;i<n;i++) await frame(); };
+        const settle=async()=>{ for(let i=0;i<100&&(F.paused||!document.querySelector('#fade').hidden);i++) await wait(100); await frames(3); };
+        F.teleport(-290, 30, 0); await settle();
+        const bag=F.items.find(i=>i.kind==='baguetteParis'); go(bag.pos.x, bag.pos.z-.9, 0); await frames(2); F.grabOrDrop(); await frames(2);
+        const held=f.held===bag;
+        go(-291, 36.6, 0); await frames(2); F.grabOrDrop(); await frames(2);
+        const menu=!document.querySelector('#travel').hidden, stillHeld=f.held===bag;
+        const btn=[...document.querySelectorAll('#trList button:not([disabled])')].find(b=>/gare|station/i.test(b.textContent));
+        const label=btn&&btn.textContent; btn&&btn.click(); await settle();
+        const arrived={x:+f.pos.x.toFixed(1), z:+f.pos.z.toFixed(1)}, travelled=f.held===bag;
+        go(-20, 12, 0); await frames(2); const d=F.destinationFor(bag); go(d.pos.x, d.pos.z+1.5, Math.PI); await frames(2); go(d.pos.x, d.pos.z, Math.PI); await frames(4); await settle();
+        const done=!!F.run.done.baguetteParis, consumed=bag.gone&&!f.held;
+        // Objet qui ne voyage pas (le mug du bureau) : il reste au quai de la gare, message affiché
+        F.teleport(-58, 4, 0); await settle(); const mug=F.items.find(i=>i.kind==='mug'); f.held=mug; mug.held=true; await frames(2);
+        go(-59, 7.2, 0); await frames(2); const t0=document.querySelector('#toasts').textContent.length; F.grabOrDrop(); await frames(2);
+        const btn2=[...document.querySelectorAll('#trList button:not([disabled])')][0]; btn2&&btn2.click(); await settle();
+        const mugStayed=!mug.held&&Math.hypot(mug.pos.x+59, mug.pos.z-7.2)<2.5, toast=document.querySelector('#toasts').textContent.slice(t0);
+        return {held, menu, stillHeld, label, arrived, travelled, done, consumed, mugStayed, toast:toast.slice(0,90)};""")
+    check('baguette de Paris : « E » au quai ouvre le train sans la poser, elle voyage et entre au terrier (bêtise comptée)',
+          r['held'] and r['menu'] and r['stillHeld'] and r['travelled'] and r['done'] and r['consumed'], json.dumps(r, ensure_ascii=False))
+    check('objet qui ne voyage pas : il reste sur le quai, avec un message', r['mugStayed'] and ('voyage' in r['toast'] or 'travel' in r['toast']), json.dumps(r, ensure_ascii=False))
+    check('aucune erreur console (train)', not errs, '; '.join(errs[:3]))
+    await ctx.close()
+
 async def test_rings(browser):
     """Toutes les bêtises : déclencheurs atteignables à pied, anneaux de dépôt fidèles à ce qui compte
     (étang au ponton, but, chaussette et bouteille depuis la berge ou le pont, bâtons du castor, serviette, baguette)."""
@@ -940,7 +969,7 @@ async def main():
         launch = lambda args: p.chromium.launch(args=args)
         b = await launch(GL)
         only = [x for x in os.environ.get('TESTS', '').split(',') if x]
-        for t in (test_playthrough, test_stealth_and_drop, test_beach_towel, test_rings, test_daily, test_daily_end, test_mobile_and_perf, test_world, test_first_minute, test_touch_feel, test_reactions, test_leaderboard_online, test_languages, test_stats, test_accessibility, test_lazy_regions, test_presentation, test_legal):
+        for t in (test_playthrough, test_stealth_and_drop, test_beach_towel, test_train_carry, test_rings, test_daily, test_daily_end, test_mobile_and_perf, test_world, test_first_minute, test_touch_feel, test_reactions, test_leaderboard_online, test_languages, test_stats, test_accessibility, test_lazy_regions, test_presentation, test_legal):
             if only and t.__name__ not in only: continue
             try: await t(b)
             except Exception as e:

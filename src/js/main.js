@@ -3,7 +3,7 @@
    ===================================================================== */
 import * as THREE from 'three';
 import { updateAcorns, acorns } from './acorns.js';
-import { checkBurrow, destinationFor, dropHeld, grabOrDrop, nearestTarget, openBurrow, startPrint, updateBirds, yap } from './actions.js';
+import { carryTarget, checkBurrow, destinationFor, dropHeld, grabOrDrop, nearestTarget, openBurrow, startPrint, updateBirds, yap } from './actions.js';
 import { MUSIC, ambience, audio, setMusic } from './audio.js';
 import { CONFIG, OG, track } from './config.js';
 import { pseudoOk, submit as lbSubmit, top as lbTop } from './leaderboard.js';
@@ -185,10 +185,11 @@ function frame(ts) {
     const p = posOf(b.target).clone(); p.y += b.yOff;
     const [x, y, vis] = toScreen(p); b.el.style.left = x + 'px'; b.el.style.top = y + 'px'; b.el.style.opacity = vis ? Math.min(1, b.t * 4) : 0;
   }
-  const nt = !S.paused && !S.mg && !fox.held ? nearestTarget() : null;
+  // Cible de « E » : ce qu'on peut attraper, ou, en portant un objet, le train ou le bateau à portée (on monte avec)
+  const nt = !S.paused && !S.mg ? (fox.held ? carryTarget() : nearestTarget()) : null;
   if (nt) { const p = nt.kind === 'printer' ? new THREE.Vector3(PRINTER.x, 1.9, PRINTER.z) : nt.pos.clone().setY(Math.max(nt.pos.y, 0) + .9); const [x, y] = toScreen(p); hintEl.style.left = x + 'px'; hintEl.style.top = y + 'px'; hintEl.hidden = false; } else hintEl.hidden = true;
   // Bouton Attraper (tactile) : il s'allume quand quelque chose est à portée, devient « Poser » quand le renard porte un objet
-  if (isTouch) { const st = fox.held ? 'hold' : nt ? 'ready' : ''; if (st !== grabUi) { grabUi = st; tGrab.classList.toggle('ready', st === 'ready'); tGrab.classList.toggle('holding', st === 'hold'); tGrab.textContent = st === 'hold' ? t().tDrop : t().tGrab; } }
+  if (isTouch) { const st = fox.held ? (nt ? 'board' : 'hold') : nt ? 'ready' : ''; if (st !== grabUi) { grabUi = st; tGrab.classList.toggle('ready', st === 'ready' || st === 'board'); tGrab.classList.toggle('holding', st === 'hold'); tGrab.textContent = st === 'hold' ? t().tDrop : st === 'board' ? t().tBoard : t().tGrab; } }
   updateDestArrow(dest); updateTuto(dt, now);
   if (S.started && (!run.tEnd || run.mode === 'libre')) { const ct = fmt(run.elapsed); if (ct !== lastClock) { lastClock = ct; $('#clock').textContent = ct; } }   // texte réécrit seulement s'il change
   requestAnimationFrame(frame);

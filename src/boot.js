@@ -78,4 +78,15 @@
   if($('liBtn')) $('liBtn').addEventListener('click',function(){ if(!window.__foxBoot) window.__foxStats.send('Clic LinkedIn',{depuis:'fiche'}); });
   setTimeout(function(){ if(!window.__foxReady){ var s=$('loaderSkip'); if(s) s.hidden=false; } },8000);
   $('loaderSkip').addEventListener('click',function(){ showProfile(true); });
+  // Le jeu démarre juste après la première image : la carte d'accueil s'affiche d'abord, même quand la construction du
+  // village bloque le navigateur plusieurs secondes (téléphone lent). Le fichier est déjà en route (modulepreload).
+  // Aperçu tout-en-un : pas de lien modulepreload, le jeu est dans la page et démarre seul.
+  var pre=document.querySelector('link[rel="modulepreload"][href*="/assets/game.js"]');
+  // On attend aussi les polices (2 s au plus) : sinon le texte, encore invisible pendant leur chargement, ne s'afficherait
+  // qu'une fois le village construit.
+  if(pre){
+    var started=false, go=function(){ if(started) return; started=true; var s=document.createElement('script'); s.type='module'; s.src=pre.getAttribute('href'); document.body.appendChild(s); };
+    var later=function(){ if(document.hidden||!window.requestAnimationFrame) setTimeout(go,0); else requestAnimationFrame(function(){ setTimeout(go,0); }); };
+    if(document.fonts&&document.fonts.ready){ document.fonts.ready.then(later,later); setTimeout(later,2000); } else later();
+  }
 })();

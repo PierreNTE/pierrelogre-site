@@ -53,7 +53,7 @@ function makeBody(lang) {
     .replace(/(<([a-z0-9]+)\b[^>]*\bdata-t="([A-Za-z]+)"[^>]*>)(<\/\2>)/g,
       (m, open, tag, key, close) => (key in F && typeof F[key] === 'string') ? open + esc(F[key]) + close : m)
     .replace(/data-a="([A-Za-z]+)" aria-label=""/g, (m, key) => `data-a="${key}" aria-label="${esc(F[key] || '')}"`)
-    .replace(/(id="langBtn2?"[^>]*>)FR(<\/button>)/g, (m, a, b) => a + (lang === 'fr' ? 'EN' : 'FR') + b)
+    .replace(/(id="langBtn2?" aria-label=")FR( · [^"]*">)FR(<\/button>)/g, (m, a, b, c) => { const x = lang === 'fr' ? 'EN' : 'FR'; return a + x + b + x + c; })
     .replace('id="legalLink" href="/legal/"', `id="legalLink" href="/${LEGAL[lang].path}"`);
   const fill = (id, inner) => {
     const re = new RegExp(`(<([a-z0-9]+)\\b[^>]*\\bid="${id}"[^>]*>)(</\\2>)`);
@@ -93,6 +93,15 @@ ${body}
 
 if (process.argv.includes('--artifact-only')) { console.log('aperçu ok'); process.exit(0); }
 
+/* Polices de secours ajustées (Arial réglé sur les dimensions de Baloo 2 et Patrick Hand) : pendant le chargement des
+   vraies polices, le texte a déjà la bonne taille, la carte d'accueil ne saute plus (CLS). Valeurs calculées avec fontTools
+   sur les fichiers .woff2 et Liberation Sans (mêmes chasses qu'Arial) : largeur moyenne d'un texte FR/EN, hauteurs hhea. */
+const FALLBACK_FACES = [
+  '@font-face{font-family:"Baloo 2 Fallback";font-weight:400 600;src:local("Arial"),local("ArialMT"),local("Liberation Sans");size-adjust:95.84%;ascent-override:112.47%;descent-override:54.67%;line-gap-override:0%}',
+  '@font-face{font-family:"Baloo 2 Fallback";font-weight:700 900;src:local("Arial Bold"),local("Arial-BoldMT"),local("Liberation Sans Bold");size-adjust:93.73%;ascent-override:115.02%;descent-override:55.91%;line-gap-override:0%}',
+  '@font-face{font-family:"Patrick Hand Fallback";src:local("Arial"),local("ArialMT"),local("Liberation Sans");size-adjust:80.31%;ascent-override:129.75%;descent-override:38.85%;line-gap-override:0%}',
+].join('\n');
+
 /* ---------- 4. Version OVH : fichiers séparés, aucune ressource tierce ---------- */
 const OUT = path.join(ROOT, 'site/www');
 fs.rmSync(path.join(ROOT, 'site'), { recursive: true, force: true });
@@ -100,7 +109,8 @@ fs.mkdirSync(path.join(OUT, 'assets/fonts'), { recursive: true });
 fs.mkdirSync(path.join(OUT, '.well-known'), { recursive: true });
 
 const fontFace = [['Baloo 2', 500, 'baloo-2-latin-500-normal'], ['Baloo 2', 700, 'baloo-2-latin-700-normal'], ['Baloo 2', 800, 'baloo-2-latin-800-normal'], ['Patrick Hand', 400, 'patrick-hand-latin-400-normal']]
-  .map(([f, w, file]) => `@font-face{font-family:"${f}";font-weight:${w};font-display:swap;src:url(fonts/${file}.woff2) format("woff2")}`).join('\n');
+  .map(([f, w, file]) => `@font-face{font-family:"${f}";font-weight:${w};font-display:swap;src:url(fonts/${file}.woff2) format("woff2")}`).join('\n')
+  + '\n' + FALLBACK_FACES;
 const cssMin = (await esbuild.transform(fontFace + '\n' + css, { loader: 'css', minify: true })).code;
 fs.writeFileSync(path.join(OUT, 'assets/style.css'), cssMin);
 fs.writeFileSync(path.join(OUT, 'assets/boot.js'), bootJs);
@@ -109,7 +119,7 @@ for (const c of chunks) fs.writeFileSync(path.join(OUT, 'assets', c.name), c.tex
 const noscriptCss = '#burrow{display:block!important}#intro,#notebook,#topRight,#help,#touch,#game,#bClose,#outBtn,#loot,#endCard{display:none!important}\n';
 fs.writeFileSync(path.join(OUT, 'assets/noscript.css'), noscriptCss);
 // Version dans l'adresse des fichiers (empreinte du contenu) : après une mise à jour, un visiteur déjà venu ne garde pas
-// l'ancien game.js en cache (7 jours, .htaccess) avec la nouvelle page : il recharge ce qui a changé, et seulement ça
+// l'ancien game.js en cache (1 an, .htaccess) avec la nouvelle page : il recharge ce qui a changé, et seulement ça
 const v = s => '?v=' + crypto.createHash('sha256').update(s).digest('hex').slice(0, 10);
 const A = { css: 'assets/style.css' + v(cssMin), boot: 'assets/boot.js' + v(bootJs), game: 'assets/game.js' + v(gameJs), noscript: 'assets/noscript.css' + v(noscriptCss) };
 
@@ -206,7 +216,6 @@ ${umami}</head>
 <body>
 ${makeBody(lang).trim()}
 <script src="/${A.boot}"></script>
-<script type="module" src="/${A.game}"></script>
 </body>
 </html>
 `;

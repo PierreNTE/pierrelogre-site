@@ -214,7 +214,8 @@ export function applyLang(textures = true) {
   document.querySelectorAll('[data-a]').forEach(el => { const v = t()[el.dataset.a]; if (typeof v === 'string') el.setAttribute('aria-label', v); });
   $('#help').innerHTML = t().help; $('#introH1').innerHTML = t().introH1;
   $('#introKeys').innerHTML = t().keys.map(([k, v]) => `<kbd>${k}</kbd><span>${v}</span>`).join('');
-  ['#langBtn', '#langBtn2'].forEach(s => $(s).textContent = S.lang === 'fr' ? 'EN' : 'FR');
+  // Le nom lu par les lecteurs d'écran commence par le texte affiché (WCAG 2.5.3, « label in name »)
+  ['#langBtn', '#langBtn2'].forEach(s => { const x = S.lang === 'fr' ? 'EN' : 'FR'; $(s).textContent = x; $(s).setAttribute('aria-label', x + ' · Language / Langue'); });
   $('#muteBtn').textContent = S.muted ? t().muted : t().sound;
   $('#nbToggle').textContent = $('#notebook').classList.contains('collapsed') ? t().unfold : t().fold;
   $('#resetBtn').textContent = t().reset;
