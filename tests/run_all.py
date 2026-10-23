@@ -250,9 +250,9 @@ async def test_train_carry(browser):
         const done=!!F.run.done.baguetteParis, consumed=bag.gone&&!f.held;
         // Objet qui ne voyage pas (le mug du bureau) : il reste au quai de la gare, message affiché
         F.teleport(-58, 4, 0); await settle(); const mug=F.items.find(i=>i.kind==='mug'); f.held=mug; mug.held=true; await frames(2);
-        go(-59, 7.2, 0); await frames(2); const t0=document.querySelector('#toasts').textContent.length; F.grabOrDrop(); await frames(2);
+        go(-59, 7.2, 0); await frames(2); const added=[], mo=new MutationObserver(ms=>{ for(const m of ms) for(const n of m.addedNodes) added.push(n.textContent); }); mo.observe(document.querySelector('#toasts'), {childList:true}); F.grabOrDrop(); await frames(2);
         const btn2=[...document.querySelectorAll('#trList button:not([disabled])')][0]; btn2&&btn2.click(); await settle();
-        const mugStayed=!mug.held&&Math.hypot(mug.pos.x+59, mug.pos.z-7.2)<2.5, toast=document.querySelector('#toasts').textContent.slice(t0);
+        const mugStayed=!mug.held&&Math.hypot(mug.pos.x+59, mug.pos.z-7.2)<2.5, toast=added.join(' | '); mo.disconnect();
         return {held, menu, stillHeld, label, arrived, travelled, done, consumed, mugStayed, toast:toast.slice(0,90)};""")
     check('baguette de Paris : « E » au quai ouvre le train sans la poser, elle voyage et entre au terrier (bêtise comptée)',
           r['held'] and r['menu'] and r['stillHeld'] and r['travelled'] and r['done'] and r['consumed'], json.dumps(r, ensure_ascii=False))
