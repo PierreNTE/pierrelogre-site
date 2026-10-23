@@ -6,6 +6,7 @@ import { SFX } from './audio.js';
 import { CONFIG, track } from './config.js';
 import { RM, camera, isTouch, redraws } from './engine.js';
 import { fox } from './fox.js';
+import { HOOKS } from './hooks.js';
 import { saveRun } from './persist.js';
 import { GOALS, MAIN_IDS, S, activeGoals, goalOf, prog, run, saved, store, t } from './state.js';
 
@@ -21,7 +22,10 @@ const openHints = new Set();
 export function renderGoals() {
   // Le focus clavier reste sur la même bêtise quand la liste se redessine (indice ouvert ou fermé)
   const fid = goalsEl.contains(document.activeElement) ? document.activeElement.closest('li')?.dataset.id : null;
-  goalsEl.innerHTML = ''; let n = 0; const region = S.goalRegion || S.region || 'village'; const list = activeGoals(region);
+  goalsEl.innerHTML = ''; let n = 0; const region = S.goalRegion || S.region || 'village';
+  // Une zone hors du parcours des bêtises (l'académie) remplit le carnet à sa façon
+  const own = run.mode !== 'defi' && HOOKS.notebook?.[region]?.(goalsEl);
+  const list = own ? [] : activeGoals(region);
   for (const g of list) {
     const done = !!run.done[g.id]; if (done && !g.secret) n++;
     // Chaque bêtise est un vrai bouton dans un élément de liste : lu « bouton » par les lecteurs d'écran, Entrée ou Espace ouvre l'indice
@@ -44,12 +48,12 @@ export function renderGoals() {
   if (daily) $('#nbScore').textContent = `${n} / ${total}`;
   // Toutes les bêtises du monde, secrètes comprises (même compte que le carnet de voyage ; avant : « 95 / 90 » possible)
   else { const d = GOALS.filter(g => run.done[g.id]).length; $('#nbScore').textContent = `${d} / ${S.regionsLoaded ? GOALS.length : '…'}`; $('#nbScore').title = t().totalTasks; }   // total connu quand toutes les régions sont là
-  $('#nbMode').textContent = daily ? t().dailyLabel : `📍 ${t().regions?.[region] || ''} · ${n}/${total}`;
+  $('#nbMode').textContent = daily ? t().dailyLabel : own ? own.mode : `📍 ${t().regions?.[region] || ''} · ${n}/${total}`;
   $('#nbAcorns').textContent = `🌰 ${saved.acorns.length}/5`;
   $('#nbAcorns').title = t().acornCount;
   if (daily) $('#nbAch').innerHTML = '';
   else { const got = ACH_ALL.filter(a => saved.ach[a.id]).length; $('#nbAch').innerHTML = `<button class="nb-map" id="nbMap">🗺️ ${t().journalBtn}</button><span class="nb-medals" title="${t().achLabel}">🏅 ${got}/${ACH_ALL.length || ACH.length}</span>`; }
-  $('#nbTip').textContent = t().hintTap;
+  $('#nbTip').textContent = own ? own.tip : t().hintTap;
   renderHook();
 }
 let renderHook = () => {};
@@ -59,7 +63,7 @@ function toggleHint(id) {
   if (openHints.has(id)) openHints.delete(id); else { openHints.add(id); track('Indice', { goal: id }); }
   renderGoals();
 }
-goalsEl.addEventListener('click', e => { const li = e.target.closest('li'); if (li) toggleHint(li.dataset.id); });
+goalsEl.addEventListener('click', e => { const li = e.target.closest('li'); if (!li) return; if (li.dataset.acad !== undefined) { HOOKS.notebookClick?.(li.dataset.acad); return; } toggleHint(li.dataset.id); });
 
 let hintPick = null;
 /** nudge.js choisit la bêtise à suggérer (la plus proche dont on connaît l'endroit) et la montre d'une flèche. */
@@ -214,7 +218,8 @@ export function applyLang(textures = true) {
   document.querySelectorAll('[data-a]').forEach(el => { const v = t()[el.dataset.a]; if (typeof v === 'string') el.setAttribute('aria-label', v); });
   $('#help').innerHTML = t().help; $('#introH1').innerHTML = t().introH1;
   $('#introKeys').innerHTML = t().keys.map(([k, v]) => `<kbd>${k}</kbd><span>${v}</span>`).join('');
-  ['#langBtn', '#langBtn2'].forEach(s => $(s).textContent = S.lang === 'fr' ? 'EN' : 'FR');
+  // Le nom lu par les lecteurs d'écran commence par le texte affiché (WCAG 2.5.3, « label in name »)
+  ['#langBtn', '#langBtn2'].forEach(s => { const x = S.lang === 'fr' ? 'EN' : 'FR'; $(s).textContent = x; $(s).setAttribute('aria-label', x + ' · Language / Langue'); });
   $('#muteBtn').textContent = S.muted ? t().muted : t().sound;
   $('#nbToggle').textContent = $('#notebook').classList.contains('collapsed') ? t().unfold : t().fold;
   $('#resetBtn').textContent = t().reset;

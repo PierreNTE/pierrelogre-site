@@ -195,7 +195,7 @@ Object.assign(T.fr, {
   chapterDone: n => `${n} : terminé !`,
   chapterText: (d, tot) => `Toutes les bêtises principales sont faites (${d}/${tot} en comptant les secrètes). La suite t'attend sur la carte (touche M).`,
   totalTasks: "Bêtises faites dans tout le monde", doneSecret: "Bêtise secrète :",
-  journalBtn: "Carte", journalTitle: "Carnet de voyage", tabMap: "Carte", tabAch: "Succès", tabLb: "Classement",
+  journalBtn: "Carte", journalTitle: "Carnet de voyage", tabMap: "Carte", tabAch: "Succès", tabLb: "Classement", tabAcad: "Académie",
   journalSum: (d, all, c, ct, a, time) => `${d}/${all} bêtises · 💌 ${c}/${ct} cartes postales · 🌰 ${a}/5 glands · ⏱ ${time}`,
   mapUnseen: "ouverte, pas encore visitée", mapGo: "Y aller par les terriers",
   needTasks: n => `encore ${n} bêtise${n > 1 ? 's' : ''}`, needIn: (n, r) => `encore ${n} bêtise${n > 1 ? 's' : ''} : ${r}`, needTask: g => `il faut : ${g}`,
@@ -235,7 +235,7 @@ Object.assign(T.en, {
   chapterDone: n => `${n}: complete!`,
   chapterText: (d, tot) => `All the main mischief is done (${d}/${tot} counting the secret ones). More awaits on the map (M key).`,
   totalTasks: "Mischief done across the whole world", doneSecret: "Secret mischief:",
-  journalBtn: "Map", journalTitle: "Travel journal", tabMap: "Map", tabAch: "Achievements", tabLb: "Leaderboard",
+  journalBtn: "Map", journalTitle: "Travel journal", tabMap: "Map", tabAch: "Achievements", tabLb: "Leaderboard", tabAcad: "Academy",
   journalSum: (d, all, c, ct, a, time) => `${d}/${all} mischiefs · 💌 ${c}/${ct} postcards · 🌰 ${a}/5 acorns · ⏱ ${time}`,
   mapUnseen: "open, not visited yet", mapGo: "Go there through the burrows",
   needTasks: n => `${n} more mischief${n > 1 ? 's' : ''}`, needIn: (n, r) => `${n} more mischief${n > 1 ? 's' : ''}: ${r}`, needTask: g => `needs: ${g}`,
@@ -273,7 +273,7 @@ Object.assign(T.en.ach, {
 Object.assign(T.fr, {
   colon: " :",
   aGame: "Monde du jeu : un renard dans un village vendéen et un bureau", aGoals: "Liste des bêtises", aClose: "Fermer", legalLink: "Mentions légales", dailyLbTitle: "Classement du défi du jour", dlPseudo: "Ton pseudo pour le classement du jour (public) :", dlSentOnline: "Temps envoyé au classement du jour !", dlSentLocal: "Temps gardé dans ce navigateur.", dlEmpty: "Personne encore aujourd'hui : à toi de jouer !", dlToday: "Défi du jour (aujourd'hui)", presHi: "Salut ! Moi, c'est le renard.", presMischief: "Ici, je fais des bêtises…", presJoin: "Tu viens m'aider ?", presNext: "Clique pour la suite · Échap pour passer", presNextTouch: "Touche l'écran pour la suite", aDone: "faite",
-  tDrop: "Poser",
+  tDrop: "Poser", tBoard: "Monter", leftBehind: "Tu laisses ce que tu portais ici : ça ne voyage pas.",
   tuto: {
     skip: "Passer", more: "La suite est ici !", n: (i, tot) => `Bêtise ${i}/${tot}`,
     steps: {
@@ -297,7 +297,7 @@ Object.assign(T.fr, {
 Object.assign(T.en, {
   colon: ":",
   aGame: "Game world: a fox in a village in Vendée and an office", aGoals: "Mischief list", aClose: "Close", legalLink: "Legal notice", dailyLbTitle: "Today's challenge leaderboard", dlPseudo: "Your nickname for today's leaderboard (public):", dlSentOnline: "Time sent to today's leaderboard!", dlSentLocal: "Time saved in this browser.", dlEmpty: "Nobody yet today: your turn!", dlToday: "Daily challenge (today)", presHi: "Hi! I'm the fox.", presMischief: "Around here, I cause mischief…", presJoin: "Want to help?", presNext: "Click for what's next · Esc to skip", presNextTouch: "Tap for what's next", aDone: "done",
-  tDrop: "Drop",
+  tDrop: "Drop", tBoard: "Board", leftBehind: "You leave what you were carrying here: it doesn't travel.",
   tuto: {
     skip: "Skip", more: "More mischief here!", n: (i, tot) => `Mischief ${i}/${tot}`,
     steps: {

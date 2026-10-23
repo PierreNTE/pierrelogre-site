@@ -38,7 +38,7 @@ src/
   body.html, style.css, boot.js   page, styles, détection WebGL (version sans jeu)
   site.config.json                liens LinkedIn/GitHub, image d'aperçu, Umami (facultatif)
   htaccess.conf                   devient site/www/.htaccess (HTTPS, CSP stricte, en-têtes, cache)
-                                  (JS et CSS gardés 7 jours : le build ajoute ?v=empreinte à leur adresse,
+                                  (JS et CSS gardés 1 an : le build ajoute ?v=empreinte à leur adresse,
                                   une mise à jour est donc vue tout de suite par les visiteurs déjà venus)
   assets/                         og-image.jpg (FR), og-image-en.jpg (EN)
   js/
@@ -118,6 +118,15 @@ Exemple : « Ajoute un monde spatial ».
 
 Carte, carnet, sauvegarde, succès « 100 % » et explorateur suivent automatiquement.
 Une ambiance musicale se choisit dans `STYLES` (`audio.js`).
+
+## Académie Dell Storage
+
+Un campus au nord du stade (`src/js/regions/academie.js`), ouvert dès le début : navette au nord du bureau du village, ou carnet de voyage (onglet Carte, puis onglet Académie pour la progression). Lien direct : `/#academie` ou `/fr/#academie`. Projet personnel non officiel, construit à partir de sources publiques Dell Technologies (mention affichée dans le hall et le tableau de progression).
+
+- **Le parcours** : hall (directrice = tableau de progression, borne du défi chronométré « Classe-le ! », table de l'évaluation finale, étagère des trophées), sept pavillons (PowerVault, PowerStore, APEX, PowerProtect Data Domain, logiciels de sauvegarde, reprise après sinistre, cyber-résilience) qui s'ouvrent l'un après l'autre (quand on a tenté le quiz du précédent), et le laboratoire dans la cour (porter les bons blocs sur les quatre socles ; un mauvais bloc est renvoyé avec une explication).
+- **Dans chaque pavillon** : le formateur (points clés, chacun marqué Produit, Logiciel, Service, Modèle de consommation ou Concept, avec ses sources, ses simplifications et ses limites), trois équipements à examiner, une borne de quiz (QCM, associations, schémas d'architecture), un client (deux missions et une simulation commerciale : qualifier, proposer, justifier).
+- **Progression** (`src/js/academy/engine.js`) : points d'expérience, cinq niveaux, un badge par famille (tous les points clés vus, quiz ≥ 70 %, missions résolues, simulation ≥ 60 %), maîtrise par famille et points à retravailler. Gardée dans le navigateur (`fox-academie-v1`), à part de la partie de bêtises : « recommencer » ne l'efface pas ; le tableau de progression a son propre bouton de remise à zéro. L'académie n'ajoute aucune bêtise et n'est exigée ni pour l'île ni pour le succès « explorateur » (`extra: true`).
+- **Le contenu** (`src/js/academy/content/`) : un fichier par salle, plus `lab.js`, `final.js`, `terms.js` (défi chronométré) et `sources.js` (adresses officielles, date de vérification `CHECKED`). Chargé à la demande, dans un fichier à part sur le site. Pour corriger un contenu, on ne touche qu'à ces fichiers ; `node tests/academy_content.mjs` vérifie la cohérence (sources existantes et toutes citées, une seule meilleure réponse, les deux langues, au moins une question de chaque type par salle).
 
 ## Classement partagé (Supabase)
 

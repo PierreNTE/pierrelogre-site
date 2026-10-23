@@ -15,7 +15,7 @@ import { addCrabs } from '../fauna.js';
 
 const B = { minX: 18, maxX: 74, minZ: 120, maxZ: 170 };
 const C = { x: 46, z: 146 };
-const visitedAll = () => REGIONS.every(R => R.id === 'ile' || R.hidden || run.discovered.includes(R.id));
+const visitedAll = () => REGIONS.every(R => R.id === 'ile' || R.hidden || R.extra || run.discovered.includes(R.id));
 
 defineRegion({
   id: 'ile', bounds: B, mapColor: '#f6d98a',
@@ -66,7 +66,7 @@ defineRegion({
     W.ground(2.4, 6, W.M('#b8834a'), 46, 126.5, .12); for (let i = 0; i < 10; i++) box(2.4, .02, .04, '#8a5a3b', 46, .125, 123.8 + i * .6, undefined, false); for (const [x, z] of [[44.9, 124], [47.1, 124], [44.9, 127], [47.1, 127]]) cyl(.1, .1, 1, '#7a5236', x, .2, z, 5);
     boat(49.5, 124.5, 0, '#f6efe0');
     W.sign(42.6, 129.5, 'retour', -.3, 2);
-    W.interact({ x: 46, y: 1, z: 128.5 }, 1.6, () => { W.toast(t().back); W.SFX.horn(); teleport(RG.plage.spawn.x + 28, 92, Math.PI); });
+    W.transport({ x: 46, y: 1, z: 128.5 }, 1.6, () => { W.toast(t().back); W.SFX.horn(); teleport(RG.plage.spawn.x + 28, 92, Math.PI); });
     // Cabane + hamac
     building(58, 150, 4, 3.4, 2.4, '#d9a25a', '#c9a33d', { rot: -Math.PI / 2, tiles: false, plinth: null }); W.egg('hut', 55.6, 150, 2.6, 1.6);
     const hamZ = { x: 35, z: 152 };

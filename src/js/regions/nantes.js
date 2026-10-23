@@ -83,7 +83,7 @@ defineRegion({
     // Gare et train
     rails(W, -216, -110, 31); W.ground(30, 3, '#c9c2b2', -150, 26.9, .03);
     makeTrain(W, -150, 31, '#7d3f6b');
-    W.interact({ x: -151, y: 1.4, z: 28 }, 2, () => trainMenu('nantes'));
+    W.transport({ x: -151, y: 1.4, z: 28 }, 2, () => trainMenu('nantes'));
     W.egg('train', -146, 27, 2.6, 1.2);
     W.sign(-139, 25.4, 'nantes', 0, 2);
     // Tour de la biscuiterie + boutique

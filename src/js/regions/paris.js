@@ -124,7 +124,7 @@ defineRegion({
     const crois = W.item({ kind: 'croissant', x: tables[2].x, z: tables[2].z, y: .86, owner: waiter, sh: .2, bring: new THREE.Vector3(tables[2].x, 0, tables[2].z - 1),
       build: () => { const g = new THREE.Group(); const c = new THREE.Mesh(new THREE.TorusGeometry(.13, .07, 5, 8, Math.PI * 1.3), MAT('#d9a25a')); c.rotation.x = Math.PI / 2; g.add(c); return g; } });
     crois.onGrab = () => W.complete('croissant');
-    const bag = W.item({ kind: 'baguetteParis', x: CAFE.x + 5.5, z: CAFE.z - 3, y: .05, sh: .5, build: () => { const g = new THREE.Group(); cyl(.11, .11, 1.4, '#d9a25a', 0, 0, 0, 7, g).rotation.z = Math.PI / 2; for (let i = -1; i <= 1; i++) box(.05, .03, .18, '#f1d39b', i * .38, .1, 0, g, false).rotation.y = .6; box(.3, .05, .24, '#f6efe0', 0, .02, 0, g, false); return g; } });
+    const bag = W.item({ kind: 'baguetteParis', x: CAFE.x + 5.5, z: CAFE.z - 3, y: .05, sh: .5, travels: true, burrowGoal: 'baguetteParis', build: () => { const g = new THREE.Group(); cyl(.11, .11, 1.4, '#d9a25a', 0, 0, 0, 7, g).rotation.z = Math.PI / 2; for (let i = -1; i <= 1; i++) box(.05, .03, .18, '#f1d39b', i * .38, .1, 0, g, false).rotation.y = .6; box(.3, .05, .24, '#f6efe0', 0, .02, 0, g, false); return g; } });
     // Peintre, chevalet, béret ; mime
     W.pushable(PAINT.x + 1.2, PAINT.z, () => { const g = new THREE.Group(); [-.35, .35].forEach(x => cyl(.04, .04, 1.8, '#8a5a3b', x, .9, 0, 4, g).rotation.z = x * .2); box(1, .8, .05, '#f6efe0', 0, 1.3, .08, g); box(.5, .3, .06, '#7fb05c', -.1, 1.2, .1, g, false); box(.3, .2, .06, '#8fc9df', .2, 1.5, .1, g, false); return g; }, { goal: 'chevalet', r: .5 });
     const painter = W.npc({ id: 'peintre', x: PAINT.x, z: PAINT.z + 1.2, yaw: Math.PI, shirt: '#2f2a24', pants: '#3d4a5c', hair: '#5a3b2a',
@@ -151,7 +151,7 @@ defineRegion({
     // Gare de Paris
     rails(W, -345, -235, 41); W.ground(30, 3, '#c9c2b2', -290, 36.9, .03);
     makeTrain(W, -290, 41, '#2563c9');
-    W.interact({ x: -291, y: 1.4, z: 38 }, 2, () => trainMenu('paris')); W.egg('train', -286, 37, 2.6, 1.2);
+    W.transport({ x: -291, y: 1.4, z: 38 }, 2, () => trainMenu('paris')); W.egg('train', -286, 37, 2.6, 1.2);
     W.sign(-279, 35.4, 'paris', 0, 2);
     for (let x = -330; x < -240; x += 14) { lamp(x, 25.4); lamp(x + 7, -30); }
     bench(EIF.x - 9, EIF.z + 18, Math.PI / 2); bench(EIF.x + 9, EIF.z + 18, -Math.PI / 2);

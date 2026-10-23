@@ -8,7 +8,7 @@
    ===================================================================== */
 import { canvas } from './engine.js';
 
-const SEL = '#burrow,#factCard,#journal,#travel,#endCard,#mgEnd,#benchCard';
+const SEL = '#burrow,#factCard,#journal,#travel,#endCard,#mgEnd,#benchCard,#acad';
 const FOCUSABLE = 'a[href],button:not([disabled]),input:not([disabled]),textarea:not([disabled]),select:not([disabled]),[tabindex]:not([tabindex="-1"])';
 const stack = [];                 // fenêtres ouvertes, la dernière au-dessus : { el, back, kb }
 let inerted = [];

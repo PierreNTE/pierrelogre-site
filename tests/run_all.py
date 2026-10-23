@@ -27,6 +27,7 @@ Lance un serveur local qui reproduit la CSP stricte d'OVH (.htaccess), puis vér
      reprise qui l'attend sans rien perdre
  19. première visite : le renard se présente (5 s au plus), une seule fois, passée d'une touche, jamais si animations réduites
  20. mentions légales : pages FR / EN complètes, liées partout, lisibles sans JavaScript ; « ne pas compter mes visites »
+ 22. académie Dell Storage : contenu vérifié, navette, salles, quiz, missions, simulation, labo, défi, évaluation, sauvegarde
  21. défi du jour réussi : classement du jour (faux Supabase), « Continuer l'aventure » vers la partie libre
 Aucune erreur console n'est tolérée.
 """
@@ -230,6 +231,127 @@ async def test_beach_towel(browser):
     check('serviette : renard dans l\'eau tourné vers la plage → elle part dans les vagues', back['done'] and back['gone'] and back['z'] >= 89.3, json.dumps(back))
     await ctx.close()
 
+async def test_train_carry(browser):
+    """Baguette de Paris : on la prend, « E » au quai ouvre le train (au lieu de la poser), elle voyage avec le renard
+    et entre au terrier du village. Un objet qui ne voyage pas reste sur le quai, avec un message."""
+    ctx, pg, errs = await page(browser, 480, 320, acorns_done=True); await ready(pg)
+    r = await js(pg, """F.start('libre', false); await wait(400); F.dev.skipTuto(); for (const R of F.REGIONS) F.unlockRegion(R, false);
+        const frame=()=>new Promise(r=>requestAnimationFrame(()=>r())), frames=async n=>{ for(let i=0;i<n;i++) await frame(); };
+        const settle=async()=>{ for(let i=0;i<100&&(F.paused||!document.querySelector('#fade').hidden);i++) await wait(100); await frames(3); };
+        F.teleport(-290, 30, 0); await settle();
+        const bag=F.items.find(i=>i.kind==='baguetteParis'); go(bag.pos.x, bag.pos.z-.9, 0); await frames(2); F.grabOrDrop(); await frames(2);
+        const held=f.held===bag;
+        go(-291, 36.6, 0); await frames(2); F.grabOrDrop(); await frames(2);
+        const menu=!document.querySelector('#travel').hidden, stillHeld=f.held===bag;
+        const btn=[...document.querySelectorAll('#trList button:not([disabled])')].find(b=>/gare|station/i.test(b.textContent));
+        const label=btn&&btn.textContent; btn&&btn.click(); await settle();
+        const arrived={x:+f.pos.x.toFixed(1), z:+f.pos.z.toFixed(1)}, travelled=f.held===bag;
+        go(-20, 12, 0); await frames(2); const d=F.destinationFor(bag); go(d.pos.x, d.pos.z+1.5, Math.PI); await frames(2); go(d.pos.x, d.pos.z, Math.PI); await frames(4); await settle();
+        const done=!!F.run.done.baguetteParis, consumed=bag.gone&&!f.held;
+        // Objet qui ne voyage pas (le mug du bureau) : il reste au quai de la gare, message affiché
+        F.teleport(-58, 4, 0); await settle(); const mug=F.items.find(i=>i.kind==='mug'); f.held=mug; mug.held=true; await frames(2);
+        go(-59, 7.2, 0); await frames(2); const t0=document.querySelector('#toasts').textContent.length; F.grabOrDrop(); await frames(2);
+        const btn2=[...document.querySelectorAll('#trList button:not([disabled])')][0]; btn2&&btn2.click(); await settle();
+        const mugStayed=!mug.held&&Math.hypot(mug.pos.x+59, mug.pos.z-7.2)<2.5, toast=document.querySelector('#toasts').textContent.slice(t0);
+        return {held, menu, stillHeld, label, arrived, travelled, done, consumed, mugStayed, toast:toast.slice(0,90)};""")
+    check('baguette de Paris : « E » au quai ouvre le train sans la poser, elle voyage et entre au terrier (bêtise comptée)',
+          r['held'] and r['menu'] and r['stillHeld'] and r['travelled'] and r['done'] and r['consumed'], json.dumps(r, ensure_ascii=False))
+    check('objet qui ne voyage pas : il reste sur le quai, avec un message', r['mugStayed'] and ('voyage' in r['toast'] or 'travel' in r['toast']), json.dumps(r, ensure_ascii=False))
+    check('aucune erreur console (train)', not errs, '; '.join(errs[:3]))
+    await ctx.close()
+
+async def test_academy(browser):
+    """Académie Dell Storage : contenu vérifié (sources, bonnes réponses), navette depuis le village, salle fermée,
+    formateur, point clé (XP), quiz juste et quiz faux (explication), ouverture de la salle suivante, missions, simulation,
+    badge et trophée, laboratoire (bloc refusé avec explication, chaîne complète), défi chronométré, évaluation finale,
+    carnet de voyage, fenêtre au clavier (Échap, focus), sauvegarde après rechargement, partie de bêtises intacte, retour."""
+    out = subprocess.run(['node', os.path.join(ROOT, 'tests', 'academy_content.mjs')], capture_output=True, text=True)
+    check('académie : contenu cohérent (sources Dell, une bonne réponse par question, deux langues)', out.returncode == 0, (out.stdout or out.stderr).strip()[:300])
+    ctx, pg, errs = await page(browser, 1100, 760, acorns_done=True); await ready(pg)
+    pre = """const frame=()=>new Promise(r=>requestAnimationFrame(()=>r())), frames=async n=>{ for(let i=0;i<n;i++) await frame(); };
+        const settle=async()=>{ for(let i=0;i<100&&(!document.querySelector('#fade').hidden);i++) await wait(100); await frames(3); };
+        const AC=F.dev.academy, E=AC.E, C=()=>E.C(), dlg=()=>document.querySelector('#acad'), open=()=>!dlg().hidden, title=()=>document.querySelector('#acadTitle').textContent;
+        const click=async sel=>{ const b=document.querySelector('#acad '+sel); if(!b) throw new Error('bouton absent : '+sel); b.click(); await wait(120); };
+        const at=async(x,z,yaw=Math.PI)=>{ go(x,z,yaw); await frames(3); F.grabOrDrop(); for(let i=0;i<40&&!open();i++) await wait(100); await wait(150); };
+        const close=async()=>{ document.querySelector('#acadClose').click(); await wait(150); };
+        const best=list=>list.findIndex(o=>o.ok>=1);
+        const quizRight=async room=>{ const qs=C().ROOM_CONTENT[room].quiz; for(const q of qs){ if(q.type==='match'){ document.querySelectorAll('#acad .ac-match select').forEach(s=>{ s.value=s.dataset.k; }); await click('[data-act=check]'); } else await click(`[data-act=ans][data-v="${q.ok}"]`); await click('.ac-fb [data-act=next]'); } };
+        const simRight=async s=>{ const good=s.questions.map((q,i)=>q.good?i:-1).filter(i=>i>=0).slice(0,s.pick); for(const i of good) await click(`[data-act=tog][data-v="${i}"]`); await click('[data-act=go]'); await click('[data-act=on]'); };
+    """
+    r = await js(pg, pre + """F.start('libre', false); await wait(400); F.dev.skipTuto(); await E.loadContent();
+        const goals0=F.GOALS.length, done0=Object.keys(F.run.done).length;
+        // Navette du village (au nord du bureau)
+        go(11,-18.3,Math.PI); await frames(3); const hint=F.dev.nearestTarget(); F.grabOrDrop(); await settle(); await wait(300);
+        const arrived=F.S.region, disc=F.run.discovered.includes('academie');
+        const nb=document.querySelector('#nbMode').textContent, nbList=document.querySelector('#goals').textContent;
+        // Salle 2 fermée : la porte vitrée bloque, « E » dit comment l'ouvrir
+        const gateBlocked=F.blockedAt(56,-58.5,.3);
+        await at(57.1,-58.5); const lockedTitle=title(); await close();
+        // Formateur PowerVault, puis un point clé (+10 XP)
+        await at(50,-45.8); const room1=title(), nFacts=document.querySelectorAll('#acad [data-act=fact]').length, focusIn=dlg().contains(document.activeElement);
+        await click('[data-act=fact]'); const xp1=E.A.xp, seen=!!E.A.seen.pv1;
+        document.dispatchEvent(new KeyboardEvent('keydown',{key:'Escape',bubbles:true})); window.dispatchEvent(new KeyboardEvent('keydown',{key:'Escape'})); await wait(150); const escClosed=!open(), unpaused=!F.paused;
+        // Quiz PowerVault tout juste : 6/6, la salle 2 s'ouvre (porte retirée)
+        await at(48.1,-40.5); await quizRight('powervault'); const quizEnd=title(), qBest=E.A.quiz.powervault, room2=E.roomOpen('powerstore'); await close(); await wait(300);
+        const gateOpen=!F.blockedAt(56,-58.5,.3);
+        // Missions (premier choix juste) et simulation (bonnes questions, meilleure solution, meilleur argument)
+        await at(53.8,-40.35); const c1=C().ROOM_CONTENT.powervault, clientOk=/Missions|missions/.test(title());
+        for(const m of c1.missions){ AC.openAcad('mission','powervault',m.id); await wait(120); await click(`[data-act=pick][data-v="${best(m.choices)}"]`); }
+        AC.openAcad('sim','powervault'); await wait(120); await simRight(c1.sim); await click(`.ac-opt[data-v="${best(c1.sim.solutions)}"]`); await click('.ac-fb [data-act=on]'); await click(`.ac-opt[data-v="${best(c1.sim.args)}"]`); await click('.ac-fb [data-act=on]');
+        const simScore=E.A.sim.powervault, mis=c1.missions.map(m=>E.A.mis[m.id]); await close();
+        // Tous les points clés : badge et trophée dans le hall
+        await at(50,-45.8); for(const f of c1.facts) if(!E.A.seen[f.id]){ await click(`[data-act=fact][data-v="${f.id}"]`); await click('[data-act=home]'); } await close();
+        const badge=!!E.A.badges.powervault;
+        // Quiz PowerStore faux : l'erreur est expliquée et la bonne réponse montrée
+        await at(48.1,-55.0); const q0=C().ROOM_CONTENT.powerstore.quiz[0], wrongV=q0.ok?0:1; await click(`[data-act=ans][data-v="${wrongV}"]`);
+        const fb=document.querySelector('#acad .ac-fb'), formative=fb.className.includes('ko')&&fb.textContent.includes(E.tx(q0.why).slice(0,30))&&!!document.querySelector(`#acad .ac-opt.ok[data-v="${q0.ok}"]`); await close();
+        return {hint:hint&&hint.carry, arrived, disc, nb, nbList:nbList.slice(0,60), gateBlocked, lockedTitle, room1, nFacts, focusIn, xp1, seen, escClosed, unpaused, quizEnd, qBest, room2, gateOpen, simScore, mis, clientOk, badge, formative, xp:E.A.xp, goals0, done0};""")
+    check('académie : la navette du village y emmène (zone découverte, carnet de l’académie)', r['hint'] and r['arrived'] == 'academie' and r['disc'] and 'Acad' in r['nb'] and 'PowerVault' in r['nbList'], json.dumps(r, ensure_ascii=False)[:400])
+    check('académie : salle suivante fermée (porte vitrée) et « E » dit comment l’ouvrir', r['gateBlocked'] and '🔒' in r['lockedTitle'], r['lockedTitle'])
+    check('académie : formateur (5 points clés), point clé lu = +10 XP, fenêtre au clavier (focus dedans, Échap ferme, jeu repris)', r['room1'] == 'PowerVault' and r['nFacts'] == 5 and r['xp1'] == 10 and r['seen'] and r['focusIn'] and r['escClosed'] and r['unpaused'], json.dumps(r, ensure_ascii=False)[:300])
+    check('académie : quiz réussi 6/6, la salle 2 s’ouvre et sa porte s’efface', r['qBest'] == 6 and r['room2'] and r['gateOpen'], f"{r['quizEnd']} · porte ouverte {r['gateOpen']}")
+    check('académie : missions et simulation commerciale réussies, badge PowerVault obtenu', r['clientOk'] and r['mis'] == [1, 1] and r['simScore'] == 1 and r['badge'], json.dumps({k: r[k] for k in ('clientOk', 'mis', 'simScore', 'badge', 'xp')}))
+    check('académie : une erreur est expliquée et la bonne réponse montrée', r['formative'], '')
+    # Laboratoire : fermé, puis ouvert ; un mauvais bloc est refusé avec une explication ; la chaîne complète réussit
+    r = await js(pg, pre + """const L=C().LAB, blk=id=>F.items.find(i=>i.kind==='acadBlock'&&i.block===id), PED=[61.4,64.6,71.4,74.6];
+        const put=async(id,k)=>{ const b=blk(id); f.held=b; b.held=true; go(PED[k],-45.3,Math.PI); await frames(2); F.dropHeld(); await wait(250); return b; };
+        const t0=document.querySelector('#toasts').textContent.length; const b0=await put('ps',0); const closedMsg=document.querySelector('#toasts').textContent.slice(t0), refusedClosed=!b0.fixed;
+        AC.unlockAll(); await wait(200); const labOpen=E.labOpen(), finalOpen=E.finalOpen();
+        const pv=await put('pv',0); await wait(100); const bubble=[...document.querySelectorAll('.bubble')].map(b=>b.textContent).join(' | '), pvRefused=!pv.fixed;
+        for(const [k,s] of L.slots.entries()) await put(s.want,k);
+        for(let i=0;i<30&&!open();i++) await wait(100); const labTitle=title(), lab=E.A.lab; await close();
+        return {closedMsg:closedMsg.slice(0,80), refusedClosed, labOpen, finalOpen, bubble:bubble.slice(0,160), pvRefused, labTitle, lab};""")
+    check('académie : laboratoire fermé au début, puis un mauvais bloc refusé avec explication, et la chaîne complète réussie',
+          r['refusedClosed'] and r['labOpen'] and r['pvRefused'] and ('bloc' in r['bubble'] or 'block' in r['bubble']) and r['lab'] == 1, json.dumps(r, ensure_ascii=False)[:400])
+    # Évaluation finale (toutes les salles tentées) : réussite et diplôme
+    r = await js(pg, pre + """const FN=C().FINAL; await at(72.8,-56.2); await click('[data-act=go]');
+        const s={...FN.qualify}; await simRight(s); for(const st of FN.steps){ await click(`.ac-opt[data-v="${best(st.opts)}"]`); await click('.ac-fb [data-act=on]'); }
+        const t=title(), passed=E.A.final.passed, txt=document.querySelector('#acadBody').textContent; await close();
+        return {t, passed, diploma:/Dipl|diploma/i.test(txt)};""")
+    check('académie : évaluation finale réussie (mission client complète), diplôme', r['passed'] == 1 and r['diploma'], json.dumps(r, ensure_ascii=False))
+    # Défi chronométré (60 s) : bonnes réponses au clavier, record enregistré
+    r = await js(pg, pre + """const T=C().TERMS, K=['produit','logiciel','service','conso','concept']; await at(62.6,-56.9); await click('[data-act=go]'); let n=0;
+        for(let i=0;i<14;i++){ const w=document.querySelector('#acad .ac-term').textContent, term=T.find(x=>E.tx(x.t)===w); if(!term) break; window.dispatchEvent(new KeyboardEvent('keydown',{key:String(K.indexOf(term.k)+1)})); n++; await wait(60); }
+        for(let i=0;i<70&&!/\\d+ bonne|\\d+ correct/i.test(title());i++) await wait(1000);
+        const t=title(), bestN=E.A.flash.best; await close(); return {n, t, bestN};""")
+    check('académie : défi chronométré joué au clavier, record enregistré', r['bestN'] >= 10 and r['bestN'] == r['n'], json.dumps(r, ensure_ascii=False))
+    # Carnet de voyage : onglet Académie, puis le tableau complet
+    r = await js(pg, pre + """F.openJournal('acad'); await wait(500); const pane=document.querySelector('#j-acad'), shown=!pane.hidden, txt=pane.textContent;
+        pane.querySelector('[data-acad]').click(); await wait(300); const board=open()&&/progression|Progress/i.test(title()), journalClosed=document.querySelector('#journal').hidden; await close();
+        return {shown, rooms:(txt.match(/Salle|Room/g)||[]).length, board, journalClosed};""")
+    check('académie : carnet de voyage (onglet Académie) puis tableau de progression', r['shown'] and r['rooms'] >= 7 and r['board'] and r['journalClosed'], json.dumps(r))
+    # Un bloc ne prend pas la navette ; retour au village
+    r = await js(pg, pre + """const b=F.items.find(i=>i.kind==='acadBlock'&&!i.fixed)||F.items.find(i=>i.kind==='acadBlock'); b.fixed=false; f.held=b; b.held=true;
+        go(64.6,-34.9,0); await frames(3); F.grabOrDrop(); await settle(); await wait(300);
+        return {region:F.S.region, x:+f.pos.x.toFixed(1), z:+f.pos.z.toFixed(1), held:!!f.held, blockStayed:b.region==='academie'&&b.pos.z<-30};""")
+    check('académie : navette de retour au village (un bloc du labo reste à l’académie)', r['region'] == 'village' and not r['held'] and r['blockStayed'], json.dumps(r))
+    xp = await js(pg, "return F.dev.academy.E.A.xp;")
+    await pg.reload(); await ready(pg)
+    r = await js(pg, """F.start('libre', false); await wait(600); const E=F.dev.academy.E; return {xp:E.A.xp, badge:!!E.A.badges.powervault, lab:E.A.lab, goals:F.GOALS.length, done:Object.keys(F.run.done).length};""")
+    check('académie : progression gardée après rechargement ; aucune bêtise ajoutée ni comptée', r['xp'] == xp and r['badge'] and r['lab'] == 1, json.dumps(r))
+    check('aucune erreur console (académie)', not errs, '; '.join(errs[:3]))
+    await ctx.close()
+
 async def test_rings(browser):
     """Toutes les bêtises : déclencheurs atteignables à pied, anneaux de dépôt fidèles à ce qui compte
     (étang au ponton, but, chaussette et bouteille depuis la berge ou le pont, bâtons du castor, serviette, baguette)."""
@@ -362,7 +484,7 @@ async def test_world(browser):
     check('forêt fermée puis ouverte après 4 bêtises', r['blocked'] and 'foret' in r['unlocked'] and r['region'] == 'foret', json.dumps(r))
     # Toutes les régions : visite, aucune erreur, budget de dessin
     calls = {}
-    for rid in ['foret', 'sport', 'moto', 'riviere', 'plage', 'gare', 'nantes', 'paris', 'montagne', 'ile']:
+    for rid in ['foret', 'sport', 'moto', 'riviere', 'plage', 'gare', 'nantes', 'paris', 'montagne', 'ile', 'academie']:
         c = await js(pg, f"""const R=F.RG['{rid}']; F.unlockRegion(R,false); F.teleport(R.spawn.x,R.spawn.z,0); await wait(3200); return [F.S.region, F.renderer.info.render.calls];""")
         calls[rid] = c
         await pg.screenshot(path=f'{OUT}/region_{rid}.png', timeout=120000)
@@ -734,7 +856,7 @@ async def test_lazy_regions(browser):
     gate.set(); await pg.wait_for_function('()=>window.__foxWorld===true', timeout=120000)
     r2 = await js(pg, """await wait(300); return {regions: F.REGIONS.map(R=>R.id), goals: F.GOALS.length, score: document.querySelector('#nbScore').textContent, sport: !!F.RG.sport,
         explorateur: !!F.saved.ach.explorateur};""")
-    order = ['village', 'foret', 'sport', 'moto', 'riviere', 'plage', 'gare', 'nantes', 'paris', 'montagne', 'ile', 'terrier']
+    order = ['village', 'foret', 'sport', 'moto', 'riviere', 'plage', 'gare', 'nantes', 'paris', 'montagne', 'ile', 'academie', 'terrier']
     check('régions arrivées : rangées dans l’ordre de la carte, totaux du carnet mis à jour', r2['regions'] == order and r2['goals'] >= 80
           and r2['score'] == f"1 / {r2['goals']}" and r['score'] == '1 / …' and r2['sport'] and not r2['explorateur'], json.dumps({'avant': r['score'], **r2}))
     # Partie avancée (une bêtise de région, région ouverte, renard au complexe sportif), puis rechargement avec le fichier retenu
@@ -940,7 +1062,7 @@ async def main():
         launch = lambda args: p.chromium.launch(args=args)
         b = await launch(GL)
         only = [x for x in os.environ.get('TESTS', '').split(',') if x]
-        for t in (test_playthrough, test_stealth_and_drop, test_beach_towel, test_rings, test_daily, test_daily_end, test_mobile_and_perf, test_world, test_first_minute, test_touch_feel, test_reactions, test_leaderboard_online, test_languages, test_stats, test_accessibility, test_lazy_regions, test_presentation, test_legal):
+        for t in (test_playthrough, test_stealth_and_drop, test_beach_towel, test_train_carry, test_academy, test_rings, test_daily, test_daily_end, test_mobile_and_perf, test_world, test_first_minute, test_touch_feel, test_reactions, test_leaderboard_online, test_languages, test_stats, test_accessibility, test_lazy_regions, test_presentation, test_legal):
             if only and t.__name__ not in only: continue
             try: await t(b)
             except Exception as e:

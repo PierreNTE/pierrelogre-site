@@ -53,7 +53,7 @@ export async function runBench(start) {
   await wait(1500);
   await go(-4, 5.5); rows.push(await measure(fr() ? 'Village (place)' : 'Village (square)'));
   await go(-19, -12); rows.push(await measure(fr() ? 'Village (basse-cour)' : 'Village (farmyard)'));
-  for (const id of ['foret', 'sport', 'moto', 'riviere', 'plage', 'gare', 'nantes', 'paris', 'montagne', 'ile']) {
+  for (const id of ['foret', 'sport', 'moto', 'riviere', 'plage', 'gare', 'nantes', 'paris', 'montagne', 'ile', 'academie']) {
     const R = RG[id]; if (!R) continue; unlockRegion(R, false); await go(R.spawn.x, R.spawn.z, R.spawnYaw ?? 0);
     rows.push(await measure(t().regions?.[id] || id));
   }

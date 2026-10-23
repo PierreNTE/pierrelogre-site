@@ -18,7 +18,7 @@ export const ACHIEVEMENTS = [
   { id: 'fleau' }, { id: 'insaisissable' }, { id: 'express' }, { id: 'ombre' },
   // Aventure
   { id: 'petitRenard', test: () => GOALS.filter(g => run.done[g.id]).length >= 10 },
-  { id: 'explorateur', test: () => S.regionsLoaded && REGIONS.every(R => R.hidden || run.discovered.includes(R.id)) },
+  { id: 'explorateur', test: () => S.regionsLoaded && REGIONS.every(R => R.hidden || R.extra || run.discovered.includes(R.id)) },
   { id: 'forestier', test: () => allDone('foret') },
   { id: 'sportif', test: () => allDone('sport') },
   { id: 'pilote', test: () => allDone('moto') },

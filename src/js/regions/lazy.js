@@ -10,3 +10,4 @@ import './nantes.js';
 import './paris.js';
 import './montagne.js';
 import './ile.js';
+import './academie.js';

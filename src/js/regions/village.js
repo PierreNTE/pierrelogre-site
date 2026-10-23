@@ -4,7 +4,8 @@ import { VC_SWAY, partGeometry, scene, setBuild } from '../engine.js';
 import { defineRegion } from '../regions.js';
 import { MAIN_IDS, pick, run, t } from '../state.js';
 import { VILLAGE_NOVEG } from '../world.js';
-import { barrel, bench, bunting, crate, lantern, mailbox, wheelbarrow, woodpile } from './kit.js';
+import { barrel, bench, bunting, crate, lantern, mailbox, tramShelter, wheelbarrow, woodpile } from './kit.js';
+import { HOOKS } from '../hooks.js';
 import { addCat, addHens, addSwallows } from '../fauna.js';
 import { behave } from '../crowd.js';
 import { fox } from '../fox.js';
@@ -21,10 +22,10 @@ defineRegion({
   goals: [{ id: 'basseCour', secret: true }, { id: 'chat', need: 3, secret: true }, { id: 'coq', secret: true }],
   i18n: {
     fr: { goals: { basseCour: "Semer la panique dans la basse-cour", chat: "Déloger le chat de ses trois siestes", coq: "Faire chanter le coq (en glapissant à côté de lui)" },
-      cards: { village: "Bons baisers du village ! Ici tout le monde connaît le renard. Enfin, surtout ses bêtises. Le jardinier a commandé une clôture plus haute." },
+      cards: { village: "Bons baisers du village ! Ici tout le monde connaît le renard. Enfin, surtout ses bêtises. Le jardinier a commandé une clôture plus haute." }, signs: { acadStop: "Navette · Académie Dell Storage" },
       eggs: { well: "Un vieux puits. Tout au fond, l'écho répond : « Renard ? »", fairy: "Un rond de sorcière. On dit qu'il ne faut jamais danser dedans. Personne ne l'a dit au renard.", bank: "Un talus de bocage : la haie pousse sur une levée de terre. Les chênes têtards y sont taillés depuis des générations." } },
     en: { goals: { basseCour: "Throw the farmyard into a panic", chat: "Disturb the cat in all three of its napping spots", coq: "Make the rooster crow (by yapping next to it)" },
-      cards: { village: "Greetings from the village! Everyone here knows the fox. Well, mostly its mischief. The gardener has ordered a taller fence." },
+      cards: { village: "Greetings from the village! Everyone here knows the fox. Well, mostly its mischief. The gardener has ordered a taller fence." }, signs: { acadStop: "Shuttle · Dell Storage Academy" },
       eggs: { well: "An old well. From the bottom, the echo answers: \"Fox?\"", fairy: "A fairy ring. They say you should never dance inside one. Nobody told the fox.", bank: "A bocage bank: the hedge grows on a raised bank of earth. The pollarded oaks have been trimmed here for generations." } },
   },
   build(W) {
@@ -47,6 +48,9 @@ defineRegion({
       W.patch(2.2, 2.2, '#b7d394', fx, fz, { y: .008, round: 1 });
       W.egg('fairy', fx, fz, 2.2, 1.3); }
     W.egg('bank', -31.6, 6.5, 2.6, 1.4);
+    // Arrêt de la navette de l'Académie Dell Storage, au nord du bureau (l'académie arrive avec les régions lointaines)
+    tramShelter(11, -19.4, 0); W.sign(14.6, -19.9, 'acadStop', 0, 2.8);
+    W.transport({ x: 11, y: 1.6, z: -18.3 }, 1.8, () => HOOKS.toAcademy?.(), () => !!HOOKS.toAcademy && run.mode === 'libre');
     // Basse-cour derrière les maisons (poulailler sur pilotis), hirondelles autour des toits, le chat du puits
     { const cx = -17.4, cz = -19.6; for (const [a, b] of [[-1, -1], [1, -1], [-1, 1], [1, 1]]) W.cyl(.06, .06, .7, '#7a5236', cx + a * .7, .35, cz + b * .5, 4);
       W.box(1.7, 1, 1.3, '#a8764a', cx, 1.2, cz); for (const sd of [-1, 1]) { const r = W.box(1.9, .08, .85, '#8a4b3a', cx, 1.9, cz + sd * .36); r.rotation.x = sd * .6; }

@@ -206,7 +206,7 @@ defineRegion({
     W.ground(2.4, 8, MAT('#b8834a'), PIER.x, PIER.z + 2, .1); for (let i = 0; i < 5; i++) [-1.1, 1.1].forEach(dx => cyl(.1, .1, 1.2, '#7a5236', PIER.x + dx, .3, PIER.z - 1.5 + i * 2, 5));
     boat(PIER.x + 3, PIER.z + 4, 0, '#f6efe0');
     W.sign(PIER.x - 2, PIER.z - 2.6, 'ile', -.4, 1.8); W.egg('boatIle', PIER.x, PIER.z + 4, 2, 2);
-    W.interact({ x: PIER.x, y: 1, z: PIER.z + 4.5 }, 1.8, () => {
+    W.transport({ x: PIER.x, y: 1, z: PIER.z + 4.5 }, 1.8, () => {
       if (!isOpen('ile')) { W.say(fox, t().boatClosed, '', 2.6, 2); return; }
       W.toast(t().boatGo); W.SFX.horn(); W.run.flags.boat = (W.run.flags.boat || 0) + 1; teleport(RG.ile.spawn.x, RG.ile.spawn.z, 0);
     });

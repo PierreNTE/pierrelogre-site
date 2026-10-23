@@ -16,9 +16,9 @@ async def main():
         b = await p.chromium.launch(args=["--use-gl=angle", "--use-angle=swiftshader", "--enable-unsafe-swiftshader"])
         pg = await b.new_page(viewport={"width": 1200, "height": 630})
         await pg.goto("http://127.0.0.1:8766/#og", timeout=120000)
-        await pg.wait_for_function("window.__foxReady===true", timeout=120000); await pg.wait_for_timeout(6000)
-        bang = await pg.evaluate("__fox.screenOf(__fox.gardener)")
-        foxp = await pg.evaluate("__fox.screenOf(__fox.fox)")
+        await pg.wait_for_function("() => window.__foxReady===true", timeout=120000); await pg.wait_for_timeout(6000)
+        bang = await pg.evaluate("() => __fox.screenOf(__fox.gardener)")
+        foxp = await pg.evaluate("() => __fox.screenOf(__fox.fox)")
         bg = os.path.join(WWW, '_og_bg.png'); await pg.screenshot(path=bg)
         for lang, (name, tag, sub) in CARD.items():
             css = f'''
