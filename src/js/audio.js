@@ -49,6 +49,7 @@ const STYLES={
   cloud:{bpm:112,prog:AM,lead:'square',lv:.018,bass:'sawtooth',bv:.04,arp:1},
   ile:{bpm:100,prog:MAJ,lead:'triangle',lv:.06,bass:'sine',bell:1},
   terrier:{bpm:72,prog:PROG,lead:'sine',lv:.055,bass:'sine',sparse:.35,bell:1},
+  academie:{bpm:104,prog:MAJ,lead:'triangle',lv:.035,bass:'sine',arp:1,sparse:.2},
 };
 let style=STYLES.village, styleKey='village';
 /** Change d'ambiance (appelé quand le renard change de région). */
@@ -88,7 +89,7 @@ function makeBeds(){
   beds={ wind:mk('bandpass',900,.6), water:mk('bandpass',2300,1.3), surf:mk('lowpass',480,.7), crowd:mk('bandpass',640,1.2), city:mk('lowpass',260,.8), rain:mk('highpass',2600,.4) };
 }
 const BED={ village:{wind:.009}, foret:{wind:.016}, riviere:{wind:.007,water:.026}, plage:{surf:.06,wind:.005}, ile:{surf:.06,wind:.004}, gare:{wind:.009}, sport:{crowd:.012,wind:.005},
-  moto:{wind:.009,crowd:.005}, nantes:{city:.03,crowd:.004}, paris:{city:.034,crowd:.006}, montagne:{wind:.03}, cloud:{city:.012} };
+  moto:{wind:.009,crowd:.005}, nantes:{city:.03,crowd:.004}, paris:{city:.034,crowd:.006}, montagne:{wind:.03}, cloud:{city:.012}, academie:{wind:.006,city:.008} };
 function updateBeds(dt){
   if(!actx) return; if(!beds) makeBeds(); if((bedAcc+=dt)<.12) return; bedAcc=0;
   const now=actx.currentTime, z=BED[styleKey]||{}, on=!S.muted;

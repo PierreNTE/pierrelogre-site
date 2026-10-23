@@ -30,7 +30,7 @@ import { path as kitPath } from './regions/kit.js';
 export const REGIONS = [];
 export const RG = {};
 /** Ordre des régions sur la carte et dans les listes (les régions chargées après le démarrage s'y rangent). */
-export const ORDER = ['village', 'foret', 'sport', 'moto', 'riviere', 'plage', 'gare', 'nantes', 'paris', 'montagne', 'ile', 'terrier'];
+export const ORDER = ['village', 'foret', 'sport', 'moto', 'riviere', 'plage', 'gare', 'nantes', 'paris', 'montagne', 'ile', 'academie', 'terrier'];
 export const sortRegions = () => REGIONS.sort((a, b) => (ORDER.indexOf(a.id) + 1 || 99) - (ORDER.indexOf(b.id) + 1 || 99));
 
 /** Fusion profonde (un niveau) des textes d'une région dans T. */
@@ -54,6 +54,8 @@ function mergeT(lang, obj) {
  *  gatePos    point montré par la caméra à l'ouverture
  *  mood       { bg, fog, near, far, music }
  *  goals      bêtises de la région ({ id, need, secret })
+ *  hidden     sous terre (le terrier) : hors de la carte ; always : toujours ouverte
+ *  extra      hors du parcours des bêtises (l'académie) : sur la carte, mais pas exigée pour l'île ni pour « explorateur »
  *  i18n       { fr: {…}, en: {…} } fusionnés dans T
  *  build(W)   construit le décor et la logique (W : boîte à outils ci-dessous)
  */
@@ -256,7 +258,7 @@ export const isActive = id => !RG[id] || RG[id].active;
 /* ---------- Ouverture des régions ---------- */
 let cineQueue = [];
 export function unlockRegion(R, show = true) {
-  if (isOpen(R.id)) return;
+  if (isOpen(R.id)) { if (R.always) openHidden(R.id); return; }   // région toujours ouverte (académie) : construite et praticable
   run.unlocked.push(R.id); saveRun();
   openRegion(R, show);
   track('Région ouverte', { region: R.id });
@@ -316,7 +318,7 @@ export function teleport(x, z, yaw = Math.PI, after) {
   // l'autre), sauf s'il est fait pour voyager (travels : la baguette de Paris, à rapporter au terrier du village)
   if (fox.held && !fox.held.travels) { HOOKS.dropHeld?.(); toast(t().leftBehind); }
   setTimeout(() => {
-    HOOKS.leaveDen?.();
+    HOOKS.leaveDen?.(); HOOKS.leaveAcad?.();
     fox.pos.set(x, 0, z); fox.vel.set(0, 0, 0); fox.yaw = yaw; fox.lift = 0; fox.ground = 0;
     cam.target.set(x, 0, z);
     const R = regionAt(fox.pos); if (R.always) openHidden(R.id); else ensureBuilt(R); refreshActive(true); tick(0, true);

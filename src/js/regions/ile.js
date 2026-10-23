@@ -15,7 +15,7 @@ import { addCrabs } from '../fauna.js';
 
 const B = { minX: 18, maxX: 74, minZ: 120, maxZ: 170 };
 const C = { x: 46, z: 146 };
-const visitedAll = () => REGIONS.every(R => R.id === 'ile' || R.hidden || run.discovered.includes(R.id));
+const visitedAll = () => REGIONS.every(R => R.id === 'ile' || R.hidden || R.extra || run.discovered.includes(R.id));
 
 defineRegion({
   id: 'ile', bounds: B, mapColor: '#f6d98a',

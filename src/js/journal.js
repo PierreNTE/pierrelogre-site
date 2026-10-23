@@ -13,6 +13,7 @@ import { fillTimes } from './dailyboard.js';
 import { todayKey } from './persist.js';
 import { REGIONS, RG, isOpen, regionDone, regionGoals, travelTo } from './regions.js';
 import { GOALS, S, modalOpen, run, saved, t } from './state.js';
+import { HOOKS } from './hooks.js';
 
 let tab = 'map', wasPaused = false;
 const el = $('#journal');
@@ -36,6 +37,7 @@ function render() {
   if (tab === 'map') drawMap();
   if (tab === 'ach') renderAch();
   if (tab === 'lb') renderLb();
+  if (tab === 'acad') renderAcad();
 }
 
 /* ---------- Carte ---------- */
@@ -54,7 +56,7 @@ function drawMap() {
   // Liaisons : train et bateau
   g.setLineDash([5, 4]); g.lineWidth = 2; g.strokeStyle = '#a08a6a';
   const link = (a, b) => { if (!RG[a] || !RG[b]) return; const A = RG[a].spawn, B = RG[b].spawn; g.beginPath(); g.moveTo(X(A.x), Z(A.z)); g.lineTo(X(B.x), Z(B.z)); g.stroke(); };
-  link('gare', 'nantes'); link('nantes', 'paris'); link('plage', 'ile'); g.setLineDash([]);
+  link('gare', 'nantes'); link('nantes', 'paris'); link('plage', 'ile'); link('village', 'academie'); g.setLineDash([]);
   boxes = []; const labels = [];
   for (const R of regs) {
     const b = R.bounds, open = isOpen(R.id), seen = run.discovered.includes(R.id);
@@ -63,7 +65,7 @@ function drawMap() {
     g.strokeStyle = '#3a2f27'; g.lineWidth = R.id === S.region ? 3 : 1.2; g.stroke();
     const name = open ? (seen ? t().regions[R.id] : '?') : '🔒';
     labels.push([`bold ${Math.max(10, Math.min(15, w / 6))}px "Patrick Hand",cursive`, name, x + w / 2, y + h / 2 - (open && seen ? 7 : 0)]);
-    if (open && seen) labels.push(['11px "Patrick Hand",cursive', `${regionDone(R.id)}/${regionGoals(R.id).length}${run.cards.includes(R.id) ? ' 💌' : ''}`, x + w / 2, y + h / 2 + 9]);
+    if (open && seen) labels.push(['11px "Patrick Hand",cursive', R.mapStatus ? R.mapStatus() : `${regionDone(R.id)}/${regionGoals(R.id).length}${run.cards.includes(R.id) ? ' 💌' : ''}`, x + w / 2, y + h / 2 + 9]);
     boxes.push({ R, x, y, w, h });
   }
   g.fillStyle = '#3a2f27'; g.textAlign = 'center'; g.textBaseline = 'middle';
@@ -74,12 +76,19 @@ function drawMap() {
   // Liste lisible (et cliquable) des régions
   mapList.innerHTML = regs.map(R => {
     const open = isOpen(R.id), seen = run.discovered.includes(R.id);
-    const status = !open ? `🔒 ${R.need ? R.need() : ''}` : !seen ? t().mapUnseen : `${regionDone(R.id)}/${regionGoals(R.id).length}`;
+    const status = !open ? `🔒 ${R.need ? R.need() : ''}` : !seen ? t().mapUnseen : R.mapStatus ? R.mapStatus() : `${regionDone(R.id)}/${regionGoals(R.id).length}`;
     const go = open && seen && R.id !== S.region && run.mode === 'libre' ? `<button class="alt j-go" data-go="${R.id}">${t().mapGo}</button>` : '';
     return `<li class="${open ? 'open' : 'locked'}"><b>${open && seen ? t().regions[R.id] : open ? '???' : t().regions[R.id]}</b><span>${status}</span>${go}</li>`;
   }).join('');
 }
 mapList.addEventListener('click', e => { const b = e.target.closest('[data-go]'); if (!b) return; const id = b.dataset.go; el.hidden = true; S.paused = false; saved.stats.burrows = (saved.stats.burrows || 0) + 1; travelTo(id); });
+
+/* ---------- Académie Dell Storage : le tableau de progression (regions/academie.js) ---------- */
+function renderAcad() {
+  const pane = $('#j-acad');
+  if (HOOKS.acadBoard) HOOKS.acadBoard(pane); else pane.innerHTML = `<p class="lb-note">${t().lbLoading}</p>`;
+}
+$('#j-acad').addEventListener('click', e => { if (!e.target.closest('[data-acad]')) return; closeJournal(); HOOKS.openAcad?.('board'); });
 
 /* ---------- Succès ---------- */
 function renderAch() {

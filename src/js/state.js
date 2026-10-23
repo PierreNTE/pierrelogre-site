@@ -24,7 +24,7 @@ export const S = {
 };
 export const t = () => T[S.lang];
 /** Vrai si une fenêtre est ouverte (fin de partie, fiche, carnet de voyage, profil, mini-jeu terminé, test) : le jeu doit rester en pause. */
-const MODALS = ['#endCard', '#factCard', '#burrow', '#journal', '#mgEnd', '#benchCard'];
+const MODALS = ['#endCard', '#factCard', '#burrow', '#journal', '#mgEnd', '#benchCard', '#acad'];
 export const modalOpen = () => MODALS.some(q => { const e = document.querySelector(q); return !!e && !e.hidden; });
 
 /** Toutes les bêtises. need = nombre d'actions ; secret = cachée jusqu'à découverte ; chain = bêtise en chaîne. */

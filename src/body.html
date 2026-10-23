@@ -123,10 +123,19 @@
   <div class="card journal">
     <div class="j-head"><h2 class="title" id="jTitle" data-t="journalTitle"></h2><button class="chip" id="jClose" data-a="aClose" aria-label="">✕</button></div>
     <p class="j-sum" id="jSum"></p>
-    <div class="j-tabs" role="tablist"><button data-tab="map" role="tab" id="t-map" aria-controls="j-map" data-t="tabMap"></button><button data-tab="ach" role="tab" id="t-ach" aria-controls="j-ach" data-t="tabAch"></button><button data-tab="lb" role="tab" id="t-lb" aria-controls="j-lb" data-t="tabLb"></button></div>
+    <div class="j-tabs" role="tablist"><button data-tab="map" role="tab" id="t-map" aria-controls="j-map" data-t="tabMap"></button><button data-tab="ach" role="tab" id="t-ach" aria-controls="j-ach" data-t="tabAch"></button><button data-tab="lb" role="tab" id="t-lb" aria-controls="j-lb" data-t="tabLb"></button><button data-tab="acad" role="tab" id="t-acad" aria-controls="j-acad" data-t="tabAcad"></button></div>
     <div class="j-pane" id="j-map" role="tabpanel" aria-labelledby="t-map"><canvas id="jMap" aria-hidden="true"></canvas><ul class="j-regions" id="jRegions"></ul></div>
     <div class="j-pane" id="j-ach" role="tabpanel" aria-labelledby="t-ach" hidden></div>
     <div class="j-pane" id="j-lb" role="tabpanel" aria-labelledby="t-lb" hidden></div>
+    <div class="j-pane" id="j-acad" role="tabpanel" aria-labelledby="t-acad" hidden></div>
+  </div>
+</div>
+
+<div class="overlay soft" id="acad" hidden role="dialog" aria-modal="true" aria-labelledby="acadTitle">
+  <div class="card acad">
+    <div class="ac-head"><div class="ac-ttl"><small id="acadKick"></small><h2 class="title" id="acadTitle"></h2></div><button class="chip" id="acadClose" data-a="aClose" aria-label="">✕</button></div>
+    <div class="ac-body" id="acadBody" tabindex="-1"></div>
+    <div class="ac-foot" id="acadFoot"></div>
   </div>
 </div>
 

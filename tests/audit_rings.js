@@ -6,6 +6,8 @@
   F.start('libre', false); await wait(400); F.dev.skipTuto(); await wait(200);
   for (const R of F.REGIONS) { try { F.unlockRegion(R, false); } catch (e) {} }
   for (const R of F.REGIONS) { try { F.ensureBuilt(R); } catch (e) {} await wait(30); }
+  // Académie : toutes les salles ouvertes (sinon leurs portes vitrées ferment l'intérieur, comme prévu)
+  if (F.dev.academy) { F.dev.academy.unlockAll(); await wait(300); }
   await wait(500);
   // Porte du datacenter ouverte (badge) : le robot et la clim sont derrière ; le terrier (salle cachée) a son propre test
   { const badge = F.items.find(i => i.kind === 'badge'); if (badge) { f.pos.set(-18, 0, -110.2); f.yaw = Math.PI; f.held = badge; badge.held = true; F.dropHeld(); await wait(800); } }

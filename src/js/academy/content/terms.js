@@ -1,0 +1,36 @@
+/* Défi chronométré « Classe-le ! » : un nom, cinq catégories. Chaque terme appartient à une salle (room) :
+   seuls les termes des salles ouvertes sont tirés. k : produit | logiciel | service | conso | concept. */
+import { L } from './l.js';
+
+export default [
+  { room: 'powervault', k: 'produit', t: L("PowerVault ME5284", "PowerVault ME5284"), why: L("Une baie de stockage bloc : du matériel.", "A block storage array: hardware.") },
+  { room: 'powervault', k: 'logiciel', t: L("ADAPT (sur PowerVault)", "ADAPT (on PowerVault)"), why: L("Une fonction logicielle de protection des disques (codage d'effacement distribué).", "A software disk protection feature (distributed erasure coding).") },
+  { room: 'powervault', k: 'concept', t: L("Attachement direct (DAS)", "Direct-attached storage (DAS)"), why: L("Une façon de raccorder serveurs et baie : un concept d'architecture.", "A way of connecting servers and array: an architecture concept.") },
+  { room: 'powerstore', k: 'produit', t: L("PowerStore 5500", "PowerStore 5500"), why: L("Un modèle de baie unifiée : du matériel (avec son logiciel).", "A unified array model: hardware (with its software).") },
+  { room: 'powerstore', k: 'logiciel', t: L("PowerStoreOS", "PowerStoreOS"), why: L("Le système d'exploitation des baies PowerStore.", "The operating system of PowerStore arrays.") },
+  { room: 'powerstore', k: 'logiciel', t: L("Metro Volume", "Metro Volume"), why: L("Une fonction logicielle de PowerStore (réplication active/active).", "A PowerStore software feature (active/active replication).") },
+  { room: 'powerstore', k: 'concept', t: L("Stockage unifié", "Unified storage"), why: L("Le principe de servir bloc et fichier sur la même plateforme.", "The principle of serving block and file on one platform.") },
+  { room: 'apex', k: 'conso', t: L("APEX Subscriptions", "APEX Subscriptions"), why: L("Un modèle de consommation : l'infrastructure payée à l'usage.", "A consumption model: infrastructure paid by usage.") },
+  { room: 'apex', k: 'conso', t: L("Dell Flex on Demand", "Dell Flex on Demand"), why: L("Un modèle de paiement à l'usage (stockage, protection des données, VxRail).", "A pay-per-use model (storage, data protection, VxRail).") },
+  { room: 'apex', k: 'concept', t: L("CapEx / OpEx", "CapEx / OpEx"), why: L("Une notion financière : investissement ou dépense d'exploitation.", "A financial notion: investment or operating expense.") },
+  { room: 'apex', k: 'service', t: L("Services gérés", "Managed services"), why: L("Des personnes qui prennent en charge l'exploitation : un service.", "People taking over operations: a service.") },
+  { room: 'datadomain', k: 'produit', t: L("PowerProtect DD9410", "PowerProtect DD9410"), why: L("Une appliance physique de protection des données.", "A physical data protection appliance.") },
+  { room: 'datadomain', k: 'logiciel', t: L("Data Domain Virtual Edition", "Data Domain Virtual Edition"), why: L("L'édition logicielle de Data Domain (machine virtuelle ou cloud).", "Data Domain's software edition (virtual machine or cloud).") },
+  { room: 'datadomain', k: 'logiciel', t: L("DD Boost", "DD Boost"), why: L("Une technologie logicielle de déduplication à la source.", "A software source-side deduplication technology.") },
+  { room: 'datadomain', k: 'concept', t: L("Déduplication", "Deduplication"), why: L("Le principe : ne stocker qu'une fois les segments identiques.", "The principle: store identical segments only once.") },
+  { room: 'software', k: 'logiciel', t: L("PowerProtect Data Manager", "PowerProtect Data Manager"), why: L("Le logiciel qui orchestre les sauvegardes.", "The software that orchestrates backups.") },
+  { room: 'software', k: 'logiciel', t: L("NetWorker", "NetWorker"), why: L("Un logiciel de sauvegarde de la Data Protection Suite.", "A backup software in the Data Protection Suite.") },
+  { room: 'software', k: 'logiciel', t: L("Avamar", "Avamar"), why: L("Un logiciel de sauvegarde de la Data Protection Suite.", "A backup software in the Data Protection Suite.") },
+  { room: 'software', k: 'service', t: L("PowerProtect Backup Services", "PowerProtect Backup Services"), why: L("Une sauvegarde fournie en SaaS : un service.", "Backup delivered as SaaS: a service.") },
+  { room: 'software', k: 'concept', t: L("Rétention", "Retention"), why: L("La durée de conservation d'une copie : un concept.", "How long a copy is kept: a concept.") },
+  { room: 'dr', k: 'concept', t: L("RPO", "RPO"), why: L("La perte de données acceptable, mesurée en temps.", "Acceptable data loss, measured in time.") },
+  { room: 'dr', k: 'concept', t: L("RTO", "RTO"), why: L("Le délai de remise en service.", "The time to restore service.") },
+  { room: 'dr', k: 'logiciel', t: L("RecoverPoint for VMs", "RecoverPoint for VMs"), why: L("Un logiciel de protection continue des VM VMware.", "Software for continuous protection of VMware VMs.") },
+  { room: 'dr', k: 'concept', t: L("Haute disponibilité", "High availability"), why: L("Le principe de redondance pour ne pas s'arrêter.", "The redundancy principle that keeps you running.") },
+  { room: 'cyber', k: 'logiciel', t: L("PowerProtect Cyber Recovery", "PowerProtect Cyber Recovery"), why: L("La solution logicielle qui gère le coffre isolé (lui-même sur des appliances Data Domain).", "The software solution that runs the isolated vault (itself on Data Domain appliances).") },
+  { room: 'cyber', k: 'logiciel', t: L("Dell Cyber Detect", "Dell Cyber Detect"), why: L("Le logiciel d'analyse qui repère une corruption dans les copies.", "The analytics software that spots corruption in copies.") },
+  { room: 'cyber', k: 'service', t: L("Managed Detection and Response", "Managed Detection and Response"), why: L("Des experts qui surveillent et réagissent : un service.", "Experts who monitor and respond: a service.") },
+  { room: 'cyber', k: 'service', t: L("Incident Response and Recovery", "Incident Response and Recovery"), why: L("Un accompagnement en cas d'incident : un service.", "Support during an incident: a service.") },
+  { room: 'cyber', k: 'concept', t: L("Air gap (isolement)", "Air gap (isolation)"), why: L("Un principe d'architecture : la copie hors de portée.", "An architecture principle: the copy out of reach.") },
+  { room: 'cyber', k: 'concept', t: L("Immutabilité", "Immutability"), why: L("Le principe d'une copie impossible à modifier avant échéance.", "The principle of a copy that cannot be changed before expiry.") },
+];

@@ -76,7 +76,7 @@ const REACH = isTouch ? 2.3 : 1.9, MOUTH = isTouch ? .55 : .7;
 export function nearestTarget() {
   let best = null, bd = REACH;
   const mouth = fox.pos.clone().addScaledVector(foxForward(), MOUTH);
-  for (const it of items) { if (it.gone || it.held || it.vel || it.inWater || (it.kind === 'chapeau' && it.worn)) continue; const d = flat2(it.pos, mouth); if (d < bd) { bd = d; best = it; } }
+  for (const it of items) { if (it.gone || it.held || it.vel || it.inWater || it.fixed || (it.kind === 'chapeau' && it.worn)) continue; const d = flat2(it.pos, mouth); if (d < bd) { bd = d; best = it; } }
   for (const ia of interacts) { if (ia.when && !ia.when()) continue; const d = flat2(ia.pos, fox.pos); if (d < ia.r && d < bd + .3) { bd = d; best = ia; } }
   return best;
 }
