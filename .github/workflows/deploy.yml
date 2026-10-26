@@ -14,9 +14,12 @@ name: Déploiement pierrelogre.com
 on:
   push:
     branches: [main]
+  # Une pull request lance build et tests (sans rien envoyer sur OVH : l'envoi est réservé à main)
+  pull_request:
+    branches: [main]
   workflow_dispatch:
 
-concurrency: deploy
+concurrency: deploy-${{ github.ref }}
 
 jobs:
   build-test-deploy:
