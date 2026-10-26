@@ -34,11 +34,12 @@ const escB = s => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace
 // la carte s'affiche d'emblée dans la sienne (la page elle-même est en anglais à « / », en français à « /fr/ »)
 const intro = L => ({ introH1: L.introH1, introP: escB(L.introP), introKeys: L.keys.map(([k, v]) => `<kbd>${escB(k)}</kbd><span>${escB(v)}</span>`).join(''),
   startBtn: escB(L.start), dailyBtn: escB(L.daily), newBtn: escB(L.newGame), dailyNoteTxt: escB(L.dailyNote), introWho: escB(L.introWho), legalLink: escB(L.legalLink), loaderSkip: escB(L.skip), langBtn2: L === T.fr ? 'EN' : 'FR' });
-// Supabase (classement + mesure d'audience) : seule une clé PUBLIQUE est acceptée (publishable, ou ancienne clé anon)
-const LB = CFG.leaderboard || {}, PUBKEY = LB.publishableKey || LB.anonKey || '';
-{ let role = null; if (/^eyJ/.test(PUBKEY)) { try { role = JSON.parse(Buffer.from(PUBKEY.split('.')[1], 'base64url').toString()).role; } catch (e) { role = '?'; } }
-  if (/^sb_secret_/.test(PUBKEY) || (role && role !== 'anon')) throw new Error('site.config.json : clé secrète interdite dans le site (mettre la clé publishable)'); }
-const STATS = /^https:\/\//.test(LB.supabaseUrl || '') && PUBKEY ? { url: LB.supabaseUrl.replace(/\/$/, ''), key: PUBKEY } : null;
+// Classement + mesure d'audience : petite API PHP sur le même hébergement (www/api/, code dans server/).
+// Un chemin du site seulement (« /api/ ») : aucune clé dans le navigateur, aucun domaine extérieur dans la CSP.
+const LB = CFG.leaderboard || {};
+if (LB.api !== undefined && !(typeof LB.api === 'string' && /^\/[a-z0-9/_-]*\/$/.test(LB.api))) throw new Error('site.config.json : leaderboard.api doit être un chemin du site, ex. « /api/ »');
+if (Object.keys(LB).some(k => k !== 'api')) throw new Error('site.config.json : leaderboard ne contient que « api » (plus de clé ni d’adresse extérieure)');
+const STATS = LB.api ? { url: LB.api + 'events.php' } : null;
 const bootRaw = read(SRC('boot.js'));
 const bootSrc = bootRaw.replace('/*INTRO*/null', () => JSON.stringify({ en: intro(T.en), fr: intro(T.fr) })).replace('/*STATS*/null', () => JSON.stringify(STATS));
 if (!bootRaw.includes('/*INTRO*/null') || !bootRaw.includes('/*STATS*/null')) throw new Error('boot.js : emplacement INTRO ou STATS introuvable');
@@ -335,10 +336,11 @@ if (umami) {
   const host = new URL(CFG.umami.src).origin;
   htaccess = htaccess.replace("script-src 'self'", `script-src 'self' ${host}`).replace("connect-src 'self'", `connect-src 'self' ${host}`);
 }
-// Classement en ligne (Supabase) : seul ce domaine est ajouté aux connexions autorisées
-if (CFG.leaderboard && /^https:\/\//.test(CFG.leaderboard.supabaseUrl || '')) {
-  const host = new URL(CFG.leaderboard.supabaseUrl).origin;
-  htaccess = htaccess.replace(/connect-src 'self'([^;]*)/, (m, rest) => `connect-src 'self'${rest} ${host}`);
+// API PHP du classement (src/api → www/api) : seulement les points d'entrée, le code est hors de www (server/)
+if (LB.api) {
+  const dir = path.join(OUT, LB.api.replace(/^\/|\/$/g, ''));
+  fs.mkdirSync(dir, { recursive: true });
+  for (const f of fs.readdirSync(SRC('api'))) if (f.endsWith('.php')) fs.copyFileSync(SRC('api/' + f), path.join(dir, f));
 }
 fs.writeFileSync(path.join(OUT, '.htaccess'), htaccess);
 

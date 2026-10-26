@@ -1,6 +1,19 @@
 pierrelogre.com · le renard fait des bêtises (version 5 : le monde s'agrandit)
 ============================================================================
 
+Version 5.12 : classement et statistiques chez OVH (fin de Supabase)
+---------------------------------------------------------------------
+- Les classements (mini-jeu et défi du jour) et la mesure d'audience sont maintenant dans la base MySQL
+  incluse dans ton hébergement OVH. Le site appelle un petit programme PHP du même hébergement
+  (pierrelogre.com/api/…), le seul à parler à la base. Plus aucune clé ni aucun service extérieur dans le site.
+- Mêmes règles qu'avant : pseudos vérifiés et insultes refusées, mêmes limites anti-abus, plus une limite de
+  20 envois par minute par adresse IP (seulement une empreinte chiffrée, gardée 24 h).
+- Même affichage pour le visiteur ; si l'API ne répond pas, le classement du navigateur prend le relais.
+- Tâche planifiée OVH toutes les heures : elle applique d'elle-même les changements de structure de la base
+  envoyés par GitHub (migrations : plus besoin d'ouvrir phpMyAdmin pour les mises à jour), puis nettoie
+  (événements de plus de 13 mois, temps du jour de plus de 30 jours, empreintes IP de plus de 24 h).
+- Mentions légales mises à jour (hébergeur unique : OVH, en France).
+
 Version 5.11 : mentions légales complètes, présentation du renard, renard plus mignon
 --------------------------------------------------------------------------------------
 - Page « Mentions légales et confidentialité » en français (pierrelogre.com/fr/mentions-legales/) et
@@ -30,12 +43,6 @@ Version 5.11 : mentions légales complètes, présentation du renard, renard plu
 - Nouveau test : chaque déclencheur de bêtise est atteignable à pied et chaque anneau de dépôt correspond
   à ce qui compte vraiment (tests/audit_rings.js).
 
-À FAIRE UNE FOIS : créer le classement du défi du jour dans Supabase (fait : table vérifiée le 19 octobre 2026)
----------------------------------------------------------------------
-supabase.com > projet « pierrelogre-classement » > SQL Editor > New query : colle tout le contenu du
-fichier supabase/daily.sql (dans foxsite-source.zip, ou le fichier daily.sql livré à part), puis Run.
-Tant que ce n'est pas fait, le classement du jour reste celui du navigateur du joueur.
-
 Version 5.10 : mesure d'audience, téléphones, chargement, accessibilité
 -----------------------------------------------------------------------
 - Mesure d'audience sans cookie (Supabase, même projet que le classement) : visites, parties,
@@ -54,18 +61,18 @@ Version 5.10 : mesure d'audience, téléphones, chargement, accessibilité
   fenêtres sont annoncées correctement aux lecteurs d'écran ; contrastes des textes orange renforcés
   (norme WCAG AA, vérifiée automatiquement à chaque test). N replie le carnet (Tab ne le fait plus).
 
-Lire la mesure d'audience (Supabase)
-------------------------------------
-supabase.com > projet « pierrelogre-classement » > Table Editor (colonne de gauche, rubrique Views) :
-- stats_jour : par jour, visites, parties, visite guidée finie, terrier trouvé, fiche ouverte,
+Lire la mesure d'audience (phpMyAdmin)
+--------------------------------------
+Espace client OVH > Hébergements > Bases de données > phpMyAdmin, puis dans la base, rubrique Vues :
+- stats_jour : par jour (heure de Paris), visites, parties, visite guidée finie, terrier trouvé, fiche ouverte,
   clics LinkedIn, durée moyenne.
 - stats_entonnoir : sur 30 jours, combien de visites atteignent chaque étape, de la visite au clic LinkedIn.
-- stats_appareils : téléphone / tablette / ordinateur : temps de chargement, qualité graphique, fluidité.
+- stats_appareils : téléphone / tablette / ordinateur : temps de chargement (médiane), qualité graphique, fluidité.
 - stats_sources : d'où viennent les visites. Astuce : dans un post LinkedIn, mets le lien
   https://pierrelogre.com/?utm_source=linkedin pour voir ces visites à part.
-- Mesures des téléphones (#bench) : SQL Editor >
-    select at, device, props from events where name = 'Bench' order by at desc;
-Rien n'est lisible avec la clé publique du site : seulement depuis ton compte Supabase.
+- Mesures des téléphones (#bench) : onglet SQL >
+    SELECT at, device, props FROM events WHERE name = 'Bench' ORDER BY at DESC;
+Rien de tout cela n'est lisible depuis le site : seulement depuis phpMyAdmin.
 
 Version 5.9 : anglais par défaut, classement partagé, renard plus naturel
 -------------------------------------------------------------------------
@@ -146,21 +153,19 @@ Mise en ligne (manuelle, par FileZilla)
    https://pierrelogre.com/fr/mentions-legales/ (les mentions légales).
 4. Retire pierrelogre.com du projet Vercel « pierre-logre » (Settings > Domains) si ce n'est pas fait.
 
-Classement partagé (Supabase)
------------------------------
-Le classement du mini-jeu est maintenant commun à tous les visiteurs. Il est déjà en place : projet
-Supabase gratuit « pierrelogre-classement » (Paris) dans ton organisation PierreNTE. Rien à faire.
-- Seule la clé publique (« publishable ») est dans le site. NE METS JAMAIS la clé secrète dans le site.
-- Supabase met en pause un projet gratuit inactif 7 jours (tu reçois un e-mail avant). Pour l'éviter :
-  une partie de temps en temps suffit, ou le workflow GitHub « anti-pause » si tu actives GitHub (plus bas).
-  Si le projet est en pause, le jeu continue avec le classement du navigateur.
-- Retirer un pseudo : supabase.com > projet > SQL Editor > delete from public.scores where pseudo = 'xxx';
+Classement partagé (MySQL OVH)
+------------------------------
+Les classements sont dans la base MySQL de l'hébergement OVH (voir version 5.12).
+- Les identifiants de la base sont seulement dans pierrelogre-api/config.php chez OVH (à côté de www/, jamais
+  dedans). Ce fichier n'est ni dans GitHub ni envoyé par le déploiement : ne le partage avec personne.
+- Retirer un pseudo : phpMyAdmin > onglet SQL > DELETE FROM scores WHERE pseudo = 'xxx';
+- Si la base est indisponible, le jeu continue avec le classement du navigateur.
 
 Mise en ligne automatique (recommandée)
 --------------------------------------
 Le dossier source contient le workflow GitHub Actions .github/workflows/deploy.yml : à chaque mise à jour
 de la branche main, GitHub construit le site, lance tous les tests, et seulement s'ils passent, envoie le
-site sur OVH en FTPS (miroir exact du dossier www/). Ce qu'il faut faire une fois :
+site sur OVH en SFTP (miroir exact du dossier www/, plus le code de l'API dans pierrelogre-api/). Ce qu'il faut faire une fois :
 1. Sur github.com, crée un dépôt PRIVÉ vide (sans README), par exemple « pierrelogre-site ».
 2. Dans ce dépôt : Settings > Secrets and variables > Actions > New repository secret, crée :
      OVH_FTP_HOST      ftp.cluster121.hosting.ovh.net
@@ -178,7 +183,7 @@ en ajouter une (par exemple un monde spatial) : décor, personnages, bêtises, s
 
 Sécurité du compte et du domaine (à faire une fois)
 ---------------------------------------------------
-- Active la double authentification sur ton compte OVH (et sur Supabase si tu l'utilises).
+- Active la double authentification sur ton compte OVH.
 - Mot de passe FTP long et unique ; supprime les accès FTP inutiles.
 - Active DNSSEC sur le domaine.
 - Garde le SPF OVH existant (v=spf1 include:mx.ovh.com -all) et ajoute :

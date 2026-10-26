@@ -1,0 +1,14 @@
+Migrations de la base MySQL (pierrelogre.com)
+=============================================
+Chaque fichier NNNN_description.sql de ce dossier (ex. 0001_ajout_colonne_mode.sql) est appliqué UNE seule fois
+par la tâche planifiée OVH (pierrelogre-api/cron/tache-planifiee.php), dans l'ordre des numéros, puis noté dans
+la table schema_migrations. Le déploiement GitHub envoie ce dossier dans pierrelogre-api/migrations/.
+
+Règles :
+- Ne jamais modifier une migration déjà en ligne : en écrire une nouvelle (numéro suivant).
+- Un « ; » à la fin de chaque instruction, en fin de ligne. Les lignes qui commencent par « -- » sont ignorées.
+- MySQL valide tout de suite chaque changement de structure : une migration = un petit changement,
+  écrit pour pouvoir être relancé sans dégât (IF NOT EXISTS, CREATE OR REPLACE VIEW…).
+- Le code de l'API doit marcher avant ET après la migration (elle s'applique jusqu'à une heure après le déploiement).
+- En cas d'échec, le compte rendu de la tâche planifiée (e-mail OVH) donne l'erreur ; les migrations suivantes attendent.
+- server/schema.sql reste la description complète de la base : y reporter chaque changement.

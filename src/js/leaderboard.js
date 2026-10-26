@@ -1,21 +1,18 @@
 /* =====================================================================
    Classement partagé du mini-jeu « Tir au renard ».
-   - Si src/site.config.json contient leaderboard.supabaseUrl + publishableKey : classement en ligne
-     (table publique « scores », lecture et ajout seulement, vue « leaderboard », voir supabase/leaderboard.sql).
-     La clé « publishable » est publique par conception : la sécurité vient des règles RLS côté base.
-     Ne JAMAIS mettre une clé secrète (sb_secret_… ou « service_role ») ici : elle serait refusée.
-   - Sinon (ou si le réseau échoue) : classement local, gardé dans ce navigateur.
+   - Si src/site.config.json contient leaderboard.api (ex. « /api/ ») : classement en ligne, servi par la petite API PHP
+     du même hébergement OVH (www/api/, code dans server/), qui seule parle à la base MySQL. Même adresse que le site :
+     aucune clé, aucun domaine extérieur. Lecture : meilleur score de chaque pseudo ; ajout contrôlé côté serveur.
+   - Sinon (ou si le réseau échoue, ou si l'API refuse) : classement local, gardé dans ce navigateur.
    ===================================================================== */
 import SITE from '../site.config.json';
 import { store } from './state.js';
 
 const CFG = SITE.leaderboard || {};
-/** Clé publique : « publishable » (sb_publishable_…, recommandée) ou ancienne clé « anon » (JWT). Jamais de clé secrète. */
-const KEY = CFG.publishableKey || CFG.anonKey || '';
-export const ONLINE = !!(CFG.supabaseUrl && KEY && /^https:\/\//.test(CFG.supabaseUrl) && !/^sb_secret_/.test(KEY));
-const API = ONLINE ? CFG.supabaseUrl.replace(/\/$/, '') + '/rest/v1/' : '';
-// La clé publishable n'est pas un jeton : elle va seulement dans « apikey » (un en-tête Authorization la ferait refuser)
-const HEAD = ONLINE ? Object.assign({ apikey: KEY, 'Content-Type': 'application/json' }, /^eyJ/.test(KEY) ? { Authorization: 'Bearer ' + KEY } : {}) : {};
+/** Adresse de l'API : un chemin du site lui-même (« /api/ »), jamais un autre domaine. */
+export const ONLINE = typeof CFG.api === 'string' && /^\/[a-z0-9/_-]*\/$/.test(CFG.api);
+const API = ONLINE ? CFG.api : '';
+const HEAD = { 'Content-Type': 'application/json' };
 const LKEY = 'fox-leaderboard';
 
 /** Pseudo propre : 2 à 16 caractères, lettres / chiffres / espace / - _ . */
@@ -25,7 +22,7 @@ export function cleanPseudo(s) {
 /**
  * Pseudos abusifs : racines d'insultes et d'injures (FR / EN), cherchées sans accents, sans espaces
  * ni ponctuation et en défaisant le « l33t » (0→o, 1→i, 3→e, 4→a, 5→s, @→a, $→s). Liste volontairement
- * courte et sans mots qui piégeraient des prénoms courants (Monique, Dickens…). La même règle existe côté base.
+ * courte et sans mots qui piégeraient des prénoms courants (Monique, Dickens…). La même règle existe côté serveur (server/lib/regles.php).
  */
 const BANNED = ['connard', 'connasse', 'salope', 'salaud', 'encul', 'putain', 'merde', 'batard', 'couille', 'niquer', 'niktamer', 'fdp', 'ntm', 'tapette', 'bougnoul', 'youpin', 'nazi', 'hitler',
   'fuck', 'shit', 'bitch', 'cunt', 'pussy', 'whore', 'slut', 'nigg', 'faggot', 'porn', 'violeur', 'pedophil', 'pedofil'];
@@ -46,8 +43,8 @@ const withTimeout = (p, ms = 5000) => Promise.race([p, new Promise((_, rej) => s
 export async function top(game = 'handball') {
   if (ONLINE) {
     try {
-      // vue « leaderboard » : le meilleur score de chaque pseudo (supabase/leaderboard.sql)
-      const r = await withTimeout(fetch(`${API}leaderboard?select=pseudo,score&game=eq.${encodeURIComponent(game)}&order=score.desc&limit=10`, { headers: HEAD, credentials: 'omit' }));
+      // le meilleur score de chaque pseudo, 10 au plus (server/lib/api.php, fox_scores)
+      const r = await withTimeout(fetch(`${API}scores.php?game=${encodeURIComponent(game)}`, { credentials: 'omit' }));
       if (r.ok) return { list: best((await r.json()).filter(x => pseudoOk(x.pseudo)).map(x => ({ pseudo: cleanPseudo(x.pseudo), score: x.score | 0 }))), online: true };
     } catch (e) { /* hors ligne : classement local */ }
   }
@@ -62,13 +59,13 @@ export async function submit(pseudo, score, game = 'handball') {
   addLocal(pseudo, score);
   if (!ONLINE) return false;
   try {
-    const r = await withTimeout(fetch(API + 'scores', { method: 'POST', headers: { ...HEAD, Prefer: 'return=minimal' }, body: JSON.stringify({ pseudo, score, game }), credentials: 'omit' }));
+    const r = await withTimeout(fetch(API + 'scores.php', { method: 'POST', headers: HEAD, body: JSON.stringify({ pseudo, score, game }), credentials: 'omit' }));
     return r.ok;
   } catch (e) { return false; }
 }
 
 /* ---------- Classement du défi du jour : le meilleur temps de chaque pseudo, jour par jour ----------
-   Table « daily_times » et vue « daily_leaderboard » (supabase/daily.sql) ; repli local si la base ne répond pas. */
+   API www/api/daily.php (table daily_times, vue daily_leaderboard : server/schema.sql) ; repli local si la base ne répond pas. */
 const DKEY = 'fox-leaderboard-defi';
 const DAY = /^\d{4}-\d{2}-\d{2}$/;
 const fastest = list => { const m = new Map(); for (const x of list) if (!m.has(x.pseudo) || m.get(x.pseudo).secs > x.secs) m.set(x.pseudo, x); return [...m.values()].sort((a, b) => a.secs - b.secs); };
@@ -83,7 +80,7 @@ let lastDaily = 0;
 export async function topDaily(day) {
   if (ONLINE && DAY.test(day)) {
     try {
-      const r = await withTimeout(fetch(`${API}daily_leaderboard?select=pseudo,secs&day=eq.${day}&order=secs.asc&limit=10`, { headers: HEAD, credentials: 'omit' }));
+      const r = await withTimeout(fetch(`${API}daily.php?day=${day}`, { credentials: 'omit' }));
       if (r.ok) return { list: fastest((await r.json()).filter(x => pseudoOk(x.pseudo)).map(x => ({ pseudo: cleanPseudo(x.pseudo), secs: +x.secs }))).slice(0, 10), online: true };
     } catch (e) { /* hors ligne : classement local */ }
   }
@@ -96,7 +93,7 @@ export async function submitDaily(pseudo, secs, day) {
   addLocalDaily(day, pseudo, secs);
   const now = Date.now(); if (!ONLINE || secs < 10 || now - lastDaily < 20000) return false; lastDaily = now;
   try {
-    const r = await withTimeout(fetch(API + 'daily_times', { method: 'POST', headers: { ...HEAD, Prefer: 'return=minimal' }, body: JSON.stringify({ day, pseudo, secs }), credentials: 'omit' }));
+    const r = await withTimeout(fetch(API + 'daily.php', { method: 'POST', headers: HEAD, body: JSON.stringify({ day, pseudo, secs }), credentials: 'omit' }));
     return r.ok;
   } catch (e) { return false; }
 }

@@ -6,3 +6,6 @@ test-output/
 *.pdf
 .DS_Store
 __pycache__/
+
+# Identifiants MySQL de l API (jamais dans le dépôt)
+server/config.php

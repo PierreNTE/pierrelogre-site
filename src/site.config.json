@@ -8,7 +8,6 @@
     "websiteId": ""
   },
   "leaderboard": {
-    "supabaseUrl": "https://qoyctoulxboqbokxbcld.supabase.co",
-    "publishableKey": "sb_publishable_4kiFBOtoVDH-FgKaBXZGpg_JDIiEbuH"
+    "api": "/api/"
   }
 }

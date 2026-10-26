@@ -2,7 +2,7 @@
   var $=function(id){ return document.getElementById(id); };
   var touch=false; try{ touch=matchMedia('(pointer: coarse)').matches||'ontouchstart' in window; }catch(e){}
 
-  /* ---------- Mesure d'audience sans cookie (supabase/stats.sql) ----------
+  /* ---------- Mesure d'audience sans cookie (www/api/events.php → MySQL OVH, server/schema.sql) ----------
      Un numéro de visite tiré au hasard à chaque chargement, gardé seulement en mémoire : impossible de reconnaître
      un visiteur d'une fois sur l'autre. Ni cookie, ni stockage, ni adresse IP enregistrée. Seulement sur
      pierrelogre.com (jamais en test ni dans l'aperçu), et jamais si le navigateur demande « Do Not Track » ou GPC,
@@ -18,8 +18,8 @@
   function flush(){
     if(!q.length||!allowed) return;
     var body=JSON.stringify(q.splice(0,40));
-    try{ fetch(ST.url+'/rest/v1/events',{method:'POST',keepalive:true,credentials:'omit',body:body,
-      headers:{apikey:ST.key,'Content-Type':'application/json',Prefer:'return=minimal'}})['catch'](function(){}); }catch(e){}
+    try{ fetch(ST.url,{method:'POST',keepalive:true,credentials:'omit',body:body,
+      headers:{'Content-Type':'application/json'}})['catch'](function(){}); }catch(e){}
   }
   window.__foxStats={
     on:allowed,
