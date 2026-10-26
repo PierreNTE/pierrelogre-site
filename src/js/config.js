@@ -15,7 +15,7 @@ export const CONFIG = {
   hintAgain: 75,          // … puis un autre toutes les N secondes
 };
 
-/** Événement d'audience : mesure sans cookie du site (boot.js → Supabase, voir supabase/stats.sql), et Umami ou
+/** Événement d'audience : mesure sans cookie du site (boot.js → www/api/events.php, voir server/schema.sql), et Umami ou
  * Plausible s'ils sont configurés. Sans effet en test, dans l'aperçu, ou si le navigateur demande « Do Not Track ». */
 export function track(name, props) {
   if (S.bench && name !== 'Bench') return;   // le test de performance ouvre toutes les zones : il ne compte pas comme une partie

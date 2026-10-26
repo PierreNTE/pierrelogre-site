@@ -18,7 +18,8 @@ Lance un serveur local qui reproduit la CSP stricte d'OVH (.htaccess), puis vér
      le long d'un mur, « Passer », plafond 60 i/s des écrans 120 Hz, téléphone à l'horizontale sans chevauchement
  13. réactions : habitant surpris → agacé → il chasse le renard (sans l'attraper) ; objet lâché de surprise ;
      « Doublé ! » ; indice qui montre l'endroit
- 14. classement partagé : faux serveur Supabase (aucune écriture dans le vrai classement), requêtes conformes, repli local
+ 14. classement partagé : faux serveur à la place de l'API PHP (aucune écriture dans le vrai classement), requêtes conformes,
+     repli local si l'API est en panne ou si la limite est atteinte
  16. mesure d'audience sans cookie : événements anonymes, aucun stockage, coupée par GPC / DNT et hors de pierrelogre.com
  15. langues : anglais par défaut à « / », français à « /fr/ », choix retenu ; référencement (hreflang, Open Graph, schema.org, llms.txt)
  17. accessibilité : audit axe-core (WCAG 2.1 AA) de l'accueil, du jeu, du carnet de voyage, de la fiche et de la page 404 ;
@@ -28,7 +29,7 @@ Lance un serveur local qui reproduit la CSP stricte d'OVH (.htaccess), puis vér
  19. première visite : le renard se présente (5 s au plus), une seule fois, passée d'une touche, jamais si animations réduites
  20. mentions légales : pages FR / EN complètes, liées partout, lisibles sans JavaScript ; « ne pas compter mes visites »
  22. académie Dell Storage : contenu vérifié, navette, salles, quiz, missions, simulation, labo, défi, évaluation, sauvegarde
- 21. défi du jour réussi : classement du jour (faux Supabase), « Continuer l'aventure » vers la partie libre
+ 21. défi du jour réussi : classement du jour (fausse API), « Continuer l'aventure » vers la partie libre
 Aucune erreur console n'est tolérée.
 """
 import asyncio, json, os, re, subprocess, sys, time, functools, http.server, threading
@@ -68,41 +69,45 @@ JS_HELPERS = """
 def check(name, ok, detail=''):
     results.append((name, bool(ok), detail)); print(('✓ ' if ok else '✗ ') + name + (f'  [{detail}]' if detail else ''), flush=True)
 
-SUPABASE = re.compile(r'^https://[^/]+\.supabase\.co/')
+API_RE = re.compile(r'^https?://[^/]+/api/(scores|daily|events)\.php')
 async def offline_lb(ctx, rows=None, seen=None, down=False):
-    """Les tests n'écrivent jamais dans le vrai classement : un faux serveur Supabase (PostgREST) répond à sa place.
-    down=True : serveur en panne (503), pour vérifier le repli local."""
+    """Les tests n'écrivent jamais dans le vrai classement : un faux serveur répond à la place de l'API PHP (www/api/),
+    avec les mêmes réponses qu'elle (server/lib/api.php). down=True : API en panne (503) ; down=429 : limite atteinte."""
     rows = [] if rows is None else rows
     daily = seen.setdefault('daily_rows', []) if seen is not None else []
+    status = 503 if down is True else int(down or 0)
     async def fake(route):
-        req = route.request; h = req.headers
-        if '/rest/v1/daily' in req.url:    # classement du défi du jour : à part (table daily_times, vue daily_leaderboard)
+        req = route.request; h = req.headers; url = req.url
+        hd = {k: h.get(k) for k in ('apikey', 'authorization', 'prefer', 'cookie', 'content-type')}
+        if '/api/daily.php' in url:    # classement du défi du jour : à part (table daily_times, vue daily_leaderboard)
             if req.method == 'POST':
-                d = json.loads(req.post_data or '{}'); daily.append(d)
-                if seen is not None: seen.setdefault('daily_post', []).append({'url': req.url, 'body': d, 'prefer': h.get('prefer'), 'apikey': h.get('apikey')})
-                await route.fulfill(status=201, body=''); return
-            if seen is not None: seen.setdefault('daily_get', []).append(req.url)
-            day = (re.search(r'day=eq\.([0-9-]+)', req.url) or [None, ''])[1]; best = {}
+                d = json.loads(req.post_data or '{}')
+                if seen is not None: seen.setdefault('daily_post', []).append({'url': url, 'body': d, **hd})
+                daily.append(d); await route.fulfill(status=201, content_type='application/json', body='{"ok":true}'); return
+            if seen is not None: seen.setdefault('daily_get', []).append(url)
+            day = (re.search(r'[?&]day=([0-9-]+)', url) or [None, ''])[1]; best = {}
             for d in daily:
                 if d.get('day') == day: best[d['pseudo']] = min(best.get(d['pseudo'], 1e9), d['secs'])
             await route.fulfill(status=200, content_type='application/json', body=json.dumps(sorted([{'pseudo': k, 'secs': v} for k, v in best.items()], key=lambda x: x['secs'])[:10])); return
-        if '/rest/v1/events' in req.url:   # mesure d'audience : notée à part, jamais mêlée au classement
-            if seen is not None and req.method == 'POST': seen.setdefault('events', []).extend(json.loads(req.post_data or '[]')); seen.setdefault('ev_headers', []).append({k: h.get(k) for k in ('apikey', 'authorization', 'prefer', 'cookie')})
-            await route.fulfill(status=201, body=''); return
-        if seen is not None: seen.setdefault('headers', []).append({k: h.get(k) for k in ('apikey', 'authorization', 'prefer')})
-        if down: await route.fulfill(status=503, content_type='application/json', body='{"message":"indisponible"}'); return
+        if '/api/events.php' in url:   # mesure d'audience : notée à part, jamais mêlée au classement
+            if seen is not None and req.method == 'POST': seen.setdefault('events', []).extend(json.loads(req.post_data or '[]')); seen.setdefault('ev_headers', []).append({**hd, 'url': url})
+            await route.fulfill(status=201, content_type='application/json', body='{"ok":true}'); return
+        if seen is not None: seen.setdefault('headers', []).append(hd)
+        if status:
+            code = 'too_many_scores' if status == 429 else 'unavailable'
+            await route.fulfill(status=status, content_type='application/json', body=json.dumps({'ok': False, 'error': code, 'message': {'fr': '…', 'en': '…'}})); return
         if req.method == 'GET':
-            if seen is not None: seen.setdefault('get', []).append(req.url)
+            if seen is not None: seen.setdefault('get', []).append(url)
             best = {}
             for r in rows: best[r['pseudo']] = max(best.get(r['pseudo'], 0), r['score'])
             body = sorted([{'pseudo': p, 'score': v} for p, v in best.items()], key=lambda x: -x['score'])[:10]
             await route.fulfill(status=200, content_type='application/json', body=json.dumps(body))
         elif req.method == 'POST':
             d = json.loads(req.post_data or '{}')
-            if seen is not None: seen.setdefault('post', []).append({'url': req.url, 'body': d, 'prefer': h.get('prefer')})
-            rows.append({'pseudo': d.get('pseudo'), 'score': d.get('score', 0)}); await route.fulfill(status=201, body='')
-        else: await route.fulfill(status=204, body='')
-    await ctx.unroute(SUPABASE); await ctx.route(SUPABASE, fake)
+            if seen is not None: seen.setdefault('post', []).append({'url': url, 'body': d, **hd})
+            rows.append({'pseudo': d.get('pseudo'), 'score': d.get('score', 0)}); await route.fulfill(status=201, content_type='application/json', body='{"ok":true}')
+        else: await route.fulfill(status=405, body='')
+    await ctx.unroute(API_RE); await ctx.route(API_RE, fake)
 
 async def page(browser, w=1280, h=760, acorns_done=False, **kw):
     cine = kw.pop('cine', False)
@@ -411,8 +416,8 @@ async def test_daily_end(browser):
     check('défi du jour réussi : classement du jour (temps au dixième), « Continuer l’aventure » et « Rejouer »', r['card'] and r['lb'] and r['cont'] in ("Continue the adventure", "Continuer l'aventure")
           and r['replay'] and r['focus'] == 'contBtn' and r['top'] and 'Renarde' in r['top'][0] and '1:01.2' in r['top'][0] and r['day'] == day, json.dumps(r, ensure_ascii=False))
     check('défi du jour : temps envoyé (jour, pseudo, secondes), meilleur temps par pseudo, mon rang surligné', post.get('body') == {'day': day, 'pseudo': 'Pierre', 'secs': 83.4}
-          and 'daily_times' in post.get('url', '') and post.get('prefer') == 'return=minimal' and r2['me'] and any('Pierre' in x and '1:23.4' in x for x in r2['top'])
-          and any(f'day=eq.{day}' in u and 'order=secs.asc' in u for u in seen.get('daily_get', [])), json.dumps({'post': post, **r2}, ensure_ascii=False))
+          and post.get('url', '').endswith('/api/daily.php') and post.get('content-type') == 'application/json' and not post.get('apikey') and r2['me'] and any('Pierre' in x and '1:23.4' in x for x in r2['top'])
+          and any(u.endswith(f'/api/daily.php?day={day}') for u in seen.get('daily_get', [])), json.dumps({'post': post, **r2}, ensure_ascii=False))
     # « Continuer l'aventure » : la page se recharge en partie libre
     async with pg.expect_navigation(timeout=120000): await pg.click('#contBtn')
     await ready(pg)
@@ -492,7 +497,7 @@ async def test_world(browser):
     check('voyage dans chaque région (terriers)', not bad, json.dumps(bad) if bad else f"{len(calls)} régions")
     worst = max(v[1] for v in calls.values())
     check('budget par région : < 180 appels de dessin', worst < 180, ' · '.join(f"{k} {v[1]}" for k, v in calls.items()))
-    # Mini-jeu : quelques tirs, fin, record, classement local (sans Supabase configuré)
+    # Mini-jeu : quelques tirs, fin, record, classement local (sans classement en ligne)
     r = await js(pg, """const R=F.RG.sport; F.teleport(89,18,Math.PI); await wait(1200); const ia=F.interacts.find(i=>i.kind==='act'&&Math.abs(i.pos.x-89)<.1&&Math.abs(i.pos.z-18)<.1); ia.action(ia); await wait(300);
                         const active=F.MG.active; const key=c=>{ dispatchEvent(new KeyboardEvent('keydown',{code:c})); dispatchEvent(new KeyboardEvent('keyup',{code:c})); };
                         const hold=async(c,ms)=>{ dispatchEvent(new KeyboardEvent('keydown',{code:c})); await wait(ms); dispatchEvent(new KeyboardEvent('keyup',{code:c})); };
@@ -773,7 +778,8 @@ async def test_stats(browser):
     v = next((e for e in ev if e['name'] == 'Visite'), {})
     ok = (r['on'] and {'Visite', 'Jeu prêt', 'Partie lancée', 'Tutoriel passé', 'Terrier ouvert', 'Clic LinkedIn'} <= set(names) and len(visits) == 1 and shape
           and v.get('page') == '/fr/' and v.get('lang') == 'fr' and v.get('props', {}).get('utm') == 'linkedin' and r['cookie'] == ''
-          and not [k for k in r['keys'] if 'stat' in k.lower() or 'visit' in k.lower()] and not any(h.get('cookie') for h in seen.get('ev_headers', [])))
+          and not [k for k in r['keys'] if 'stat' in k.lower() or 'visit' in k.lower()] and not any(h.get('cookie') or h.get('apikey') or h.get('authorization') for h in seen.get('ev_headers', []))
+          and seen.get('ev_headers') and all(h['url'].endswith('/api/events.php') and h['content-type'] == 'application/json' for h in seen['ev_headers']))
     check('mesure d’audience : événements anonymes bien formés, un seul numéro de visite, ni cookie ni stockage', ok,
           json.dumps({'événements': names, 'visite': v, 'stockage': r['keys']}, ensure_ascii=False)[:400])
     await pg.reload(timeout=120000); await ready(pg)
@@ -792,11 +798,10 @@ async def test_stats(browser):
         await ctx.close()
 
 async def test_leaderboard_online(browser):
-    """Classement partagé : requêtes conformes (clé publique seule, vue « leaderboard », ajout minimal), meilleur score
-    par pseudo, pseudos abusifs filtrés, repli local si le serveur refuse. Faux serveur : rien n'est écrit dans le vrai."""
+    """Classement partagé : requêtes conformes (API du site, aucune clé ni cookie), meilleur score par pseudo, pseudos
+    abusifs filtrés, repli local si l'API est en panne ou refuse (limite). Faux serveur : rien n'est écrit dans le vrai."""
     cfg = json.load(open(os.path.join(ROOT, 'src', 'site.config.json'))).get('leaderboard', {})
-    key = cfg.get('publishableKey') or cfg.get('anonKey')
-    if not (cfg.get('supabaseUrl') and key):
+    if cfg.get('api') != '/api/':
         check('classement en ligne : non configuré (repli local seulement)', True); return
     rows = [{'pseudo': 'Monique', 'score': 900}, {'pseudo': 'Monique', 'score': 400}, {'pseudo': 'C0nnard', 'score': 5000}, {'pseudo': 'Renard', 'score': 700}]
     seen = {}
@@ -807,7 +812,7 @@ async def test_leaderboard_online(browser):
     pg.on('pageerror', lambda e: errs.append('pageerror: ' + str(e)))
     # pendant la panne simulée, Chrome signale le 503 du faux serveur dans la console : seul ce message-là est attendu
     pg.on('console', lambda m: errs.append(f'{m.type}: {m.text}') if m.type in ('error', 'warning') and 'preloaded using link preload' not in m.text
-          and not (phase['down'] and SUPABASE.match((m.location or {}).get('url', '')) and '503' in m.text) else None)
+          and not (phase['down'] and API_RE.match((m.location or {}).get('url', '')) and ('503' in m.text or '429' in m.text)) else None)
     await pg.goto(URL, timeout=120000); await ready(pg)
     r = await js(pg, """F.start('libre', false); await wait(300); F.dev.skipTuto(); const L=F.dev.lb;
         const before=await L.top(); const sent=await L.submit('Véro', 1234); const after=await L.top();
@@ -815,13 +820,13 @@ async def test_leaderboard_online(browser):
         const pane=document.querySelector('#j-lb').innerText; F.closeJournal();
         return {before, sent, after, pane};""")
     names = [x['pseudo'] for x in r['after']['list']]
-    bad = [h for h in seen.get('headers', []) if h['apikey'] != key or (h['authorization'] and key.startswith('sb_publishable_'))]
+    bad = [h for h in seen.get('headers', []) if h['apikey'] or h['authorization'] or h['cookie'] or h['prefer']]
     post = seen.get('post', [])
     ok = (r['before']['online'] and r['sent'] and r['after']['online'] and names[:3] == ['Véro', 'Monique', 'Renard'] and 'C0nnard' not in names
-          and names.count('Monique') == 1 and not bad and all('/rest/v1/leaderboard?' in u for u in seen.get('get', []))
-          and post and post[0]['url'].endswith('/rest/v1/scores') and post[0]['prefer'] == 'return=minimal'
+          and names.count('Monique') == 1 and not bad and seen.get('get') and all(u.endswith('/api/scores.php?game=handball') for u in seen.get('get', []))
+          and post and post[0]['url'].endswith('/api/scores.php') and post[0]['content-type'] == 'application/json'
           and post[0]['body'] == {'pseudo': 'Véro', 'score': 1234, 'game': 'handball'} and ('Shared online leaderboard' in r['pane'] or 'Classement partagé en ligne' in r['pane']))
-    check('classement en ligne : clé publique seule, meilleur score par pseudo, pseudo abusif filtré, envoi conforme', ok,
+    check('classement en ligne : API du site sans clé, meilleur score par pseudo, pseudo abusif filtré, envoi conforme', ok,
           json.dumps({'noms': names, 'entêtes refusés': len(bad), 'envoi': post[:1], 'carnet': r['pane'][:80]}, ensure_ascii=False))
     # serveur en panne : le score reste dans ce navigateur, le carnet le dit, sans erreur du jeu
     phase['down'] = True; await offline_lb(ctx, rows, seen, down=True)
@@ -830,6 +835,11 @@ async def test_leaderboard_online(browser):
         return {sent, online:t.online, top:t.list[0], pane};""")
     check('classement injoignable : score gardé dans le navigateur, le carnet le signale', r['sent'] is False and r['online'] is False and r['top'] and r['top']['score'] == 2000
           and ('unreachable' in r['pane'] or 'injoignable' in r['pane']), json.dumps(r, ensure_ascii=False))
+    # limite atteinte (429 « trop de scores ») : même comportement qu'une panne, le score reste dans ce navigateur
+    await offline_lb(ctx, rows, seen, down=429)
+    r = await js(pg, """await new Promise(r=>setTimeout(r,21000)); const L=F.dev.lb; const sent=await L.submit('Véro', 2500); const t=await L.top();
+        return {sent, online:t.online, top:t.list[0]};""")
+    check('limite atteinte (429) : score gardé dans le navigateur, sans erreur du jeu', r['sent'] is False and r['top'] and r['top']['score'] == 2500, json.dumps(r, ensure_ascii=False))
     check('aucune erreur console (classement en ligne)', not errs, '; '.join(errs[:3]))
     await ctx.close()
 
@@ -948,7 +958,7 @@ async def test_legal(browser):
         except urllib.error.HTTPError as e: html = e.read().decode()
         got[path] = html
     en, fr, p404 = (got[k].replace('\u00a0', ' ') for k in ('legal/', 'fr/mentions-legales/', 'nimporte-quoi'))   # espaces insécables lus comme des espaces
-    need = ['OVH SAS', '2 rue Kellermann', '59100 Roubaix', '424 761 419', 'Supabase', '13', 'CNIL', 'linkedin.com/in/', 'Three.js', 'Open Font License']
+    need = ['OVH SAS', '2 rue Kellermann', '59100 Roubaix', '424 761 419', 'MySQL', '13', 'CNIL', 'linkedin.com/in/', 'Three.js', 'Open Font License']
     private = re.compile(r'siret|879 121|@gmail|pierre\.logre1|cv-pierre-logre', re.I)
     check('mentions légales : page anglaise et française complètes (éditeur, hébergeur, cookies, mesure, droits, CNIL, crédits)',
           all(n in en for n in need) and all(n in fr for n in need) and '<html lang="en"' in en and '<html lang="fr"' in fr

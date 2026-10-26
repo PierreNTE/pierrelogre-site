@@ -74,7 +74,7 @@ src/
     achievements.js  succès (chapitre 1, aventure, secrets)
     journal.js    carnet de voyage (touche M) : carte, succès, classement ; choix de destination du train
     minigame.js   mini-jeu « Tir au renard » (tirs au but de handball)
-    leaderboard.js   classement partagé (Supabase, clé publique) avec repli local
+    leaderboard.js   classement partagé (API PHP du site, /api/) avec repli local
     hooks.js      crochets partagés (glapir, objet posé, destination)
     vegetation.js végétation par biome fusionnée par tuiles, ombres de contact, fleurs qui éclosent après chaque bêtise
     ambient.js    vie ambiante : papillons, vols d'oiseaux, fumées, pollens, lapins, hérisson, grenouille, montgolfière
@@ -83,12 +83,16 @@ src/
     dailyboard.js défi du jour réussi : classement du jour et envoi du temps (carte de fin)
     presentation.js  première visite : le renard se présente face au visiteur (4,8 s), puis la carte d'accueil revient
   legal.mjs, legal.js             mentions légales (FR / EN) et bouton « ne pas compter mes visites »
-supabase/leaderboard.sql   table + règles de sécurité du classement
-supabase/stats.sql         mesure d'audience sans cookie (table events, vues stats_*, effacement à 13 mois)
-supabase/daily.sql         classement du défi du jour (table daily_times, vue daily_leaderboard, effacement à 30 jours)
-tests/            run_all.py (tests), audit_rings.js (toutes les bêtises atteignables, anneaux de dépôt fidèles),
+src/api/          points d'entrée publics de l'API (copiés dans www/api/) : scores.php, daily.php, events.php
+server/schema.sql          base MySQL : tables, index, contraintes, classements, vues stats_* (phpMyAdmin)
+server/apres-import.sql    compteurs d'auto-incrément après un import de données
+server/config.example.php  modèle de pierrelogre-api/config.php (identifiants MySQL, jamais dans le dépôt)
+server/lib/                code de l'API (hors du dossier public) : api.php, regles.php
+server/cron/tache-planifiee.php  tâche planifiée OVH (toutes les heures) : migrations puis nettoyage
+server/migrations/         migrations de la base, appliquées automatiquement (règles : LISEZMOI.txt du dossier)
+tests/            run_all.py (tests), api_test.py (API PHP + MySQL), audit_rings.js (toutes les bêtises atteignables, anneaux de dépôt fidèles),
                   og.py (image d'aperçu), csp_server.py (serveur local avec la CSP)
-.github/workflows/deploy.yml   build + tests + envoi FTPS sur OVH à chaque push sur main
+.github/workflows/deploy.yml   build + tests (dont l'API PHP + MySQL) + envoi SFTP sur OVH à chaque push sur main
 ```
 
 ## Direction artistique
@@ -128,23 +132,41 @@ Un campus au nord du stade (`src/js/regions/academie.js`), ouvert dès le début
 - **Progression** (`src/js/academy/engine.js`) : points d'expérience, cinq niveaux, un badge par famille (tous les points clés vus, quiz ≥ 70 %, missions résolues, simulation ≥ 60 %), maîtrise par famille et points à retravailler. Gardée dans le navigateur (`fox-academie-v1`), à part de la partie de bêtises : « recommencer » ne l'efface pas ; le tableau de progression a son propre bouton de remise à zéro. L'académie n'ajoute aucune bêtise et n'est exigée ni pour l'île ni pour le succès « explorateur » (`extra: true`).
 - **Le contenu** (`src/js/academy/content/`) : un fichier par salle, plus `lab.js`, `final.js`, `terms.js` (défi chronométré) et `sources.js` (adresses officielles, date de vérification `CHECKED`). Chargé à la demande, dans un fichier à part sur le site. Pour corriger un contenu, on ne touche qu'à ces fichiers ; `node tests/academy_content.mjs` vérifie la cohérence (sources existantes et toutes citées, une seule meilleure réponse, les deux langues, au moins une question de chaque type par salle).
 
-## Classement partagé (Supabase)
+## Classement partagé (MySQL OVH, API PHP)
 
-Le classement du mini-jeu est commun à tous les visiteurs : projet Supabase gratuit « pierrelogre-classement »
-(région Paris), table `scores` et vue `leaderboard` (meilleur score de chaque pseudo), règles dans
-`supabase/leaderboard.sql` (lecture et ajout seulement, pseudo et score vérifiés, pseudos injurieux refusés,
-anti-spam : 5 scores par pseudo et par minute, 300 par minute, 3 000 par jour). Le site n'a que la clé
-**publishable** (`leaderboard.publishableKey` dans `src/site.config.json`), publique par conception ; le build
-refuse une clé secrète et n'ajoute que ce domaine à la CSP. Si Supabase ne répond pas, le classement retombe
-sur les scores du navigateur, et le carnet de voyage le signale.
+Les classements et la mesure d'audience sont dans la base MySQL 8.4 incluse dans l'hébergement OVH. Cette base
+n'est joignable que depuis les serveurs OVH : le navigateur appelle une petite API PHP du même site, et elle seule
+parle à MySQL. Aucune clé dans le navigateur, aucun domaine extérieur dans la CSP (`connect-src 'self'`).
 
-- Les tests n'écrivent jamais dans le vrai classement : un faux serveur Supabase leur répond.
-- Supabase met en pause un projet gratuit sans activité pendant 7 jours : le workflow
-  `.github/workflows/keepalive.yml` le lit une fois par jour (une fois le dépôt sur GitHub).
-- Vider le classement : Supabase > SQL Editor > `delete from public.scores;` (ou une ligne : `where pseudo = '…'`).
-- Défi du jour : `supabase/daily.sql` (table `daily_times`, vue `daily_leaderboard` = meilleur temps de chaque pseudo
-  par jour, ajout limité à hier / aujourd'hui / demain, 10 s à 2 h, effacement après 30 jours). Client : `topDaily`,
-  `submitDaily` (`leaderboard.js`), carte de fin `dailyboard.js`, top du jour dans le carnet de voyage.
+Chez OVH :
+```
+www/api/scores.php, daily.php, events.php   points d'entrée publics (envoyés avec le site)
+pierrelogre-api/lib/                        code de l'API, hors du dossier public (envoyé par le déploiement)
+pierrelogre-api/cron/tache-planifiee.php    tâche planifiée (toutes les heures) : migrations, puis nettoyage
+pierrelogre-api/migrations/                 migrations de la base (envoyées par le déploiement)
+pierrelogre-api/config.php                  identifiants MySQL + clé des empreintes IP, posé à la main, jamais envoyé ni effacé
+```
+
+- `GET /api/scores.php?game=handball` : meilleur score de chaque pseudo, 10 au plus. `POST` : `{pseudo, score, game}`.
+- `GET /api/daily.php?day=AAAA-MM-JJ` : meilleur temps de chaque pseudo ce jour-là, 10 au plus. `POST` : `{day, pseudo, secs}`.
+- `POST /api/events.php` : un événement ou une liste (50 au plus). Jamais de lecture des événements ni des statistiques.
+- Règles (`server/lib/regles.php`, et en contraintes CHECK dans `server/schema.sql`) : pseudo de 2 à 16 caractères
+  (lettres, chiffres, espace, _ . -) et sans insulte (même liste que `leaderboard.js`), score de 0 à 20 000, jeu
+  « handball », jour entre hier et demain (UTC), temps de 10 s à 2 h, événements de la liste, props < 800 octets.
+- Limites : 5 envois par pseudo et par minute, 300 par minute, 3 000 par jour (scores et temps du jour séparément),
+  20 par minute par adresse IP (empreinte HMAC gardée 24 h, jamais l'adresse) → 429. Événements : 150 par visite et par
+  heure, 30 000 par jour, au-delà ignorés sans erreur.
+- Réponses JSON avec un code HTTP clair et un message `{fr, en}`. Origines acceptées : pierrelogre.com et www.
+- Si l'API ne répond pas ou refuse, le classement retombe sur les scores du navigateur, et le carnet de voyage le signale.
+- Les tests n'écrivent jamais dans le vrai classement : `run_all.py` remplace l'API par un faux serveur ;
+  `api_test.py` teste la vraie API contre un MySQL de test (en CI : PHP 8.5 et MySQL 8.4, comme chez OVH).
+- Changer la structure de la base : ajouter `server/migrations/NNNN_description.sql` (et reporter le changement dans
+  `server/schema.sql`). Le déploiement l'envoie, la tâche planifiée suivante l'applique une seule fois et la note dans
+  `schema_migrations` ; une erreur arrête la suite et apparaît dans le compte rendu de la tâche. Le code de l'API doit
+  marcher avant et après (jusqu'à une heure d'écart). `api_test.py` applique les migrations du dépôt sur une base neuve.
+- Vider le classement : phpMyAdmin > SQL > `DELETE FROM scores;` (ou une ligne : `WHERE pseudo = '…'`).
+- Client : `top`, `submit`, `topDaily`, `submitDaily` (`leaderboard.js`), carte de fin `dailyboard.js`, top du jour dans
+  le carnet de voyage.
 
 ## Langues, référencement (SEO) et assistants IA (GEO)
 
@@ -165,10 +187,10 @@ sur les scores du navigateur, et le carnet de voyage le signale.
    zone, quel que soit le sens du renard (objet tombé dans l'anneau, ou renard dans l'anneau). `test_rings` le vérifie,
    ainsi que chaque zone, glapissement, ramassage, action et carte postale atteignables à pied.
 
-## Mesure d'audience sans cookie (Supabase)
+## Mesure d'audience sans cookie
 
-Même projet Supabase que le classement, règles dans `supabase/stats.sql`. Le collecteur est dans `boot.js`
-(`window.__foxStats`), le jeu y passe par `track()` (`config.js`).
+Même base MySQL que le classement (table `events`, `server/schema.sql`), envoyée à `/api/events.php`. Le collecteur
+est dans `boot.js` (`window.__foxStats`), le jeu y passe par `track()` (`config.js`).
 
 - Envoyé : le nom d'un événement (Visite, Jeu prêt, Partie lancée, Visite guidée finie, Terrier trouvé, Terrier
   ouvert, Clic LinkedIn, Qualité, Bench, Départ…), la langue, la page, le type d'appareil (téléphone, tablette,
@@ -176,12 +198,12 @@ Même projet Supabase que le classement, règles dans `supabase/stats.sql`. Le c
   de visite tiré au hasard à chaque chargement, gardé seulement en mémoire. Ni cookie, ni stockage, ni adresse IP :
   impossible de reconnaître un visiteur d'une fois sur l'autre, d'où l'absence de bandeau de consentement.
 - Coupé hors de pierrelogre.com (tests, aperçu) et si le navigateur demande « Do Not Track » ou GPC.
-- La clé publique ne peut qu'ajouter des événements (ni lecture, ni modification). Anti-abus : 150 événements
-  par visite et par heure, 30 000 par jour. Effacement automatique au bout de 13 mois.
-- Lire les chiffres : Supabase > Table Editor (ou SQL Editor) > vues `stats_jour` (par jour), `stats_entonnoir`
-  (de la visite au clic LinkedIn, 30 jours), `stats_appareils` (chargement, qualité, fluidité par appareil),
+- L'API ne peut qu'ajouter des événements (ni lecture, ni modification). Anti-abus : 150 événements
+  par visite et par heure, 30 000 par jour. Effacement automatique au bout de 13 mois (tâche planifiée).
+- Lire les chiffres : phpMyAdmin > vues `stats_jour` (par jour, heure de Paris), `stats_entonnoir`
+  (de la visite au clic LinkedIn, 30 jours), `stats_appareils` (chargement en vraie médiane, qualité, fluidité),
   `stats_sources` (d'où viennent les visites). Mesures détaillées des téléphones (#bench) :
-  `select at, device, props from events where name = 'Bench' order by at desc;`
+  `SELECT at, device, props FROM events WHERE name = 'Bench' ORDER BY at DESC;`
 - Lien partagé sur LinkedIn : ajouter `?utm_source=linkedin` pour le voir dans `stats_sources`.
 - Umami (facultatif, en plus) : renseigner `umami.src` et `umami.websiteId` dans `src/site.config.json` ; le build
   ajoute le script et autorise son domaine dans la CSP.

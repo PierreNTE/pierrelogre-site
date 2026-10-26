@@ -1,7 +1,8 @@
 
 # Build, tests, puis déploiement sur OVH à chaque push sur main.
-# Le miroir supprime les fichiers distants absents du site local,
-# sauf .ovhconfig.
+# Deux envois :
+#   server/lib, cron, migrations → pierrelogre-api/ (hors du dossier public, jamais config.php)
+#   site/www                 → www/ (le miroir supprime les fichiers distants absents du site local, sauf .ovhconfig)
 #
 # Secrets GitHub requis :
 #   OVH_FTP_HOST      Nom d'hôte SFTP fourni par OVH
@@ -13,14 +14,28 @@ name: Déploiement pierrelogre.com
 on:
   push:
     branches: [main]
+  # Une pull request lance build et tests (sans rien envoyer sur OVH : l'envoi est réservé à main)
+  pull_request:
+    branches: [main]
   workflow_dispatch:
 
-concurrency: deploy
+concurrency: deploy-${{ github.ref }}
 
 jobs:
   build-test-deploy:
     runs-on: ubuntu-24.04
     timeout-minutes: 75
+
+    # MySQL de test pour l'API (même version que l'hébergement OVH) ; jamais la vraie base
+    services:
+      mysql:
+        image: mysql:8.4
+        env:
+          MYSQL_ROOT_PASSWORD: test
+        ports: ['3306:3306']
+        options: >-
+          --health-cmd="mysqladmin ping -h 127.0.0.1 -ptest"
+          --health-interval=5s --health-timeout=5s --health-retries=30
 
     steps:
       # Vérification des secrets OVH
@@ -58,10 +73,28 @@ jobs:
       - name: Build du site
         run: node build.mjs
 
+      # PHP de l'hébergement OVH (8.5), pour tester l'API
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.5'
+          extensions: pdo_mysql, mbstring, intl
+          coverage: none
+
       # Installation de Python pour les tests
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
+
+      # Tests de l'API PHP contre MySQL 8.4 (règles, filtre d'insultes, limites, classements, nettoyage)
+      - name: Tests de l'API (PHP + MySQL)
+        env:
+          MYSQL_HOST: 127.0.0.1
+          MYSQL_USER: root
+          MYSQL_PASSWORD: test
+        run: |
+          php -v | head -1
+          for f in server/lib/*.php server/cron/*.php src/api/*.php; do php -l "$f"; done
+          python tests/api_test.py
 
       # Tests automatisés Chromium
       - name: Tests (Chromium headless)
@@ -89,9 +122,14 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y lftp
 
+          # Code de l'API hors du dossier public : config.php (identifiants, posé à la main) n'est jamais envoyé ni effacé
+          mkdir -p deploy-api
+          cp -r server/lib server/cron server/migrations server/.htaccess deploy-api/
+
           lftp -u "$USER","$PASS" "sftp://$HOST:22" -e "
             set sftp:auto-confirm yes;
             set cmd:fail-exit yes;
+            mirror --reverse --delete --verbose --exclude-glob config.php deploy-api/ pierrelogre-api/;
             mirror --reverse --delete --verbose --exclude-glob .ovhconfig site/www/ www/;
             bye
           "
